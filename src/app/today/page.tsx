@@ -3,18 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import ItemCard from "@/components/ItemCard";
 import SymptomForm from "@/components/SymptomForm";
-import type { Item, TimingSlot } from "@/lib/types";
+import type { Item, ItemType, TimingSlot } from "@/lib/types";
 import {
   getItemsByStatus,
   getTakenMap,
   toggleTaken,
 } from "@/lib/storage";
 import {
+  DAILY_LOGGABLE_TYPES,
   TIMING_LABELS,
   TIMING_ORDER,
   daysSincePostOp,
   todayISO,
 } from "@/lib/constants";
+
+const NON_CHECKOFF_SLOTS: TimingSlot[] = ["situational"];
 
 export default function TodayPage() {
   const [items, setItems] = useState<Item[]>([]);
@@ -33,6 +36,13 @@ export default function TodayPage() {
     })();
   }, [today]);
 
+  // Only daily-loggable types land on Today
+  const daily = useMemo(
+    () =>
+      items.filter((i) => DAILY_LOGGABLE_TYPES.includes(i.item_type as ItemType)),
+    [items],
+  );
+
   const grouped = useMemo(() => {
     const map: Record<TimingSlot, Item[]> = {
       pre_breakfast: [],
@@ -41,17 +51,18 @@ export default function TodayPage() {
       lunch: [],
       dinner: [],
       pre_bed: [],
+      ongoing: [],
       situational: [],
     };
-    for (const item of items) map[item.timing_slot].push(item);
+    for (const item of daily) map[item.timing_slot].push(item);
     return map;
-  }, [items]);
+  }, [daily]);
 
-  const totalActive = items.filter((i) => i.timing_slot !== "situational").length;
-  const takenCount = items
-    .filter((i) => i.timing_slot !== "situational")
-    .filter((i) => taken[i.id])
-    .length;
+  const checkoffItems = daily.filter(
+    (i) => !NON_CHECKOFF_SLOTS.includes(i.timing_slot),
+  );
+  const totalActive = checkoffItems.length;
+  const takenCount = checkoffItems.filter((i) => taken[i.id]).length;
 
   async function handleToggle(id: string) {
     const newVal = await toggleTaken(today, id);
@@ -103,8 +114,11 @@ export default function TodayPage() {
                   key={item.id}
                   item={item}
                   taken={taken[item.id] ?? false}
-                  onToggle={slot !== "situational" ? handleToggle : undefined}
+                  onToggle={
+                    NON_CHECKOFF_SLOTS.includes(slot) ? undefined : handleToggle
+                  }
                   showGoals={false}
+                  showTypeIcon={false}
                 />
               ))}
             </div>

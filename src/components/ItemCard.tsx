@@ -2,7 +2,7 @@
 
 import type { Item } from "@/lib/types";
 import CategoryBadge from "./CategoryBadge";
-import { GOAL_LABELS } from "@/lib/constants";
+import { GOAL_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
 
 type Props = {
   item: Item;
@@ -10,6 +10,7 @@ type Props = {
   onToggle?: (id: string) => void;
   showGoals?: boolean;
   showTrigger?: boolean;
+  showTypeIcon?: boolean;
 };
 
 export default function ItemCard({
@@ -18,8 +19,10 @@ export default function ItemCard({
   onToggle,
   showGoals = true,
   showTrigger = false,
+  showTypeIcon = true,
 }: Props) {
   const interactive = typeof onToggle === "function";
+  const typeIcon = ITEM_TYPE_ICONS[item.item_type] ?? "";
 
   return (
     <div
@@ -29,7 +32,7 @@ export default function ItemCard({
         opacity: taken ? 0.72 : 1,
       }}
     >
-      {interactive && (
+      {interactive ? (
         <button
           onClick={() => onToggle?.(item.id)}
           className="mt-0.5 shrink-0 h-6 w-6 rounded-full flex items-center justify-center border-hair-strong transition-colors"
@@ -45,7 +48,14 @@ export default function ItemCard({
             </svg>
           )}
         </button>
-      )}
+      ) : showTypeIcon && typeIcon ? (
+        <div
+          className="mt-0.5 shrink-0 h-6 w-6 flex items-center justify-center text-[15px] leading-none"
+          aria-hidden
+        >
+          {typeIcon}
+        </div>
+      ) : null}
 
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
@@ -75,8 +85,8 @@ export default function ItemCard({
           className="text-[13px] mt-1"
           style={{ color: "var(--muted)" }}
         >
-          {item.dose}
-          {item.schedule_rule.notes && (
+          {item.dose ?? "—"}
+          {item.schedule_rule?.notes && (
             <span> · {item.schedule_rule.notes}</span>
           )}
         </div>

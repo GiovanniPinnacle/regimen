@@ -1,9 +1,14 @@
-"use client";
-
 import Link from "next/link";
 import SignOutButton from "@/components/SignOutButton";
+import SyncSeedButton from "@/components/SyncSeedButton";
 
 const LINKS = [
+  {
+    href: "/items/new",
+    label: "Add item",
+    desc: "Supplement, topical, device, practice, food, gear",
+    emphasized: true,
+  },
   {
     href: "/data",
     label: "Data imports",
@@ -41,12 +46,26 @@ export default function MorePage() {
             key={l.href}
             href={l.href}
             className="border-hair rounded-xl p-4 flex items-center justify-between gap-3"
+            style={
+              l.emphasized
+                ? {
+                    background: "var(--foreground)",
+                    color: "var(--background)",
+                  }
+                : undefined
+            }
           >
             <div>
               <div className="text-[15px]" style={{ fontWeight: 500 }}>
                 {l.label}
               </div>
-              <div className="text-[13px]" style={{ color: "var(--muted)" }}>
+              <div
+                className="text-[13px]"
+                style={{
+                  color: l.emphasized ? "var(--background)" : "var(--muted)",
+                  opacity: l.emphasized ? 0.75 : 1,
+                }}
+              >
                 {l.desc}
               </div>
             </div>
@@ -59,7 +78,10 @@ export default function MorePage() {
               strokeWidth="1.6"
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{ color: "var(--muted)" }}
+              style={{
+                color: l.emphasized ? "var(--background)" : "var(--muted)",
+                opacity: l.emphasized ? 0.75 : 1,
+              }}
             >
               <path d="M9 6l6 6-6 6" />
             </svg>
@@ -68,6 +90,16 @@ export default function MorePage() {
       </div>
 
       <section className="mt-10">
+        <h2
+          className="text-[11px] uppercase tracking-wider mb-3"
+          style={{ color: "var(--muted)", fontWeight: 500 }}
+        >
+          Maintenance
+        </h2>
+        <SyncSeedButton />
+      </section>
+
+      <section className="mt-6">
         <h2
           className="text-[11px] uppercase tracking-wider mb-3"
           style={{ color: "var(--muted)", fontWeight: 500 }}

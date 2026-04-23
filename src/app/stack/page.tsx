@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import ItemCard from "@/components/ItemCard";
 import { getItemsByStatus } from "@/lib/storage";
-import type { Category, Goal, Item } from "@/lib/types";
-import { CATEGORY_COLORS, GOAL_LABELS } from "@/lib/constants";
+import type { Category, Goal, Item, ItemType } from "@/lib/types";
+import {
+  CATEGORY_COLORS,
+  GOAL_LABELS,
+  ITEM_TYPE_LABELS,
+  ITEM_TYPE_ICONS,
+} from "@/lib/constants";
 
 const CATEGORY_FILTERS: Array<{ value: "all" | Category; label: string }> = [
   { value: "all", label: "All" },
@@ -15,10 +21,24 @@ const CATEGORY_FILTERS: Array<{ value: "all" | Category; label: string }> = [
   { value: "situational", label: "Situational" },
 ];
 
+const TYPE_FILTERS: Array<{ value: "all" | ItemType; label: string }> = [
+  { value: "all", label: "All types" },
+  { value: "supplement", label: "💊 Supps" },
+  { value: "topical", label: "🧴 Topicals" },
+  { value: "device", label: "📟 Devices" },
+  { value: "procedure", label: "🏥 Procedures" },
+  { value: "practice", label: "🧘 Practices" },
+  { value: "food", label: "🥑 Food" },
+  { value: "gear", label: "🛏️ Gear" },
+  { value: "test", label: "🧪 Tests" },
+];
+
 export default function StackPage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [typeFilter, setTypeFilter] = useState<"all" | ItemType>("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | Category>("all");
   const [goalFilter, setGoalFilter] = useState<"all" | Goal>("all");
+  const [groupByType, setGroupByType] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,11 +57,29 @@ export default function StackPage() {
 
   const filtered = useMemo(() => {
     return items.filter((i) => {
-      if (categoryFilter !== "all" && i.category !== categoryFilter) return false;
+      if (typeFilter !== "all" && i.item_type !== typeFilter) return false;
+      if (categoryFilter !== "all" && i.category !== categoryFilter)
+        return false;
       if (goalFilter !== "all" && !i.goals.includes(goalFilter)) return false;
       return true;
     });
-  }, [items, categoryFilter, goalFilter]);
+  }, [items, typeFilter, categoryFilter, goalFilter]);
+
+  const grouped = useMemo(() => {
+    if (!groupByType) return null;
+    const map: Record<ItemType, Item[]> = {
+      supplement: [],
+      topical: [],
+      device: [],
+      procedure: [],
+      practice: [],
+      food: [],
+      gear: [],
+      test: [],
+    };
+    for (const item of filtered) map[item.item_type].push(item);
+    return map;
+  }, [filtered, groupByType]);
 
   if (loading) {
     return (
@@ -52,17 +90,54 @@ export default function StackPage() {
   }
 
   return (
-    <div className="pb-24">
-      <header className="mb-5">
-        <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
-          Stack
-        </h1>
-        <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          {filtered.length} of {items.length} active items
+    <div className="pb-28">
+      <header className="mb-5 flex items-start justify-between">
+        <div>
+          <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+            Stack
+          </h1>
+          <div
+            className="text-[13px] mt-1"
+            style={{ color: "var(--muted)" }}
+          >
+            {filtered.length} of {items.length} active items
+          </div>
         </div>
+        <Link
+          href="/items/new"
+          className="shrink-0 px-3 py-2 rounded-lg text-[13px]"
+          style={{
+            background: "var(--foreground)",
+            color: "var(--background)",
+            fontWeight: 500,
+          }}
+        >
+          + Add item
+        </Link>
       </header>
 
-      {/* Category filter chips */}
+      {/* Type filter */}
+      <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-2">
+        {TYPE_FILTERS.map((f) => {
+          const active = typeFilter === f.value;
+          return (
+            <button
+              key={f.value}
+              onClick={() => setTypeFilter(f.value)}
+              className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap border-hair"
+              style={{
+                background: active ? "var(--foreground)" : "var(--background)",
+                color: active ? "var(--background)" : "var(--muted)",
+                fontWeight: active ? 500 : 400,
+              }}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Category filter */}
       <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-2">
         {CATEGORY_FILTERS.map((f) => {
           const active = categoryFilter === f.value;
@@ -72,7 +147,7 @@ export default function StackPage() {
             <button
               key={f.value}
               onClick={() => setCategoryFilter(f.value)}
-              className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap border-hair transition-colors"
+              className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap border-hair"
               style={{
                 background: active
                   ? colors?.bg ?? "var(--foreground)"
@@ -90,8 +165,8 @@ export default function StackPage() {
         })}
       </div>
 
-      {/* Goal filter chips */}
-      <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-5">
+      {/* Goal filter */}
+      <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-4">
         <button
           onClick={() => setGoalFilter("all")}
           className="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap border-hair"
@@ -119,19 +194,56 @@ export default function StackPage() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-2">
-        {filtered.map((item) => (
-          <ItemCard key={item.id} item={item} />
-        ))}
-        {filtered.length === 0 && (
-          <div
-            className="text-[13px] text-center py-10"
-            style={{ color: "var(--muted)" }}
-          >
-            No items match your filters.
-          </div>
-        )}
+      {/* Group toggle */}
+      <div className="flex justify-end mb-3">
+        <button
+          onClick={() => setGroupByType(!groupByType)}
+          className="text-[11px]"
+          style={{ color: "var(--muted)" }}
+        >
+          {groupByType ? "Show flat list" : "Group by type"}
+        </button>
       </div>
+
+      {/* List */}
+      {groupByType && grouped ? (
+        <div className="flex flex-col gap-8">
+          {(Object.keys(grouped) as ItemType[]).map((t) => {
+            const list = grouped[t];
+            if (list.length === 0) return null;
+            return (
+              <section key={t}>
+                <h2
+                  className="text-[11px] uppercase tracking-wider mb-2"
+                  style={{ color: "var(--muted)", fontWeight: 500 }}
+                >
+                  {ITEM_TYPE_ICONS[t]} {ITEM_TYPE_LABELS[t]} ({list.length})
+                </h2>
+                <div className="flex flex-col gap-2">
+                  {list.map((item) => (
+                    <ItemCard key={item.id} item={item} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {filtered.map((item) => (
+            <ItemCard key={item.id} item={item} />
+          ))}
+        </div>
+      )}
+
+      {filtered.length === 0 && (
+        <div
+          className="text-[13px] text-center py-10"
+          style={{ color: "var(--muted)" }}
+        >
+          No items match your filters.
+        </div>
+      )}
     </div>
   );
 }

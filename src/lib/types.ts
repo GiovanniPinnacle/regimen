@@ -7,7 +7,8 @@ export type TimingSlot =
   | "lunch"
   | "dinner"
   | "pre_bed"
-  | "situational";
+  | "situational"
+  | "ongoing";
 
 export type Category =
   | "permanent"
@@ -21,7 +22,8 @@ export type Frequency =
   | "weekly"
   | "cycle_8_2"
   | "situational"
-  | "as_needed";
+  | "as_needed"
+  | "ongoing";
 
 export type Goal =
   | "hair"
@@ -36,9 +38,20 @@ export type Goal =
   | "skin_joints"
   | "AGA"
   | "seb_derm"
-  | "longevity";
+  | "longevity"
+  | "recovery";
 
 export type Status = "active" | "queued" | "backburner" | "retired";
+
+export type ItemType =
+  | "supplement"
+  | "topical"
+  | "device"
+  | "procedure"
+  | "practice"
+  | "food"
+  | "gear"
+  | "test";
 
 export type ScheduleRule = {
   frequency: Frequency;
@@ -51,15 +64,18 @@ export type ScheduleRule = {
 
 export type Item = {
   id: string;
+  user_id?: string;
+  seed_id?: string; // if seeded, matches a known seed constant
   name: string;
   brand?: string;
-  dose: string;
+  dose?: string;
   unit?: string;
   timing_slot: TimingSlot;
   schedule_rule: ScheduleRule;
   category: Category;
+  item_type: ItemType;
   goals: Goal[];
-  started_on?: string; // ISO date
+  started_on?: string;
   ends_on?: string;
   review_trigger?: string;
   status: Status;
@@ -70,20 +86,20 @@ export type Item = {
 
 export type StackLogEntry = {
   id: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   item_id: string;
   taken: boolean;
   skipped_reason?: string;
-  logged_at: string; // ISO timestamp
+  logged_at: string;
 };
 
 export type SymptomLog = {
-  date: string; // YYYY-MM-DD (unique)
-  feel_score?: number; // 1-10
-  sleep_quality?: number; // 1-10
-  seb_derm_score?: number; // 0-10 (0=clear, 10=flare)
-  stress?: number; // 1-10
-  energy_pm?: number; // 1-10
+  date: string;
+  feel_score?: number;
+  sleep_quality?: number;
+  seb_derm_score?: number;
+  stress?: number;
+  energy_pm?: number;
   notes?: string;
 };
 

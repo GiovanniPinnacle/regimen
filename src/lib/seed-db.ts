@@ -1,18 +1,19 @@
-// Server-side seed. Runs once per user on first sign-in.
-// Uses the admin (service_role) client to insert on the user's behalf,
-// stamping each row with their user_id.
+// Server-side seed sync. Runs on every sign-in.
+// IDEMPOTENT: only inserts seed items the user doesn't already have (matched by seed_id).
+// Safe to re-run. Expands as we add new seed items over time.
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SEED_ITEMS, QUEUED_ITEMS, BACKBURNER_ITEMS } from "@/lib/seed";
 import type { Item } from "@/lib/types";
 
-type DbItem = Omit<Item, "id" | "created_at"> & {
+type DbInsert = Omit<Item, "id" | "created_at" | "user_id"> & {
   user_id: string;
 };
 
-function toDbItem(item: Item, user_id: string): DbItem {
+function toDbRow(item: Item, user_id: string): DbInsert {
   return {
     user_id,
+    seed_id: item.seed_id ?? item.id,
     name: item.name,
     brand: item.brand,
     dose: item.dose,
@@ -20,6 +21,7 @@ function toDbItem(item: Item, user_id: string): DbItem {
     timing_slot: item.timing_slot,
     schedule_rule: item.schedule_rule,
     category: item.category,
+    item_type: item.item_type,
     goals: item.goals,
     started_on: item.started_on,
     ends_on: item.ends_on,
@@ -30,34 +32,49 @@ function toDbItem(item: Item, user_id: string): DbItem {
   };
 }
 
-export async function seedUserIfEmpty(user_id: string): Promise<void> {
+/**
+ * Ensure every seed item exists for this user. Inserts only the missing ones.
+ * Legacy name: seedUserIfEmpty — kept as an alias for backwards compat.
+ */
+export async function syncSeed(user_id: string): Promise<number> {
   const admin = createAdminClient();
 
-  // Count existing items for this user
-  const { count, error: countError } = await admin
+  // Fetch the set of seed_ids this user already has
+  const { data: existing, error: fetchErr } = await admin
     .from("items")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user_id);
+    .select("seed_id")
+    .eq("user_id", user_id)
+    .not("seed_id", "is", null);
 
-  if (countError) {
-    console.error("seedUserIfEmpty count error", countError);
-    return;
+  if (fetchErr) {
+    console.error("syncSeed fetch error", fetchErr);
+    return 0;
   }
 
-  if ((count ?? 0) > 0) {
-    // Already seeded — no-op
-    return;
-  }
+  const have = new Set<string>(
+    (existing ?? []).map((r) => r.seed_id as string).filter(Boolean),
+  );
 
-  const rows: DbItem[] = [
-    ...SEED_ITEMS.map((i) => toDbItem(i, user_id)),
-    ...QUEUED_ITEMS.map((i) => toDbItem(i, user_id)),
-    ...BACKBURNER_ITEMS.map((i) => toDbItem(i, user_id)),
+  const allSeeds: Item[] = [
+    ...SEED_ITEMS,
+    ...QUEUED_ITEMS,
+    ...BACKBURNER_ITEMS,
   ];
 
+  const toInsert = allSeeds.filter(
+    (s) => s.seed_id && !have.has(s.seed_id),
+  );
+
+  if (toInsert.length === 0) return 0;
+
+  const rows = toInsert.map((i) => toDbRow(i, user_id));
   const { error } = await admin.from("items").insert(rows);
   if (error) {
-    console.error("seedUserIfEmpty insert error", error);
+    console.error("syncSeed insert error", error);
     throw error;
   }
+  return rows.length;
 }
+
+// Backwards compat for existing import paths
+export const seedUserIfEmpty = syncSeed;

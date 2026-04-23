@@ -1,4 +1,4 @@
-import type { Category, Goal, TimingSlot } from "./types";
+import type { Category, Goal, ItemType, TimingSlot } from "./types";
 
 // Category colors — Anthropic-style, flat pills
 export const CATEGORY_COLORS: Record<
@@ -20,9 +20,9 @@ export const TIMING_LABELS: Record<TimingSlot, string> = {
   dinner: "Dinner",
   pre_bed: "Pre-bed",
   situational: "Situational",
+  ongoing: "Ongoing",
 };
 
-// Ordered for Today tab timeline
 export const TIMING_ORDER: TimingSlot[] = [
   "pre_breakfast",
   "breakfast",
@@ -30,6 +30,7 @@ export const TIMING_ORDER: TimingSlot[] = [
   "lunch",
   "dinner",
   "pre_bed",
+  "ongoing",
   "situational",
 ];
 
@@ -47,7 +48,38 @@ export const GOAL_LABELS: Record<Goal, string> = {
   AGA: "AGA",
   seb_derm: "Seb derm",
   longevity: "Longevity",
+  recovery: "Recovery",
 };
+
+export const ITEM_TYPE_LABELS: Record<ItemType, string> = {
+  supplement: "Supplement",
+  topical: "Topical",
+  device: "Device",
+  procedure: "Procedure",
+  practice: "Practice",
+  food: "Food",
+  gear: "Gear",
+  test: "Test",
+};
+
+export const ITEM_TYPE_ICONS: Record<ItemType, string> = {
+  supplement: "💊",
+  topical: "🧴",
+  device: "📟",
+  procedure: "🏥",
+  practice: "🧘",
+  food: "🥑",
+  gear: "🛏️",
+  test: "🧪",
+};
+
+// Types that appear on Today tab (daily check-off worthy)
+export const DAILY_LOGGABLE_TYPES: ItemType[] = [
+  "supplement",
+  "topical",
+  "practice",
+  "food",
+];
 
 // Post-op day zero = 2026-04-17 (FUE surgery date)
 export const POSTOP_DATE_ZERO = "2026-04-17";
