@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import TabNav from "@/components/TabNav";
+import AskClaude from "@/components/AskClaude";
 
 export const metadata: Metadata = {
   title: "Regimen",
@@ -32,6 +33,7 @@ export default function RootLayout({
         <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-8">
           {children}
         </main>
+        <AskClaude />
         <TabNav />
       </body>
     </html>
