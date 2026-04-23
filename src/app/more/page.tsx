@@ -10,9 +10,14 @@ const LINKS = [
     emphasized: true,
   },
   {
+    href: "/backburner",
+    label: "Parked (back burner)",
+    desc: "Items parked with revisit conditions",
+  },
+  {
     href: "/data",
     label: "Data imports",
-    desc: "Oura CSV, bloodwork PDFs, photos",
+    desc: "Oura CSV, bloodwork PDFs",
   },
   {
     href: "/reviews",
