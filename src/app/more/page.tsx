@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { resetToSeed } from "@/lib/storage";
-import { useState } from "react";
+import SignOutButton from "@/components/SignOutButton";
 
 const LINKS = [
   {
@@ -28,18 +27,6 @@ const LINKS = [
 ];
 
 export default function MorePage() {
-  const [confirming, setConfirming] = useState(false);
-
-  async function handleReset() {
-    if (!confirming) {
-      setConfirming(true);
-      setTimeout(() => setConfirming(false), 3000);
-      return;
-    }
-    await resetToSeed();
-    window.location.reload();
-  }
-
   return (
     <div className="pb-24">
       <header className="mb-6">
@@ -85,17 +72,9 @@ export default function MorePage() {
           className="text-[11px] uppercase tracking-wider mb-3"
           style={{ color: "var(--muted)", fontWeight: 500 }}
         >
-          Danger zone
+          Account
         </h2>
-        <button
-          onClick={handleReset}
-          className="border-hair rounded-xl p-4 text-[13px] w-full text-left"
-          style={{ color: confirming ? "#b00020" : "var(--muted)" }}
-        >
-          {confirming
-            ? "Tap again to confirm — this wipes all logs and resets to seed data."
-            : "Reset local data to seed"}
-        </button>
+        <SignOutButton />
       </section>
     </div>
   );

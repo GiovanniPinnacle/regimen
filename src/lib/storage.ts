@@ -1,159 +1,214 @@
-// LocalStorage-backed data layer.
-// Designed with async signatures so we can swap to Supabase later
-// without changing any component code.
+// Supabase-backed data layer.
+// Uses the browser client — RLS ensures each user sees only their own rows.
+// Interface is async and mirrors the previous localStorage version
+// so components didn't need to change.
 
-import type { Item, StackLogEntry, SymptomLog, ChangelogEntry } from "./types";
-import {
-  SEED_ITEMS,
-  QUEUED_ITEMS,
-  BACKBURNER_ITEMS,
-} from "./seed";
+"use client";
 
-const KEYS = {
-  ITEMS: "regimen.items.v1",
-  STACK_LOG: "regimen.stackLog.v1",
-  SYMPTOM_LOG: "regimen.symptomLog.v1",
-  CHANGELOG: "regimen.changelog.v1",
-  SEEDED: "regimen.seeded.v1",
-};
+import { createClient } from "@/lib/supabase/client";
+import type {
+  ChangelogEntry,
+  Item,
+  StackLogEntry,
+  SymptomLog,
+} from "./types";
 
-// ---------- LocalStorage helpers (SSR-safe) ----------
-function isBrowser(): boolean {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
-}
-
-function read<T>(key: string, fallback: T): T {
-  if (!isBrowser()) return fallback;
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function write<T>(key: string, value: T): void {
-  if (!isBrowser()) return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.error("storage.write failed", key, e);
-  }
-}
-
-// ---------- First-run seeding ----------
-export async function ensureSeeded(): Promise<void> {
-  if (!isBrowser()) return;
-  if (window.localStorage.getItem(KEYS.SEEDED) === "true") return;
-  const allSeed: Item[] = [...SEED_ITEMS, ...QUEUED_ITEMS, ...BACKBURNER_ITEMS];
-  write(KEYS.ITEMS, allSeed);
-  window.localStorage.setItem(KEYS.SEEDED, "true");
-}
-
-export async function resetToSeed(): Promise<void> {
-  if (!isBrowser()) return;
-  window.localStorage.removeItem(KEYS.ITEMS);
-  window.localStorage.removeItem(KEYS.STACK_LOG);
-  window.localStorage.removeItem(KEYS.SYMPTOM_LOG);
-  window.localStorage.removeItem(KEYS.CHANGELOG);
-  window.localStorage.removeItem(KEYS.SEEDED);
-  await ensureSeeded();
+function supa() {
+  return createClient();
 }
 
 // ---------- Items ----------
 export async function getAllItems(): Promise<Item[]> {
-  await ensureSeeded();
-  return read<Item[]>(KEYS.ITEMS, []);
+  const { data, error } = await supa()
+    .from("items")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("getAllItems", error);
+    return [];
+  }
+  return (data ?? []) as Item[];
 }
 
 export async function getItemsByStatus(
   status: Item["status"],
 ): Promise<Item[]> {
-  const all = await getAllItems();
-  return all.filter((i) => i.status === status);
+  const { data, error } = await supa()
+    .from("items")
+    .select("*")
+    .eq("status", status)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("getItemsByStatus", error);
+    return [];
+  }
+  return (data ?? []) as Item[];
 }
 
 export async function getItem(id: string): Promise<Item | null> {
-  const all = await getAllItems();
-  return all.find((i) => i.id === id) ?? null;
+  const { data, error } = await supa()
+    .from("items")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    console.error("getItem", error);
+    return null;
+  }
+  return data as Item | null;
 }
 
 export async function upsertItem(item: Item): Promise<void> {
-  const all = await getAllItems();
-  const idx = all.findIndex((i) => i.id === item.id);
-  if (idx >= 0) {
-    all[idx] = item;
-  } else {
-    all.push(item);
-  }
-  write(KEYS.ITEMS, all);
+  const { error } = await supa().from("items").upsert(item);
+  if (error) console.error("upsertItem", error);
 }
 
 // ---------- Stack log (daily check-offs) ----------
 export async function getStackLog(date: string): Promise<StackLogEntry[]> {
-  const log = read<StackLogEntry[]>(KEYS.STACK_LOG, []);
-  return log.filter((e) => e.date === date);
+  const { data, error } = await supa()
+    .from("stack_log")
+    .select("*")
+    .eq("date", date);
+  if (error) {
+    console.error("getStackLog", error);
+    return [];
+  }
+  return (data ?? []) as unknown as StackLogEntry[];
 }
 
-export async function getTakenMap(date: string): Promise<Record<string, boolean>> {
+export async function getTakenMap(
+  date: string,
+): Promise<Record<string, boolean>> {
   const entries = await getStackLog(date);
   const map: Record<string, boolean> = {};
   for (const e of entries) map[e.item_id] = e.taken;
   return map;
 }
 
-export async function toggleTaken(date: string, itemId: string): Promise<boolean> {
-  const log = read<StackLogEntry[]>(KEYS.STACK_LOG, []);
-  const existing = log.find((e) => e.date === date && e.item_id === itemId);
+export async function toggleTaken(
+  date: string,
+  itemId: string,
+): Promise<boolean> {
+  const client = supa();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user) return false;
+
+  // Check current state
+  const { data: existing } = await client
+    .from("stack_log")
+    .select("id,taken")
+    .eq("date", date)
+    .eq("item_id", itemId)
+    .maybeSingle();
+
   if (existing) {
-    existing.taken = !existing.taken;
-    existing.logged_at = new Date().toISOString();
-    write(KEYS.STACK_LOG, log);
-    return existing.taken;
+    const newTaken = !existing.taken;
+    const { error } = await client
+      .from("stack_log")
+      .update({ taken: newTaken, logged_at: new Date().toISOString() })
+      .eq("id", existing.id);
+    if (error) console.error("toggleTaken update", error);
+    return newTaken;
+  } else {
+    const { error } = await client.from("stack_log").insert({
+      user_id: user.id,
+      date,
+      item_id: itemId,
+      taken: true,
+      logged_at: new Date().toISOString(),
+    });
+    if (error) console.error("toggleTaken insert", error);
+    return true;
   }
-  const entry: StackLogEntry = {
-    id: `${date}_${itemId}_${Date.now()}`,
-    date,
-    item_id: itemId,
-    taken: true,
-    logged_at: new Date().toISOString(),
-  };
-  log.push(entry);
-  write(KEYS.STACK_LOG, log);
-  return true;
 }
 
 // ---------- Symptom log ----------
-export async function getSymptomLog(date: string): Promise<SymptomLog | null> {
-  const all = read<SymptomLog[]>(KEYS.SYMPTOM_LOG, []);
-  return all.find((s) => s.date === date) ?? null;
+export async function getSymptomLog(
+  date: string,
+): Promise<SymptomLog | null> {
+  const { data, error } = await supa()
+    .from("symptom_log")
+    .select("*")
+    .eq("date", date)
+    .maybeSingle();
+  if (error) {
+    console.error("getSymptomLog", error);
+    return null;
+  }
+  return data as SymptomLog | null;
 }
 
 export async function saveSymptomLog(log: SymptomLog): Promise<void> {
-  const all = read<SymptomLog[]>(KEYS.SYMPTOM_LOG, []);
-  const idx = all.findIndex((s) => s.date === log.date);
-  if (idx >= 0) all[idx] = log;
-  else all.push(log);
-  write(KEYS.SYMPTOM_LOG, all);
+  const client = supa();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user) return;
+  const { error } = await client.from("symptom_log").upsert(
+    {
+      user_id: user.id,
+      date: log.date,
+      feel_score: log.feel_score,
+      sleep_quality: log.sleep_quality,
+      seb_derm_score: log.seb_derm_score,
+      stress: log.stress,
+      energy_pm: log.energy_pm,
+      notes: log.notes,
+    },
+    { onConflict: "user_id,date" },
+  );
+  if (error) console.error("saveSymptomLog", error);
 }
 
-export async function getRecentSymptomLogs(days: number): Promise<SymptomLog[]> {
-  const all = read<SymptomLog[]>(KEYS.SYMPTOM_LOG, []);
-  return all
-    .sort((a, b) => (a.date < b.date ? 1 : -1))
-    .slice(0, days);
+export async function getRecentSymptomLogs(
+  days: number,
+): Promise<SymptomLog[]> {
+  const { data, error } = await supa()
+    .from("symptom_log")
+    .select("*")
+    .order("date", { ascending: false })
+    .limit(days);
+  if (error) {
+    console.error("getRecentSymptomLogs", error);
+    return [];
+  }
+  return (data ?? []) as SymptomLog[];
 }
 
 // ---------- Changelog ----------
 export async function getChangelog(): Promise<ChangelogEntry[]> {
-  return read<ChangelogEntry[]>(KEYS.CHANGELOG, []).sort((a, b) =>
-    a.date < b.date ? 1 : -1,
-  );
+  const { data, error } = await supa()
+    .from("changelog")
+    .select("*")
+    .order("date", { ascending: false });
+  if (error) {
+    console.error("getChangelog", error);
+    return [];
+  }
+  return (data ?? []) as unknown as ChangelogEntry[];
 }
 
 export async function addChangelog(entry: ChangelogEntry): Promise<void> {
-  const all = await getChangelog();
-  all.push(entry);
-  write(KEYS.CHANGELOG, all);
+  const client = supa();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user) return;
+  const { error } = await client.from("changelog").insert({
+    user_id: user.id,
+    ...entry,
+  });
+  if (error) console.error("addChangelog", error);
+}
+
+// ---------- Legacy no-ops for backwards-compat ----------
+export async function ensureSeeded(): Promise<void> {
+  // Seeding happens server-side in /auth/callback on first sign-in.
+}
+
+export async function resetToSeed(): Promise<void> {
+  // Disabled in cloud mode. Would need admin route.
+  console.warn("resetToSeed not supported in cloud mode");
 }
