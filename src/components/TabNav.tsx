@@ -1,0 +1,105 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+type Tab = {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+};
+
+const TABS: Tab[] = [
+  {
+    href: "/today",
+    label: "Today",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="17" rx="2" />
+        <path d="M3 10h18" />
+        <path d="M8 2v4M16 2v4" />
+      </svg>
+    ),
+  },
+  {
+    href: "/stack",
+    label: "Stack",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="4" rx="1" />
+        <rect x="3" y="10" width="18" height="4" rx="1" />
+        <rect x="3" y="16" width="18" height="4" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    href: "/queued",
+    label: "Queued",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </svg>
+    ),
+  },
+  {
+    href: "/backburner",
+    label: "Parked",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 6L9 17l-5-5" />
+      </svg>
+    ),
+  },
+  {
+    href: "/more",
+    label: "More",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="5" cy="12" r="1.5" />
+        <circle cx="12" cy="12" r="1.5" />
+        <circle cx="19" cy="12" r="1.5" />
+      </svg>
+    ),
+  },
+];
+
+export default function TabNav() {
+  const pathname = usePathname();
+  return (
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 border-hair-t"
+      style={{
+        background: "var(--background)",
+        paddingBottom: "env(safe-area-inset-bottom, 0)",
+      }}
+    >
+      <ul className="max-w-3xl mx-auto grid grid-cols-5">
+        {TABS.map((tab) => {
+          const active =
+            pathname === tab.href ||
+            (tab.href !== "/" && pathname?.startsWith(tab.href));
+          return (
+            <li key={tab.href}>
+              <Link
+                href={tab.href}
+                className="flex flex-col items-center justify-center gap-1 py-3 w-full"
+                style={{
+                  color: active ? "var(--foreground)" : "var(--muted)",
+                }}
+              >
+                <span style={{ opacity: active ? 1 : 0.8 }}>{tab.icon}</span>
+                <span
+                  className="text-[11px]"
+                  style={{ fontWeight: active ? 500 : 400 }}
+                >
+                  {tab.label}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
