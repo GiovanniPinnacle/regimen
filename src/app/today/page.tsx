@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ItemCard from "@/components/ItemCard";
 import SymptomForm from "@/components/SymptomForm";
+import InsightsBanner from "@/components/InsightsBanner";
 import type { Item, ItemType, TimingSlot } from "@/lib/types";
 import {
   getItemsByStatus,
@@ -96,6 +97,8 @@ export default function TodayPage() {
           {dateLabel} · Day {dayPostOp} post-op · {takenCount}/{totalActive} logged
         </div>
       </header>
+
+      <InsightsBanner />
 
       {TIMING_ORDER.map((slot) => {
         const list = grouped[slot];
