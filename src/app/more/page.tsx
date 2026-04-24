@@ -6,10 +6,15 @@ import OuraSettings from "@/components/OuraSettings";
 
 const LINKS = [
   {
+    href: "/profile",
+    label: "Profile + portions",
+    desc: "Weight, activity, goals → macro targets + per-meal portions",
+    emphasized: true,
+  },
+  {
     href: "/audit",
     label: "Stack audit",
     desc: "Mark what you have vs need to order — fast, one-tap",
-    emphasized: true,
   },
   {
     href: "/purchases",

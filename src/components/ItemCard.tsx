@@ -125,6 +125,38 @@ export default function ItemCard({
             ))}
           </div>
         )}
+
+        {item.__companions && item.__companions.length > 0 && (
+          <div
+            className="mt-3 pt-3 flex flex-col gap-1.5"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
+            <div
+              className="text-[10px] uppercase tracking-wider"
+              style={{ color: "var(--muted)", fontWeight: 500 }}
+            >
+              Companions
+            </div>
+            {item.__companions.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-baseline gap-2 text-[13px]"
+                style={{ color: "var(--muted)" }}
+              >
+                <span>+</span>
+                <span style={{ fontWeight: 500, color: "var(--foreground)" }}>
+                  {c.name}
+                </span>
+                {c.dose && <span>· {c.dose}</span>}
+                {c.companion_instruction && (
+                  <span style={{ fontStyle: "italic" }}>
+                    · {c.companion_instruction}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

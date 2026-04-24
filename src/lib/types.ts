@@ -82,7 +82,11 @@ export type Item = {
   owned?: boolean | null; // null = not yet audited, true = have, false = need to order
   notes?: string;
   purchase_url?: string;
+  companion_of?: string | null; // item.id of parent — this item nests under parent on Today
+  companion_instruction?: string | null; // e.g. "stir into coffee"
   created_at?: string;
+  // Transient/rendering-only — populated client-side
+  __companions?: Item[];
 };
 
 export type StackLogEntry = {

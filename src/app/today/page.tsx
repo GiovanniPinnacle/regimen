@@ -77,7 +77,27 @@ export default function TodayPage() {
       ongoing: [],
       situational: [],
     };
-    for (const item of daily) map[item.timing_slot].push(item);
+    // Separate companions from their parents so we render them nested
+    const companionsByParent: Record<string, Item[]> = {};
+    for (const item of daily) {
+      if (item.companion_of) {
+        if (!companionsByParent[item.companion_of]) {
+          companionsByParent[item.companion_of] = [];
+        }
+        companionsByParent[item.companion_of].push(item);
+      }
+    }
+    for (const item of daily) {
+      // Only push parent items into timing slots (companions render within parents)
+      if (!item.companion_of) map[item.timing_slot].push(item);
+    }
+    // Stash companions on the parent for rendering
+    for (const slot of TIMING_ORDER) {
+      map[slot] = map[slot].map((parent) => ({
+        ...parent,
+        __companions: companionsByParent[parent.id] ?? [],
+      })) as Item[];
+    }
     return map;
   }, [daily]);
 

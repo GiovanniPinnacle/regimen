@@ -104,6 +104,21 @@ export async function POST(request: NextRequest) {
     if (extra.status) updates.status = extra.status;
     if (extra.item_type) updates.item_type = extra.item_type;
     if (extra.goals) updates.goals = parseGoals(extra.goals);
+    if (extra.companion_instruction)
+      updates.companion_instruction = extra.companion_instruction;
+
+    // Resolve companion_of (can be item name or id)
+    if (extra.companion_of) {
+      const target = extra.companion_of;
+      // Try by name first (case-insensitive)
+      const { data: match } = await supabase
+        .from("items")
+        .select("id")
+        .ilike("name", `%${target}%`)
+        .limit(1)
+        .maybeSingle();
+      if (match) updates.companion_of = match.id;
+    }
     if (extra.frequency) {
       updates.schedule_rule = {
         ...((existing.schedule_rule as object) ?? {}),

@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { HARD_NOS } from "@/lib/seed";
 import { daysSincePostOp } from "@/lib/constants";
 import type { Item, SymptomLog } from "@/lib/types";
+import { calcMacros, type MacroTargets } from "@/lib/macros";
 
 export type ProtocolContext = {
   userId: string;
@@ -16,6 +17,13 @@ export type ProtocolContext = {
   recentSymptoms: SymptomLog[];
   recentAdherence: { date: string; taken: number; total: number }[];
   hardNos: string[];
+  macros: MacroTargets | null;
+  profile: {
+    weight_kg?: number;
+    activity_level?: string;
+    body_goal?: string;
+    meals_per_day?: number;
+  } | null;
 };
 
 const GOALS_IN_ORDER = [
@@ -50,7 +58,7 @@ export async function buildContextForUser(
 ): Promise<ProtocolContext> {
   const admin = createAdminClient();
 
-  const [itemsRes, symptomsRes, stackLogRes] = await Promise.all([
+  const [itemsRes, symptomsRes, stackLogRes, profileRes] = await Promise.all([
     admin.from("items").select("*").eq("user_id", userId),
     admin
       .from("symptom_log")
@@ -66,6 +74,13 @@ export async function buildContextForUser(
         "date",
         new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10),
       ),
+    admin
+      .from("profiles")
+      .select(
+        "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date",
+      )
+      .eq("id", userId)
+      .maybeSingle(),
   ]);
 
   const allItems = (itemsRes.data ?? []) as Item[];
@@ -84,6 +99,31 @@ export async function buildContextForUser(
     .map(([date, v]) => ({ date, ...v }))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 
+  // Compute macros if profile has enough data
+  let macros: MacroTargets | null = null;
+  const profile = profileRes.data;
+  if (
+    profile &&
+    profile.weight_kg &&
+    profile.height_cm &&
+    profile.age &&
+    profile.biological_sex
+  ) {
+    const postOp =
+      profile.postop_date &&
+      new Date(profile.postop_date).getTime() > Date.now() - 180 * 86400000;
+    macros = calcMacros({
+      weight_kg: profile.weight_kg,
+      height_cm: profile.height_cm,
+      age: profile.age,
+      biological_sex: profile.biological_sex,
+      activity_level: profile.activity_level ?? "moderate",
+      body_goal: profile.body_goal ?? "maintain",
+      meals_per_day: profile.meals_per_day ?? 3,
+      post_op: Boolean(postOp),
+    });
+  }
+
   return {
     userId,
     dayPostOp: daysSincePostOp(),
@@ -93,6 +133,15 @@ export async function buildContextForUser(
     recentSymptoms: (symptomsRes.data ?? []) as SymptomLog[],
     recentAdherence,
     hardNos: HARD_NOS.map((h) => `${h.name}${h.reason ? ` (${h.reason})` : ""}`),
+    macros,
+    profile: profile
+      ? {
+          weight_kg: profile.weight_kg ?? undefined,
+          activity_level: profile.activity_level ?? undefined,
+          body_goal: profile.body_goal ?? undefined,
+          meals_per_day: profile.meals_per_day ?? undefined,
+        }
+      : null,
   };
 }
 
@@ -121,6 +170,19 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   lines.push(`# HARD NOs — never recommend, always flag if detected in a photo or food log:`);
   for (const n of ctx.hardNos) lines.push(`- ${n}`);
   lines.push(``);
+  if (ctx.macros) {
+    lines.push(`# DAILY MACRO TARGETS (from profile)`);
+    lines.push(
+      `- Calories: ${ctx.macros.calories} kcal · Protein: ${ctx.macros.protein_g}g · Fat: ${ctx.macros.fat_g}g · Carbs: ${ctx.macros.carbs_g}g`,
+    );
+    lines.push(
+      `- Per meal (${ctx.profile?.meals_per_day ?? 3}/day): ${ctx.macros.per_meal.calories} kcal · ${ctx.macros.per_meal.protein_g}g protein · ${ctx.macros.per_meal.fat_g}g fat · ${ctx.macros.per_meal.carbs_g}g carbs`,
+    );
+    lines.push(
+      `When suggesting foods/meals, render portions in grams or standard units (e.g. "3 eggs (21g protein) + 150g beef (30g)") so totals hit the per-meal target.`,
+    );
+    lines.push(``);
+  }
   lines.push(`# CURRENT ACTIVE REGIMEN (${ctx.activeItems.length} items)`);
   for (const [type, items] of Object.entries(activeByType)) {
     lines.push(`## ${type}s`);
@@ -160,11 +222,15 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   lines.push(`5. CONCISE by default. Expand only when depth is needed.`);
   lines.push(`6. When you suggest a protocol change (add/remove/adjust an item), end with a structured change proposal in this exact format so the app can parse it:`);
   lines.push(`   <<<PROPOSAL`);
-  lines.push(`   action: add | adjust | remove | queue`);
+  lines.push(`   action: add | adjust | remove | queue | promote | retire`);
   lines.push(`   item_name: <name>`);
   lines.push(`   reasoning: <1-2 sentence why>`);
+  lines.push(`   [optional fields:] dose, brand, timing_slot, category, item_type, goals (comma-sep), frequency, notes`);
+  lines.push(`   [for companions:] companion_of: <parent item name>, companion_instruction: "stir into coffee"`);
   lines.push(`   PROPOSAL>>>`);
-  lines.push(`7. Assume food-first. Resist stack inflation. Every addition must earn its spot.`);
+  lines.push(`7. COMPANION ITEMS: items like cinnamon, MCT oil, electrolytes should be linked to their "parent" action via companion_of. E.g. cinnamon's parent is Lifeboost coffee → on Today tab, cinnamon nests inside the coffee card so Giovanni sees "Morning coffee + cinnamon + MCT" as ONE action.`);
+  lines.push(`8. Assume food-first. Resist stack inflation. Every addition must earn its spot.`);
+  lines.push(`9. When suggesting meals/foods, use his macro targets (above) to size portions in grams or standard units (e.g. "3 eggs (21g protein) + 150g beef (30g)" that sum to his per-meal target).`);
 
   return lines.join("\n");
 }
