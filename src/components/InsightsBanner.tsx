@@ -18,7 +18,8 @@ const TYPE_ICONS: Record<string, string> = {
   day_milestone: "🎯",
   cycle_flip: "🔄",
   biotin_pause: "⚠️",
-  default: "💡",
+  daily_suggestion: "💡",
+  default: "🔔",
 };
 
 export default function InsightsBanner() {

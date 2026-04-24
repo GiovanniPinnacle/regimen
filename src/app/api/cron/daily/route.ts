@@ -8,8 +8,10 @@ import {
   generateCycleInsights,
   generateBiotinAlert,
   generateMorningCheckin,
+  generateDailySuggestion,
 } from "@/lib/scheduled-tasks";
 import { sendPushToUser } from "@/lib/push-server";
+import { syncOuraForUser } from "@/lib/oura-sync";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -36,11 +38,16 @@ export async function GET(request: NextRequest) {
 
   for (const p of profiles ?? []) {
     const userId = p.id as string;
+
+    // Sync Oura first so morning check-in + daily suggestion can reference fresh data
+    await syncOuraForUser(userId, 2).catch(() => null);
+
     const generators = await Promise.all([
       generateDayMilestoneInsights(userId).catch(() => []),
       generateCycleInsights(userId).catch(() => []),
       generateBiotinAlert(userId).catch(() => []),
       generateMorningCheckin(userId).catch(() => []),
+      generateDailySuggestion(userId).catch(() => []),
     ]);
 
     const all = generators.flat();

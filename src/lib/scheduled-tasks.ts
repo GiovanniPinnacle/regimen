@@ -155,6 +155,70 @@ export async function generateBiotinAlert(
   ];
 }
 
+// Generate ONE daily suggestion — an item Claude thinks Giovanni should consider adding or changing
+export async function generateDailySuggestion(
+  userId: string,
+): Promise<InsightRow[]> {
+  try {
+    const ctx = await buildContextForUser(userId);
+    const system = contextToSystemPrompt(ctx);
+    const anthropic = getAnthropic();
+    const res = await anthropic.messages.create({
+      model: MODELS.chat,
+      max_tokens: 400,
+      system,
+      messages: [
+        {
+          role: "user",
+          content: `Pick exactly ONE actionable suggestion for Giovanni today. Pick from:
+- Promoting a queued item whose trigger has fired
+- Considering a back-burner item given current data
+- Tweaking an existing active item's dose/timing
+- Adding a new item not yet tracked but high-ROI
+
+CRITERIA:
+- Must meaningfully earn its spot (resist stack inflation)
+- Must respect post-op day + hard NOs
+- Prefer food/practice adds over new supplements when possible
+
+Format (STRICT):
+Title: <under 70 chars, imperative>
+Body: <2-3 sentences including reasoning>
+
+Do NOT include a proposal block. This is just a suggestion — the user can bring it into chat if they want to act on it.`,
+        },
+      ],
+    });
+    const text = res.content
+      .filter((b) => b.type === "text")
+      .map((b) => (b as { text: string }).text)
+      .join("\n")
+      .trim();
+    if (!text) return [];
+
+    // Parse Title: / Body: format
+    const titleMatch = text.match(/^\s*Title:\s*(.+?)\s*$/im);
+    const bodyMatch = text.match(/^\s*Body:\s*([\s\S]+?)$/im);
+    const title = titleMatch?.[1]?.trim();
+    const body = bodyMatch?.[1]?.trim() ?? text;
+    if (!title) return [];
+
+    return [
+      {
+        user_id: userId,
+        type: "daily_suggestion",
+        title: `💡 ${title}`,
+        body,
+        confidence: "medium",
+        status: "new",
+      },
+    ];
+  } catch (e) {
+    console.error("daily suggestion generation failed", e);
+    return [];
+  }
+}
+
 // Generate a Claude-written morning check-in question based on recent data
 export async function generateMorningCheckin(
   userId: string,

@@ -177,6 +177,25 @@ export async function getRecentSymptomLogs(
   return (data ?? []) as SymptomLog[];
 }
 
+// ---------- Oura ----------
+export async function getOuraToday(date: string): Promise<{
+  wake_time?: string | null;
+  readiness?: number | null;
+  hrv?: number | null;
+  rhr?: number | null;
+  sleep_score?: number | null;
+  total_sleep_min?: number | null;
+  temp_deviation?: number | null;
+} | null> {
+  const { data, error } = await supa()
+    .from("oura_daily")
+    .select("*")
+    .eq("date", date)
+    .maybeSingle();
+  if (error) return null;
+  return data as typeof data & { wake_time?: string | null };
+}
+
 // ---------- Changelog ----------
 export async function getChangelog(): Promise<ChangelogEntry[]> {
   const { data, error } = await supa()

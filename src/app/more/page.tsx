@@ -2,6 +2,7 @@ import Link from "next/link";
 import SignOutButton from "@/components/SignOutButton";
 import SyncSeedButton from "@/components/SyncSeedButton";
 import PushSettings from "@/components/PushSettings";
+import OuraSettings from "@/components/OuraSettings";
 
 const LINKS = [
   {
@@ -96,6 +97,16 @@ export default function MorePage() {
       </div>
 
       <section className="mt-10">
+        <h2
+          className="text-[11px] uppercase tracking-wider mb-3"
+          style={{ color: "var(--muted)", fontWeight: 500 }}
+        >
+          Integrations
+        </h2>
+        <OuraSettings />
+      </section>
+
+      <section className="mt-6">
         <h2
           className="text-[11px] uppercase tracking-wider mb-3"
           style={{ color: "var(--muted)", fontWeight: 500 }}

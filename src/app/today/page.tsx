@@ -10,6 +10,7 @@ import {
   getItemsByStatus,
   getTakenMap,
   toggleTaken,
+  getOuraToday,
 } from "@/lib/storage";
 import {
   DAILY_LOGGABLE_TYPES,
@@ -27,15 +28,29 @@ export default function TodayPage() {
   const [taken, setTakenState] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [userCollapsed, setUserCollapsed] = useState<Record<string, boolean>>({});
+  const [oura, setOura] = useState<
+    | {
+        wake_time?: string | null;
+        readiness?: number | null;
+        hrv?: number | null;
+        rhr?: number | null;
+        sleep_score?: number | null;
+      }
+    | null
+  >(null);
   const today = todayISO();
   const dayPostOp = daysSincePostOp();
 
   useEffect(() => {
     (async () => {
-      const active = await getItemsByStatus("active");
+      const [active, map, ouraData] = await Promise.all([
+        getItemsByStatus("active"),
+        getTakenMap(today),
+        getOuraToday(today),
+      ]);
       setItems(active);
-      const map = await getTakenMap(today);
       setTakenState(map);
+      setOura(ouraData);
       setLoading(false);
     })();
     try {
@@ -125,6 +140,28 @@ export default function TodayPage() {
         >
           {dateLabel} · Day {dayPostOp} post-op · {takenCount}/{totalActive} logged
         </div>
+        {oura && (oura.wake_time || oura.readiness) && (
+          <div
+            className="text-[12px] mt-2 flex flex-wrap gap-x-3 gap-y-1"
+            style={{ color: "var(--muted)" }}
+          >
+            {oura.wake_time && (
+              <span>
+                💍 Woke at{" "}
+                <span style={{ fontWeight: 500 }}>
+                  {new Date(oura.wake_time).toLocaleTimeString(undefined, {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </span>
+            )}
+            {oura.readiness != null && <span>Readiness {oura.readiness}</span>}
+            {oura.hrv != null && <span>HRV {oura.hrv}</span>}
+            {oura.rhr != null && <span>RHR {oura.rhr}</span>}
+            {oura.sleep_score != null && <span>Sleep {oura.sleep_score}</span>}
+          </div>
+        )}
       </header>
 
       <OnboardingBanner />
