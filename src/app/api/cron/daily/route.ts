@@ -9,6 +9,7 @@ import {
   generateBiotinAlert,
   generateMorningCheckin,
 } from "@/lib/scheduled-tasks";
+import { sendPushToUser } from "@/lib/push-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -51,6 +52,26 @@ export async function GET(request: NextRequest) {
     if (all.length > 0) {
       const { error: insErr } = await admin.from("insights").insert(all);
       if (insErr) console.error("cron insight insert error", insErr);
+
+      // Send one consolidated push per user
+      const highestPriority =
+        all.find((i) => i.type === "biotin_pause") ??
+        all.find((i) => i.type === "day_milestone") ??
+        all.find((i) => i.type === "cycle_flip") ??
+        all[0];
+      try {
+        await sendPushToUser(userId, {
+          title: highestPriority.title,
+          body:
+            all.length > 1
+              ? `${highestPriority.body.split("\n")[0]} (+${all.length - 1} more)`
+              : highestPriority.body,
+          url: "/today",
+          tag: "daily",
+        });
+      } catch (e) {
+        console.error("cron push send error", e);
+      }
     }
     results.push({ userId, inserted: all.length, breakdown });
   }
