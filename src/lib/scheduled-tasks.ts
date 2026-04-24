@@ -196,12 +196,24 @@ Do NOT include a proposal block. This is just a suggestion — the user can brin
       .trim();
     if (!text) return [];
 
-    // Parse Title: / Body: format
-    const titleMatch = text.match(/^\s*Title:\s*(.+?)\s*$/im);
-    const bodyMatch = text.match(/^\s*Body:\s*([\s\S]+?)$/im);
-    const title = titleMatch?.[1]?.trim();
-    const body = bodyMatch?.[1]?.trim() ?? text;
+    // Parse Title: / Body: format — fall back gracefully
+    const titleMatch =
+      text.match(/^\s*\**\s*Title\s*:\s*\**\s*(.+?)\s*\**\s*$/im) ??
+      text.match(/^\s*#+\s*(.+?)\s*$/m); // markdown heading fallback
+    const bodyMatch = text.match(/Body\s*:\s*\**\s*([\s\S]+?)$/im);
+    let title = titleMatch?.[1]?.trim();
+    let body = bodyMatch?.[1]?.trim();
+
+    // Last-resort: use first line as title, rest as body
+    if (!title) {
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length > 0) {
+        title = lines[0].replace(/^[#*-\s]+/, "").trim().slice(0, 80);
+        body = lines.slice(1).join("\n").trim() || title;
+      }
+    }
     if (!title) return [];
+    if (!body) body = text;
 
     return [
       {
