@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { Item } from "@/lib/types";
 import CategoryBadge from "./CategoryBadge";
 import { GOAL_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
@@ -60,8 +61,10 @@ export default function ItemCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div
-              className="text-[15px] leading-snug truncate"
+            <Link
+              href={`/items/${item.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-[15px] leading-snug truncate block hover:underline"
               style={{
                 fontWeight: 500,
                 textDecoration: taken ? "line-through" : undefined,
@@ -69,7 +72,7 @@ export default function ItemCard({
               }}
             >
               {item.name}
-            </div>
+            </Link>
             {item.brand && (
               <div className="text-[12px]" style={{ color: "var(--muted)" }}>
                 {item.brand}
