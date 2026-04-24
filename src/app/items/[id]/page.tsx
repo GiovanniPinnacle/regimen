@@ -11,6 +11,7 @@ import {
 import { getItemInfo } from "@/lib/item-info";
 import type { Item } from "@/lib/types";
 import ItemActions from "@/components/ItemActions";
+import PurchaseStateControl from "@/components/PurchaseStateControl";
 
 export default async function ItemDetailPage({
   params,
@@ -71,7 +72,16 @@ export default async function ItemDetailPage({
               >
                 {item.name}
               </h1>
-              <CategoryBadge category={item.category} size="sm" />
+              <div className="flex items-center gap-2 shrink-0">
+                <Link
+                  href={`/items/${id}/edit`}
+                  className="text-[12px] px-2.5 py-1 rounded-lg border-hair"
+                  style={{ color: "var(--muted)" }}
+                >
+                  Edit
+                </Link>
+                <CategoryBadge category={item.category} size="sm" />
+              </div>
             </div>
             {item.brand && (
               <div
@@ -117,6 +127,20 @@ export default async function ItemDetailPage({
       </header>
 
       <ItemActions item={item} />
+
+      <Section title="Purchase state">
+        <PurchaseStateControl item={item} />
+        {(item.ordered_on || item.arrived_on || item.days_supply) && (
+          <div
+            className="text-[12px] mt-2 flex flex-wrap gap-x-3"
+            style={{ color: "var(--muted)" }}
+          >
+            {item.ordered_on && <span>Ordered {item.ordered_on}</span>}
+            {item.arrived_on && <span>Arrived {item.arrived_on}</span>}
+            {item.days_supply && <span>{item.days_supply}-day supply</span>}
+          </div>
+        )}
+      </Section>
 
       {info ? (
         <>

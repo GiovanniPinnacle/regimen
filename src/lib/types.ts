@@ -43,6 +43,14 @@ export type Goal =
 
 export type Status = "active" | "queued" | "backburner" | "retired";
 
+export type PurchaseState =
+  | "needed"
+  | "ordered"
+  | "shipped"
+  | "arrived"
+  | "using"
+  | "depleted";
+
 export type ItemType =
   | "supplement"
   | "topical"
@@ -84,9 +92,42 @@ export type Item = {
   purchase_url?: string;
   companion_of?: string | null; // item.id of parent — this item nests under parent on Today
   companion_instruction?: string | null; // e.g. "stir into coffee"
+  purchase_state?: PurchaseState | null;
+  ordered_on?: string | null;
+  arrived_on?: string | null;
+  days_supply?: number | null;
+  reorder_alert_sent_at?: string | null;
   created_at?: string;
   // Transient/rendering-only — populated client-side
   __companions?: Item[];
+};
+
+export type RecipeIngredient = {
+  name: string;
+  amount?: string;
+  notes?: string;
+};
+
+export type Recipe = {
+  id: string;
+  user_id?: string;
+  name: string;
+  description?: string | null;
+  source: "user" | "claude";
+  servings: number;
+  calories_per_serving?: number | null;
+  protein_g?: number | null;
+  fat_g?: number | null;
+  carbs_g?: number | null;
+  ingredients: RecipeIngredient[];
+  instructions?: string | null;
+  tags: string[];
+  goals: Goal[];
+  is_favorite: boolean;
+  times_made: number;
+  last_made?: string | null;
+  fridge_snapshot?: string | null;
+  created_at?: string;
 };
 
 export type StackLogEntry = {

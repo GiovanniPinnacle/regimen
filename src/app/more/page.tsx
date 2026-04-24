@@ -12,6 +12,11 @@ const LINKS = [
     emphasized: true,
   },
   {
+    href: "/queued",
+    label: "Queued items",
+    desc: "Items waiting on a trigger to activate",
+  },
+  {
     href: "/audit",
     label: "Stack audit",
     desc: "Mark what you have vs need to order — fast, one-tap",

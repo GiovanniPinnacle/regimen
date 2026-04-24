@@ -9,6 +9,7 @@ import {
   generateBiotinAlert,
   generateMorningCheckin,
   generateDailySuggestion,
+  generateReorderAlerts,
 } from "@/lib/scheduled-tasks";
 import { sendPushToUser } from "@/lib/push-server";
 import { syncOuraForUser } from "@/lib/oura-sync";
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
       generateBiotinAlert(userId).catch(() => []),
       generateMorningCheckin(userId).catch(() => []),
       generateDailySuggestion(userId).catch(() => []),
+      generateReorderAlerts(userId).catch(() => []),
     ]);
 
     const all = generators.flat();
@@ -82,6 +84,7 @@ export async function GET(request: NextRequest) {
       const highestPriority =
         filtered.find((i) => i.type === "biotin_pause") ??
         filtered.find((i) => i.type === "day_milestone") ??
+        filtered.find((i) => i.type === "reorder_alert") ??
         filtered.find((i) => i.type === "cycle_flip") ??
         filtered.find((i) => i.type === "daily_suggestion") ??
         filtered[0];

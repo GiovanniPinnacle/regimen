@@ -18,8 +18,11 @@ import {
   TIMING_LABELS,
   TIMING_ORDER,
   daysSincePostOp,
+  POSTOP_DATE_ZERO,
   todayISO,
 } from "@/lib/constants";
+import { calcMacros, type MacroTargets } from "@/lib/macros";
+import { createClient } from "@/lib/supabase/client";
 
 const NON_CHECKOFF_SLOTS: TimingSlot[] = ["situational"];
 const COLLAPSE_KEY = "regimen.today.collapsed.v1";
@@ -39,6 +42,7 @@ export default function TodayPage() {
       }
     | null
   >(null);
+  const [macros, setMacros] = useState<MacroTargets | null>(null);
   const today = todayISO();
   const dayPostOp = daysSincePostOp();
 
@@ -53,6 +57,37 @@ export default function TodayPage() {
       setTakenState(map);
       setOura(ouraData);
       setLoading(false);
+    })();
+    (async () => {
+      const client = createClient();
+      const { data: profile } = await client
+        .from("profiles")
+        .select(
+          "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date",
+        )
+        .maybeSingle();
+      if (
+        profile?.weight_kg &&
+        profile.height_cm &&
+        profile.age &&
+        profile.biological_sex
+      ) {
+        const postOpDate = profile.postop_date ?? POSTOP_DATE_ZERO;
+        const postOp =
+          new Date(postOpDate).getTime() > Date.now() - 180 * 86400000;
+        setMacros(
+          calcMacros({
+            weight_kg: profile.weight_kg,
+            height_cm: profile.height_cm,
+            age: profile.age,
+            biological_sex: profile.biological_sex,
+            activity_level: profile.activity_level ?? "moderate",
+            body_goal: profile.body_goal ?? "maintain",
+            meals_per_day: profile.meals_per_day ?? 3,
+            post_op: postOp,
+          }),
+        );
+      }
     })();
     try {
       const raw = localStorage.getItem(COLLAPSE_KEY);
@@ -181,6 +216,22 @@ export default function TodayPage() {
             {oura.hrv != null && <span>HRV {oura.hrv}</span>}
             {oura.rhr != null && <span>RHR {oura.rhr}</span>}
             {oura.sleep_score != null && <span>Sleep {oura.sleep_score}</span>}
+          </div>
+        )}
+        {macros && (
+          <div
+            className="text-[12px] mt-2 flex flex-wrap gap-x-3 gap-y-1"
+            style={{ color: "var(--muted)" }}
+          >
+            <span>
+              🎯 <span style={{ fontWeight: 500 }}>{macros.calories}</span> kcal
+            </span>
+            <span>{macros.protein_g}g protein</span>
+            <span>{macros.fat_g}g fat</span>
+            <span>{macros.carbs_g}g carbs</span>
+            <span>
+              · per meal {macros.per_meal.calories} / {macros.per_meal.protein_g}g P
+            </span>
           </div>
         )}
       </header>

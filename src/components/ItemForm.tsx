@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type {
@@ -96,7 +96,31 @@ export default function ItemForm({ initial, onSaved }: Props) {
   const [frequency, setFrequency] = useState<string>(
     initial?.schedule_rule?.frequency ?? "daily",
   );
+  const [daysSupply, setDaysSupply] = useState(
+    initial?.days_supply != null ? String(initial.days_supply) : "",
+  );
+  const [companionOf, setCompanionOf] = useState<string | null>(
+    initial?.companion_of ?? null,
+  );
+  const [companionInstruction, setCompanionInstruction] = useState(
+    initial?.companion_instruction ?? "",
+  );
+  const [candidateParents, setCandidateParents] = useState<Item[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const client = createClient();
+      const { data } = await client
+        .from("items")
+        .select("id, name, brand, timing_slot")
+        .eq("status", "active")
+        .order("timing_slot")
+        .order("name");
+      const list = (data ?? []) as Item[];
+      setCandidateParents(list.filter((p) => p.id !== initial?.id));
+    })();
+  }, [initial?.id]);
 
   function toggleGoal(g: Goal) {
     setGoals((prev) =>
@@ -131,6 +155,12 @@ export default function ItemForm({ initial, onSaved }: Props) {
       purchase_url: purchaseUrl.trim() || null,
       review_trigger: reviewTrigger.trim() || null,
       schedule_rule: { frequency },
+      days_supply: daysSupply ? parseInt(daysSupply, 10) : null,
+      companion_of: companionOf,
+      companion_instruction:
+        companionOf && companionInstruction.trim()
+          ? companionInstruction.trim()
+          : null,
     };
 
     if (initial?.id) {
@@ -274,6 +304,48 @@ export default function ItemForm({ initial, onSaved }: Props) {
           style={{ background: "var(--background)", color: "var(--foreground)" }}
         />
       </Field>
+
+      <Field label="Days of supply per unit (optional — enables reorder alerts)">
+        <input
+          type="number"
+          min="1"
+          value={daysSupply}
+          onChange={(e) => setDaysSupply(e.target.value)}
+          placeholder="e.g. 60 (MegaSpore 60ct at 1/day)"
+          className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+          style={{ background: "var(--background)", color: "var(--foreground)" }}
+        />
+      </Field>
+
+      <Field label="Companion of (optional — nest this item under a parent on Today)">
+        <select
+          value={companionOf ?? ""}
+          onChange={(e) => setCompanionOf(e.target.value || null)}
+          className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+          style={{ background: "var(--background)", color: "var(--foreground)" }}
+        >
+          <option value="">— Not a companion —</option>
+          {candidateParents.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+              {p.brand ? ` (${p.brand})` : ""} — {TIMING_LABELS[p.timing_slot]}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      {companionOf && (
+        <Field label="Companion instruction (optional)">
+          <input
+            type="text"
+            value={companionInstruction}
+            onChange={(e) => setCompanionInstruction(e.target.value)}
+            placeholder="e.g. stir into coffee"
+            className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+            style={{ background: "var(--background)", color: "var(--foreground)" }}
+          />
+        </Field>
+      )}
 
       {status === "queued" || status === "backburner" ? (
         <Field label="Review trigger (when to activate/revisit)">

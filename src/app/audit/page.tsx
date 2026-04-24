@@ -57,14 +57,16 @@ export default function AuditPage() {
     const updates: Record<string, unknown> = {};
     if (choice === "have") {
       updates.owned = true;
+      updates.purchase_state = "using";
       // If it was queued but you have it, move to active
       if (item.status === "queued") updates.status = "active";
     } else if (choice === "need") {
       updates.owned = false;
-      // Keep in current status
+      updates.purchase_state = "needed";
     } else if (choice === "skip") {
       updates.status = "retired";
       updates.owned = null;
+      updates.purchase_state = null;
     }
     await supabase.from("items").update(updates).eq("id", item.id);
     setItems((prev) =>

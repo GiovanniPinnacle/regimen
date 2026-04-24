@@ -271,3 +271,62 @@ export async function generateMorningCheckin(
     return [];
   }
 }
+
+// ----- Reorder alerts -----
+// For items marked `using` with days_supply + arrived_on set, flag when
+// estimated depletion is within 7 days and no alert was sent yet.
+export async function generateReorderAlerts(
+  userId: string,
+): Promise<InsightRow[]> {
+  const admin = createAdminClient();
+  const { data: using } = await admin
+    .from("items")
+    .select(
+      "id, name, brand, dose, days_supply, arrived_on, reorder_alert_sent_at, purchase_url",
+    )
+    .eq("user_id", userId)
+    .eq("purchase_state", "using")
+    .not("days_supply", "is", null)
+    .not("arrived_on", "is", null);
+
+  if (!using || using.length === 0) return [];
+
+  const now = Date.now();
+  const WARN_WINDOW_DAYS = 7;
+  const insights: InsightRow[] = [];
+  const toMark: string[] = [];
+
+  for (const i of using) {
+    if (!i.arrived_on || !i.days_supply) continue;
+    // Skip if alert already sent within the last 21 days (debounce re-alerts)
+    if (i.reorder_alert_sent_at) {
+      const last = new Date(i.reorder_alert_sent_at).getTime();
+      if (now - last < 21 * 86400000) continue;
+    }
+    const arrived = new Date(i.arrived_on).getTime();
+    const depletes = arrived + i.days_supply * 86400000;
+    const daysLeft = Math.round((depletes - now) / 86400000);
+    if (daysLeft > WARN_WINDOW_DAYS) continue;
+
+    const urgency = daysLeft <= 0 ? "out now" : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`;
+    const parts = [i.brand, i.dose].filter(Boolean).join(" · ");
+    insights.push({
+      user_id: userId,
+      type: "reorder_alert",
+      title: `Reorder: ${i.name}`,
+      body: `${urgency}${parts ? ` · ${parts}` : ""}${i.purchase_url ? `\nReorder: ${i.purchase_url}` : ""}`,
+      confidence: "high",
+      status: "new",
+    });
+    toMark.push(i.id);
+  }
+
+  if (toMark.length > 0) {
+    await admin
+      .from("items")
+      .update({ reorder_alert_sent_at: new Date().toISOString() })
+      .in("id", toMark);
+  }
+
+  return insights;
+}

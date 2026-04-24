@@ -1,37 +1,53 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import {
-  ITEM_TYPE_ICONS,
-  ITEM_TYPE_LABELS,
-} from "@/lib/constants";
-import type { Item, ItemType } from "@/lib/types";
+import type { Item, PurchaseState } from "@/lib/types";
+import PurchaseStateControl from "@/components/PurchaseStateControl";
 
-const TYPE_ORDER: ItemType[] = [
-  "supplement",
-  "topical",
-  "food",
-  "device",
-  "gear",
-  "test",
+export const dynamic = "force-dynamic";
+
+const STATE_ORDER: PurchaseState[] = [
+  "needed",
+  "ordered",
+  "shipped",
+  "arrived",
+  "depleted",
 ];
+
+const STATE_LABELS: Record<PurchaseState, string> = {
+  needed: "To order",
+  ordered: "Ordered",
+  shipped: "Shipped",
+  arrived: "Arrived",
+  using: "Using",
+  depleted: "Depleted — reorder",
+};
 
 export default async function PurchasesPage() {
   const supabase = await createClient();
+  // Show anything in the lifecycle except "using" (those are stocked)
   const { data } = await supabase
     .from("items")
     .select("*")
-    .eq("owned", false)
+    .in("purchase_state", STATE_ORDER)
     .in("status", ["active", "queued"])
     .order("item_type")
     .order("name");
 
   const items = (data ?? []) as Item[];
-
-  const grouped: Record<string, Item[]> = {};
+  const grouped: Record<PurchaseState, Item[]> = {
+    needed: [],
+    ordered: [],
+    shipped: [],
+    arrived: [],
+    using: [],
+    depleted: [],
+  };
   for (const i of items) {
-    if (!grouped[i.item_type]) grouped[i.item_type] = [];
-    grouped[i.item_type].push(i);
+    const s = (i.purchase_state as PurchaseState | null) ?? "needed";
+    if (grouped[s]) grouped[s].push(i);
   }
+
+  const total = items.length;
 
   return (
     <div className="pb-24">
@@ -40,11 +56,11 @@ export default async function PurchasesPage() {
           Shopping list
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          {items.length} items to order
+          {total} items in the purchase pipeline
         </div>
       </header>
 
-      {items.length === 0 ? (
+      {total === 0 ? (
         <div
           className="border-hair rounded-xl p-8 text-center"
           style={{ color: "var(--muted)" }}
@@ -62,17 +78,16 @@ export default async function PurchasesPage() {
         </div>
       ) : (
         <>
-          {TYPE_ORDER.map((type) => {
-            const list = grouped[type];
-            if (!list) return null;
+          {STATE_ORDER.map((s) => {
+            const list = grouped[s];
+            if (!list || list.length === 0) return null;
             return (
-              <section key={type} className="mb-6">
+              <section key={s} className="mb-6">
                 <h2
                   className="text-[11px] uppercase tracking-wider mb-2"
                   style={{ color: "var(--muted)", fontWeight: 500 }}
                 >
-                  {ITEM_TYPE_ICONS[type]} {ITEM_TYPE_LABELS[type]}s ·{" "}
-                  {list.length}
+                  {STATE_LABELS[s]} · {list.length}
                 </h2>
                 <div className="flex flex-col gap-2">
                   {list.map((item) => (
@@ -98,29 +113,21 @@ export default async function PurchasesPage() {
                               .join(" · ")}
                           </div>
                         )}
-                        {item.status === "queued" && item.review_trigger && (
-                          <div
-                            className="text-[11px] mt-0.5"
-                            style={{
-                              color: "var(--muted)",
-                              fontStyle: "italic",
-                            }}
-                          >
-                            {item.review_trigger}
-                          </div>
-                        )}
+                        <div className="mt-2 flex items-center gap-2 flex-wrap">
+                          <PurchaseStateControl item={item} compact />
+                          {item.purchase_url && (
+                            <a
+                              href={item.purchase_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-lg text-[12px] border-hair"
+                              style={{ color: "var(--muted)" }}
+                            >
+                              Buy →
+                            </a>
+                          )}
+                        </div>
                       </div>
-                      {item.purchase_url && (
-                        <a
-                          href={item.purchase_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="shrink-0 px-3 py-1.5 rounded-lg text-[12px] border-hair"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          Buy →
-                        </a>
-                      )}
                     </div>
                   ))}
                 </div>
