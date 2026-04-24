@@ -36,22 +36,62 @@ export default function InsightsBanner() {
     })();
   }, []);
 
-  async function dismiss(id: string) {
+  async function dismiss(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
     const client = createClient();
     await client.from("insights").update({ status: "dismissed" }).eq("id", id);
     setInsights((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  function openInChat(insight: Insight) {
+    // Bundle all new insights as context for the chat
+    const preface = insights
+      .map((i) => `[${i.title}]\n${i.body}`)
+      .join("\n\n");
+    const initialPrompt = `Here's what's on my plate today:\n\n${preface}\n\n---\n\nLet's talk about: **${insight.title}**`;
+    window.dispatchEvent(
+      new CustomEvent("regimen:ask", { detail: { text: initialPrompt } }),
+    );
   }
 
   if (insights.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-2 mb-6">
+      <div className="flex items-center justify-between mb-1">
+        <div
+          className="text-[11px] uppercase tracking-wider"
+          style={{ color: "var(--muted)", fontWeight: 500 }}
+        >
+          Today&apos;s notes from Claude
+        </div>
+        <button
+          onClick={() => {
+            const preface = insights
+              .map((i) => `[${i.title}]\n${i.body}`)
+              .join("\n\n");
+            window.dispatchEvent(
+              new CustomEvent("regimen:ask", {
+                detail: {
+                  text: `Today's notes:\n\n${preface}\n\nLet's chat about this.`,
+                },
+              }),
+            );
+          }}
+          className="text-[11px]"
+          style={{ color: "var(--muted)", fontWeight: 500 }}
+        >
+          Chat about all →
+        </button>
+      </div>
+
       {insights.map((i) => {
         const icon = TYPE_ICONS[i.type] ?? TYPE_ICONS.default;
         return (
-          <div
+          <button
             key={i.id}
-            className="border-hair rounded-xl p-4"
+            onClick={() => openInChat(i)}
+            className="border-hair rounded-xl p-4 text-left w-full transition-colors active:scale-[0.99]"
             style={{ background: "var(--surface-alt)" }}
           >
             <div className="flex items-start justify-between gap-3">
@@ -70,18 +110,24 @@ export default function InsightsBanner() {
                   >
                     {i.body}
                   </div>
+                  <div
+                    className="text-[11px] mt-2"
+                    style={{ color: "var(--muted)", fontWeight: 500 }}
+                  >
+                    Tap to chat →
+                  </div>
                 </div>
               </div>
-              <button
-                onClick={() => dismiss(i.id)}
-                className="shrink-0 text-[18px] leading-none"
+              <span
+                onClick={(e) => dismiss(e, i.id)}
+                className="shrink-0 text-[18px] leading-none cursor-pointer select-none px-1"
                 style={{ color: "var(--muted)" }}
                 aria-label="Dismiss"
               >
                 ×
-              </button>
+              </span>
             </div>
-          </div>
+          </button>
         );
       })}
     </div>
