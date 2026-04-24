@@ -79,6 +79,7 @@ export type Item = {
   ends_on?: string;
   review_trigger?: string;
   status: Status;
+  owned?: boolean | null; // null = not yet audited, true = have, false = need to order
   notes?: string;
   purchase_url?: string;
   created_at?: string;

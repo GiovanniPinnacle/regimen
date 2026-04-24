@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     userId: string;
     inserted: number;
     breakdown: Record<string, number>;
+    skipped?: number;
   }[] = [];
 
   for (const p of profiles ?? []) {

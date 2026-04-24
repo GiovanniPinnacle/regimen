@@ -5,6 +5,7 @@ import ItemCard from "@/components/ItemCard";
 import SymptomForm from "@/components/SymptomForm";
 import InsightsBanner from "@/components/InsightsBanner";
 import OnboardingBanner from "@/components/OnboardingBanner";
+import AuditPrompt from "@/components/AuditPrompt";
 import type { Item, ItemType, TimingSlot } from "@/lib/types";
 import {
   getItemsByStatus,
@@ -165,6 +166,7 @@ export default function TodayPage() {
       </header>
 
       <OnboardingBanner />
+      <AuditPrompt />
       <InsightsBanner />
 
       <div className="flex flex-col gap-2">

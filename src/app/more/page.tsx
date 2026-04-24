@@ -6,10 +6,20 @@ import OuraSettings from "@/components/OuraSettings";
 
 const LINKS = [
   {
-    href: "/items/new",
-    label: "Add item",
-    desc: "Supplement, topical, device, practice, food, gear",
+    href: "/audit",
+    label: "Stack audit",
+    desc: "Mark what you have vs need to order — fast, one-tap",
     emphasized: true,
+  },
+  {
+    href: "/purchases",
+    label: "Shopping list",
+    desc: "Items you marked 'need to order'",
+  },
+  {
+    href: "/items/new",
+    label: "Add item manually",
+    desc: "Supplement, topical, device, practice, food, gear",
   },
   {
     href: "/backburner",
