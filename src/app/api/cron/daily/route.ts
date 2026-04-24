@@ -56,31 +56,56 @@ export async function GET(request: NextRequest) {
       breakdown[insight.type] = (breakdown[insight.type] ?? 0) + 1;
     }
 
-    if (all.length > 0) {
-      const { error: insErr } = await admin.from("insights").insert(all);
+    // Dedupe: don't insert once-per-day types if one already exists today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const ONCE_PER_DAY = new Set(["morning_checkin", "daily_suggestion"]);
+    const { data: todaysInsights } = await admin
+      .from("insights")
+      .select("type")
+      .eq("user_id", userId)
+      .gte("created_at", todayStart.toISOString());
+    const existingTypes = new Set(
+      (todaysInsights ?? []).map((r) => r.type as string),
+    );
+    const filtered = all.filter((i) => {
+      if (ONCE_PER_DAY.has(i.type) && existingTypes.has(i.type)) return false;
+      return true;
+    });
+
+    if (filtered.length > 0) {
+      const { error: insErr } = await admin.from("insights").insert(filtered);
       if (insErr) console.error("cron insight insert error", insErr);
 
-      // Send one consolidated push per user
+      // Send one consolidated push per user based on highest-priority newly-inserted insight
       const highestPriority =
-        all.find((i) => i.type === "biotin_pause") ??
-        all.find((i) => i.type === "day_milestone") ??
-        all.find((i) => i.type === "cycle_flip") ??
-        all[0];
-      try {
-        await sendPushToUser(userId, {
-          title: highestPriority.title,
-          body:
-            all.length > 1
-              ? `${highestPriority.body.split("\n")[0]} (+${all.length - 1} more)`
-              : highestPriority.body,
-          url: "/today",
-          tag: "daily",
-        });
-      } catch (e) {
-        console.error("cron push send error", e);
+        filtered.find((i) => i.type === "biotin_pause") ??
+        filtered.find((i) => i.type === "day_milestone") ??
+        filtered.find((i) => i.type === "cycle_flip") ??
+        filtered.find((i) => i.type === "daily_suggestion") ??
+        filtered[0];
+      if (highestPriority) {
+        try {
+          await sendPushToUser(userId, {
+            title: highestPriority.title,
+            body:
+              filtered.length > 1
+                ? `${highestPriority.body.split("\n")[0]} (+${filtered.length - 1} more)`
+                : highestPriority.body,
+            url: "/today",
+            tag: "daily",
+          });
+        } catch (e) {
+          console.error("cron push send error", e);
+        }
       }
     }
-    results.push({ userId, inserted: all.length, breakdown });
+    results.push({
+      userId,
+      inserted: filtered.length,
+      breakdown,
+      skipped: all.length - filtered.length,
+    });
   }
 
   return NextResponse.json({ ok: true, results });
