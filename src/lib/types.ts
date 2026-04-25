@@ -103,6 +103,7 @@ export type Item = {
   research_generated_at?: string | null;
   deep_research?: string | null;
   deep_research_generated_at?: string | null;
+  sort_order?: number | null;
   created_at?: string;
   // Transient/rendering-only — populated client-side
   __companions?: Item[];

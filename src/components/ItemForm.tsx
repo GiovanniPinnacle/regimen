@@ -102,6 +102,9 @@ export default function ItemForm({ initial, onSaved }: Props) {
   const [unitCost, setUnitCost] = useState(
     initial?.unit_cost != null ? String(initial.unit_cost) : "",
   );
+  const [sortOrder, setSortOrder] = useState(
+    initial?.sort_order != null ? String(initial.sort_order) : "",
+  );
   const [companionOf, setCompanionOf] = useState<string | null>(
     initial?.companion_of ?? null,
   );
@@ -160,6 +163,7 @@ export default function ItemForm({ initial, onSaved }: Props) {
       schedule_rule: { frequency },
       days_supply: daysSupply ? parseInt(daysSupply, 10) : null,
       unit_cost: unitCost ? parseFloat(unitCost) : null,
+      sort_order: sortOrder ? parseInt(sortOrder, 10) : null,
       companion_of: companionOf,
       companion_instruction:
         companionOf && companionInstruction.trim()
@@ -351,6 +355,17 @@ export default function ItemForm({ initial, onSaved }: Props) {
           ≈ ${((parseFloat(unitCost) / parseInt(daysSupply, 10)) * 30).toFixed(2)}/mo
         </div>
       )}
+
+      <Field label="Sort order within slot (lower = earlier; default 100)">
+        <input
+          type="number"
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value)}
+          placeholder="e.g. 10 = first, 50 = middle, 100 = end"
+          className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+          style={{ background: "var(--background)", color: "var(--foreground)" }}
+        />
+      </Field>
 
       <Field label="Companion of (optional — nest this item under a parent on Today)">
         <select

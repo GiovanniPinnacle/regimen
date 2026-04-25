@@ -126,11 +126,18 @@ export default function TodayPage() {
       // Only push parent items into timing slots (companions render within parents)
       if (!item.companion_of) map[item.timing_slot].push(item);
     }
-    // Stash companions on the parent for rendering
+    // Sort within each slot by sort_order (lower = earlier), then name.
+    // Sort companions inside each parent the same way.
+    const orderFn = (a: Item, b: Item) => {
+      const ao = a.sort_order ?? 100;
+      const bo = b.sort_order ?? 100;
+      if (ao !== bo) return ao - bo;
+      return a.name.localeCompare(b.name);
+    };
     for (const slot of TIMING_ORDER) {
-      map[slot] = map[slot].map((parent) => ({
+      map[slot] = map[slot].sort(orderFn).map((parent) => ({
         ...parent,
-        __companions: companionsByParent[parent.id] ?? [],
+        __companions: (companionsByParent[parent.id] ?? []).sort(orderFn),
       })) as Item[];
     }
     return map;
