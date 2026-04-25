@@ -101,6 +101,8 @@ export type Item = {
   usage_notes?: string | null;
   research_summary?: string | null;
   research_generated_at?: string | null;
+  deep_research?: string | null;
+  deep_research_generated_at?: string | null;
   created_at?: string;
   // Transient/rendering-only — populated client-side
   __companions?: Item[];

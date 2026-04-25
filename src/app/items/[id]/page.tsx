@@ -13,6 +13,7 @@ import type { Item } from "@/lib/types";
 import ItemActions from "@/components/ItemActions";
 import PurchaseStateControl from "@/components/PurchaseStateControl";
 import RegenerateResearchButton from "@/components/RegenerateResearchButton";
+import DeepResearchButton from "@/components/DeepResearchButton";
 
 export default async function ItemDetailPage({
   params,
@@ -166,6 +167,48 @@ export default async function ItemDetailPage({
           </div>
         </Section>
       )}
+
+      <Section title="Deep research (Opus memo)">
+        {item.deep_research ? (
+          <details className="border-hair rounded-xl group">
+            <summary
+              className="px-4 py-3 cursor-pointer list-none flex items-center justify-between"
+              style={{ color: "var(--muted)" }}
+            >
+              <span className="text-[12px]">
+                {item.deep_research_generated_at
+                  ? `Generated ${new Date(item.deep_research_generated_at).toLocaleDateString()}`
+                  : "Tap to expand"}
+              </span>
+              <span className="text-[14px] transition-transform group-open:rotate-180">
+                ⌄
+              </span>
+            </summary>
+            <div className="px-4 pb-4">
+              <div
+                className="text-[13px] leading-relaxed whitespace-pre-line"
+              >
+                {item.deep_research}
+              </div>
+              <div className="mt-4">
+                <DeepResearchButton itemId={item.id} hasDeepResearch={true} />
+              </div>
+            </div>
+          </details>
+        ) : (
+          <div
+            className="border-hair rounded-lg p-3"
+          >
+            <div className="text-[13px] mb-2" style={{ color: "var(--muted)" }}>
+              Run a deep-research memo (~800–1500 words, Opus 4.5). Mechanism,
+              primary trial data with citations, dose-response, stack interactions,
+              your specific use case, risks. 1–3 min.
+            </div>
+            <DeepResearchButton itemId={item.id} hasDeepResearch={false} />
+          </div>
+        )}
+      </Section>
+
 
       <Section title="Purchase state">
         <PurchaseStateControl item={item} />
