@@ -1,9 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInForm />
+    </Suspense>
+  );
+}
+
+function SignInForm() {
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") ?? "/today";
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
     "idle",
@@ -16,10 +27,15 @@ export default function SignInPage() {
     setErrorMsg("");
 
     const supabase = createClient();
+    const callbackUrl = new URL(
+      "/auth/callback",
+      window.location.origin,
+    );
+    callbackUrl.searchParams.set("next", next);
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: callbackUrl.toString(),
       },
     });
 
