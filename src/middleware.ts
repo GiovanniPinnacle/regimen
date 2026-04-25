@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PATHS = [
@@ -7,6 +7,20 @@ const PUBLIC_PATHS = [
   "/auth/confirm",
   "/api/cron",
 ];
+
+// 90 days — beyond iOS Safari ITP's 7-day storage cap for inactive sites,
+// and matches Supabase's refresh-token lifetime so the PWA stays signed in.
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 90;
+
+function extendCookie(options: CookieOptions = {}): CookieOptions {
+  return {
+    ...options,
+    maxAge: options.maxAge ?? COOKIE_MAX_AGE,
+    sameSite: options.sameSite ?? "lax",
+    secure: options.secure ?? true,
+    path: options.path ?? "/",
+  };
+}
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -25,7 +39,7 @@ export async function middleware(request: NextRequest) {
           );
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
+            response.cookies.set(name, value, extendCookie(options)),
           );
         },
       },

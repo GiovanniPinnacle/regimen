@@ -12,6 +12,15 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "Regimen",
+    startupImage: ["/icon-512.png"],
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/icon-192.png",
+  },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+    "mobile-web-app-capable": "yes",
   },
 };
 
