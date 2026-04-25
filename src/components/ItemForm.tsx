@@ -99,6 +99,9 @@ export default function ItemForm({ initial, onSaved }: Props) {
   const [daysSupply, setDaysSupply] = useState(
     initial?.days_supply != null ? String(initial.days_supply) : "",
   );
+  const [unitCost, setUnitCost] = useState(
+    initial?.unit_cost != null ? String(initial.unit_cost) : "",
+  );
   const [companionOf, setCompanionOf] = useState<string | null>(
     initial?.companion_of ?? null,
   );
@@ -156,6 +159,7 @@ export default function ItemForm({ initial, onSaved }: Props) {
       review_trigger: reviewTrigger.trim() || null,
       schedule_rule: { frequency },
       days_supply: daysSupply ? parseInt(daysSupply, 10) : null,
+      unit_cost: unitCost ? parseFloat(unitCost) : null,
       companion_of: companionOf,
       companion_instruction:
         companionOf && companionInstruction.trim()
@@ -305,17 +309,36 @@ export default function ItemForm({ initial, onSaved }: Props) {
         />
       </Field>
 
-      <Field label="Days of supply per unit (optional — enables reorder alerts)">
-        <input
-          type="number"
-          min="1"
-          value={daysSupply}
-          onChange={(e) => setDaysSupply(e.target.value)}
-          placeholder="e.g. 60 (MegaSpore 60ct at 1/day)"
-          className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-          style={{ background: "var(--background)", color: "var(--foreground)" }}
-        />
-      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Days supply / unit">
+          <input
+            type="number"
+            min="1"
+            value={daysSupply}
+            onChange={(e) => setDaysSupply(e.target.value)}
+            placeholder="60"
+            className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+            style={{ background: "var(--background)", color: "var(--foreground)" }}
+          />
+        </Field>
+        <Field label="Unit cost ($)">
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={unitCost}
+            onChange={(e) => setUnitCost(e.target.value)}
+            placeholder="29.95"
+            className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+            style={{ background: "var(--background)", color: "var(--foreground)" }}
+          />
+        </Field>
+      </div>
+      {daysSupply && unitCost && (
+        <div className="text-[11px] -mt-3" style={{ color: "var(--muted)" }}>
+          ≈ ${((parseFloat(unitCost) / parseInt(daysSupply, 10)) * 30).toFixed(2)}/mo
+        </div>
+      )}
 
       <Field label="Companion of (optional — nest this item under a parent on Today)">
         <select

@@ -96,6 +96,7 @@ export type Item = {
   ordered_on?: string | null;
   arrived_on?: string | null;
   days_supply?: number | null;
+  unit_cost?: number | null;
   reorder_alert_sent_at?: string | null;
   created_at?: string;
   // Transient/rendering-only — populated client-side
@@ -106,6 +107,22 @@ export type RecipeIngredient = {
   name: string;
   amount?: string;
   notes?: string;
+};
+
+export type WishlistPriority = "low" | "medium" | "high";
+
+export type WishlistItem = {
+  id: string;
+  user_id?: string;
+  name: string;
+  url?: string | null;
+  est_cost?: number | null;
+  category?: string | null;
+  notes?: string | null;
+  priority: WishlistPriority;
+  promoted_to_item_id?: string | null;
+  promoted_at?: string | null;
+  created_at?: string;
 };
 
 export type Recipe = {

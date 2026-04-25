@@ -12,6 +12,21 @@ const LINKS = [
     emphasized: true,
   },
   {
+    href: "/sequence",
+    label: "Optimal sequence",
+    desc: "Research-backed daily order — when to take what + why",
+  },
+  {
+    href: "/costs",
+    label: "Stack costs",
+    desc: "Monthly run-rate + cost breakdown by type",
+  },
+  {
+    href: "/wishlist",
+    label: "Wishlist",
+    desc: "Quick-add things you're considering — no commitment",
+  },
+  {
     href: "/queued",
     label: "Queued items",
     desc: "Items waiting on a trigger to activate",
