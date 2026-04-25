@@ -89,18 +89,27 @@ export default function StackPage() {
     );
   }
 
+  const hasActiveFilter =
+    typeFilter !== "all" || categoryFilter !== "all" || goalFilter !== "all";
+
+  function clearFilters() {
+    setTypeFilter("all");
+    setCategoryFilter("all");
+    setGoalFilter("all");
+  }
+
   return (
     <div className="pb-28">
-      <header className="mb-5 flex items-start justify-between">
+      <header className="mb-4 flex items-start justify-between">
         <div>
           <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
             Stack
           </h1>
           <div
-            className="text-[13px] mt-1"
+            className="text-[12px] mt-1"
             style={{ color: "var(--muted)" }}
           >
-            {filtered.length} of {items.length} active items
+            {filtered.length} of {items.length} active
           </div>
         </div>
         <Link
@@ -112,11 +121,11 @@ export default function StackPage() {
             fontWeight: 500,
           }}
         >
-          + Add item
+          + Add
         </Link>
       </header>
 
-      {/* Type filter */}
+      {/* Type filter — primary */}
       <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-2">
         {TYPE_FILTERS.map((f) => {
           const active = typeFilter === f.value;
@@ -137,73 +146,96 @@ export default function StackPage() {
         })}
       </div>
 
-      {/* Category filter */}
-      <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-2">
-        {CATEGORY_FILTERS.map((f) => {
-          const active = categoryFilter === f.value;
-          const colors =
-            f.value !== "all" ? CATEGORY_COLORS[f.value as Category] : null;
-          return (
-            <button
-              key={f.value}
-              onClick={() => setCategoryFilter(f.value)}
-              className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap border-hair"
-              style={{
-                background: active
-                  ? colors?.bg ?? "var(--foreground)"
-                  : "var(--background)",
-                color: active
-                  ? colors?.text ?? "var(--background)"
-                  : "var(--muted)",
-                fontWeight: active ? 500 : 400,
-                borderColor: active ? "transparent" : undefined,
-              }}
-            >
-              {f.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Goal filter */}
-      <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-4">
-        <button
-          onClick={() => setGoalFilter("all")}
-          className="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap border-hair"
-          style={{
-            background: goalFilter === "all" ? "var(--foreground)" : "var(--background)",
-            color: goalFilter === "all" ? "var(--background)" : "var(--muted)",
-            fontWeight: goalFilter === "all" ? 500 : 400,
-          }}
-        >
-          All goals
-        </button>
-        {allGoals.map((g) => (
-          <button
-            key={g}
-            onClick={() => setGoalFilter(g)}
-            className="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap border-hair"
-            style={{
-              background: goalFilter === g ? "var(--foreground)" : "var(--background)",
-              color: goalFilter === g ? "var(--background)" : "var(--muted)",
-              fontWeight: goalFilter === g ? 500 : 400,
-            }}
-          >
-            {GOAL_LABELS[g]}
-          </button>
-        ))}
-      </div>
-
-      {/* Group toggle */}
-      <div className="flex justify-end mb-3">
-        <button
-          onClick={() => setGroupByType(!groupByType)}
-          className="text-[11px]"
+      {/* Secondary filters — collapsed by default */}
+      <details className="mb-3 group">
+        <summary
+          className="flex items-center justify-between text-[11px] cursor-pointer list-none py-1"
           style={{ color: "var(--muted)" }}
         >
-          {groupByType ? "Show flat list" : "Group by type"}
-        </button>
-      </div>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              More filters
+              <span className="transition-transform group-open:rotate-180">⌄</span>
+            </span>
+            {hasActiveFilter && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  clearFilters();
+                }}
+                className="underline"
+              >
+                clear
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setGroupByType(!groupByType);
+            }}
+          >
+            {groupByType ? "Flat ⇅" : "Grouped ⇅"}
+          </button>
+        </summary>
+        <div className="pt-2">
+          <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-1">
+            {CATEGORY_FILTERS.map((f) => {
+              const active = categoryFilter === f.value;
+              const colors =
+                f.value !== "all" ? CATEGORY_COLORS[f.value as Category] : null;
+              return (
+                <button
+                  key={f.value}
+                  onClick={() => setCategoryFilter(f.value)}
+                  className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap border-hair"
+                  style={{
+                    background: active
+                      ? colors?.bg ?? "var(--foreground)"
+                      : "var(--background)",
+                    color: active
+                      ? colors?.text ?? "var(--background)"
+                      : "var(--muted)",
+                    fontWeight: active ? 500 : 400,
+                    borderColor: active ? "transparent" : undefined,
+                  }}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5">
+            <button
+              onClick={() => setGoalFilter("all")}
+              className="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap border-hair"
+              style={{
+                background: goalFilter === "all" ? "var(--foreground)" : "var(--background)",
+                color: goalFilter === "all" ? "var(--background)" : "var(--muted)",
+                fontWeight: goalFilter === "all" ? 500 : 400,
+              }}
+            >
+              All goals
+            </button>
+            {allGoals.map((g) => (
+              <button
+                key={g}
+                onClick={() => setGoalFilter(g)}
+                className="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap border-hair"
+                style={{
+                  background: goalFilter === g ? "var(--foreground)" : "var(--background)",
+                  color: goalFilter === g ? "var(--background)" : "var(--muted)",
+                  fontWeight: goalFilter === g ? 500 : 400,
+                }}
+              >
+                {GOAL_LABELS[g]}
+              </button>
+            ))}
+          </div>
+        </div>
+      </details>
 
       {/* List */}
       {groupByType && grouped ? (

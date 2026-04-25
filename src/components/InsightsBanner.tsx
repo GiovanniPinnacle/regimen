@@ -14,11 +14,11 @@ type Insight = {
 };
 
 const TYPE_ICONS: Record<string, string> = {
-  morning_checkin: "☀️",
   day_milestone: "🎯",
   cycle_flip: "🔄",
   biotin_pause: "⚠️",
   daily_suggestion: "💡",
+  reorder_alert: "📦",
   default: "🔔",
 };
 

@@ -149,7 +149,7 @@ export default async function ItemDetailPage({
           </Section>
 
           {info.goodFor && info.goodFor.length > 0 && (
-            <Section title="Good for">
+            <CollapsibleSection title="Good for">
               <ul className="flex flex-col gap-1.5">
                 {info.goodFor.map((b, i) => (
                   <li key={i} className="text-[14px] leading-relaxed flex gap-2">
@@ -158,29 +158,29 @@ export default async function ItemDetailPage({
                   </li>
                 ))}
               </ul>
-            </Section>
+            </CollapsibleSection>
           )}
 
           {info.howItWorks && (
-            <Section title="How it works">
+            <CollapsibleSection title="How it works">
               <p className="text-[14px] leading-relaxed">{info.howItWorks}</p>
-            </Section>
+            </CollapsibleSection>
           )}
 
           {info.dosing && (
-            <Section title="Dosing">
+            <CollapsibleSection title="Dosing">
               <p className="text-[14px] leading-relaxed">{info.dosing}</p>
-            </Section>
+            </CollapsibleSection>
           )}
 
           {info.timing && (
-            <Section title="Timing">
+            <CollapsibleSection title="Timing">
               <p className="text-[14px] leading-relaxed">{info.timing}</p>
-            </Section>
+            </CollapsibleSection>
           )}
 
           {info.risks && info.risks.length > 0 && (
-            <Section title="Risks + cautions">
+            <CollapsibleSection title="Risks + cautions">
               <ul className="flex flex-col gap-1.5">
                 {info.risks.map((r, i) => (
                   <li
@@ -192,11 +192,11 @@ export default async function ItemDetailPage({
                   </li>
                 ))}
               </ul>
-            </Section>
+            </CollapsibleSection>
           )}
 
           {info.interactions && info.interactions.length > 0 && (
-            <Section title="Interactions">
+            <CollapsibleSection title="Interactions">
               <ul className="flex flex-col gap-1.5">
                 {info.interactions.map((x, i) => (
                   <li
@@ -208,21 +208,21 @@ export default async function ItemDetailPage({
                   </li>
                 ))}
               </ul>
-            </Section>
+            </CollapsibleSection>
           )}
 
           {info.postOpNote && (
-            <Section title="Post-op note">
+            <CollapsibleSection title="Post-op note">
               <p className="text-[14px] leading-relaxed">{info.postOpNote}</p>
-            </Section>
+            </CollapsibleSection>
           )}
 
           {info.sources && info.sources.length > 0 && (
-            <Section title="Sources">
+            <CollapsibleSection title="Sources">
               <div className="text-[12px]" style={{ color: "var(--muted)" }}>
                 {info.sources.join(" · ")}
               </div>
-            </Section>
+            </CollapsibleSection>
           )}
         </>
       ) : (
@@ -312,5 +312,31 @@ function Section({
       </h2>
       {children}
     </section>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="mb-2 border-hair rounded-lg group">
+      <summary
+        className="px-3 py-2.5 text-[12px] uppercase tracking-wider cursor-pointer list-none flex items-center justify-between gap-2"
+        style={{ color: "var(--muted)", fontWeight: 500 }}
+      >
+        <span>{title}</span>
+        <span
+          className="text-[14px] leading-none transition-transform group-open:rotate-180"
+          style={{ color: "var(--muted)" }}
+        >
+          ⌄
+        </span>
+      </summary>
+      <div className="px-3 pb-3 pt-1">{children}</div>
+    </details>
   );
 }

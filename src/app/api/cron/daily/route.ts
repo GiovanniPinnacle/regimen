@@ -7,7 +7,6 @@ import {
   generateDayMilestoneInsights,
   generateCycleInsights,
   generateBiotinAlert,
-  generateMorningCheckin,
   generateDailySuggestion,
   generateReorderAlerts,
 } from "@/lib/scheduled-tasks";
@@ -48,7 +47,6 @@ export async function GET(request: NextRequest) {
       generateDayMilestoneInsights(userId).catch(() => []),
       generateCycleInsights(userId).catch(() => []),
       generateBiotinAlert(userId).catch(() => []),
-      generateMorningCheckin(userId).catch(() => []),
       generateDailySuggestion(userId).catch(() => []),
       generateReorderAlerts(userId).catch(() => []),
     ]);
@@ -62,7 +60,7 @@ export async function GET(request: NextRequest) {
     // Dedupe: don't insert once-per-day types if one already exists today
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const ONCE_PER_DAY = new Set(["morning_checkin", "daily_suggestion"]);
+    const ONCE_PER_DAY = new Set(["daily_suggestion"]);
     const { data: todaysInsights } = await admin
       .from("insights")
       .select("type")

@@ -31,6 +31,9 @@ export default function AuditPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [haveCount, setHaveCount] = useState(0);
+  const [needCount, setNeedCount] = useState(0);
+  const [skipCount, setSkipCount] = useState(0);
 
   useEffect(() => {
     loadItems();
@@ -38,13 +41,13 @@ export default function AuditPage() {
 
   async function loadItems() {
     const supabase = createClient();
-    // Show active + queued (things that might already be owned)
-    // Skip backburner (parked with no plans) + practices/procedures (not ownable)
+    // Only show items that haven't been audited yet (owned is null)
     const { data } = await supabase
       .from("items")
       .select("*")
       .in("status", ["active", "queued"])
       .in("item_type", AUDITABLE_TYPES)
+      .is("owned", null)
       .order("item_type")
       .order("name");
     setItems((data ?? []) as Item[]);
@@ -58,7 +61,6 @@ export default function AuditPage() {
     if (choice === "have") {
       updates.owned = true;
       updates.purchase_state = "using";
-      // If it was queued but you have it, move to active
       if (item.status === "queued") updates.status = "active";
     } else if (choice === "need") {
       updates.owned = false;
@@ -69,13 +71,11 @@ export default function AuditPage() {
       updates.purchase_state = null;
     }
     await supabase.from("items").update(updates).eq("id", item.id);
-    setItems((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, ...updates } as Item : i)),
-    );
-    // For skip, remove from audit list
-    if (choice === "skip") {
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
-    }
+    // Track the choice for the running counter, then remove from list
+    setHaveCount((c) => (choice === "have" ? c + 1 : c));
+    setNeedCount((c) => (choice === "need" ? c + 1 : c));
+    setSkipCount((c) => (choice === "skip" ? c + 1 : c));
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
     setSaving((s) => ({ ...s, [item.id]: false }));
   }
 
@@ -88,12 +88,7 @@ export default function AuditPage() {
     return map;
   }, [items]);
 
-  const total = items.length;
-  const answered = items.filter(
-    (i) => i.owned === true || i.owned === false,
-  ).length;
-  const haveCount = items.filter((i) => i.owned === true).length;
-  const needCount = items.filter((i) => i.owned === false).length;
+  const remaining = items.length;
 
   if (loading) {
     return (
@@ -105,36 +100,34 @@ export default function AuditPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-6">
+      <header className="mb-5">
         <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
           Stack audit
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          Tap ✓ Have / ❌ Need / ⏭ Skip. Auto-saves. Skip = retires item.
+          Tap ✓ Have / ❌ Need / ⏭ Skip — items disappear as you answer.
         </div>
       </header>
 
-      {/* Progress */}
-      <div className="border-hair rounded-xl p-4 mb-5 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[13px]" style={{ fontWeight: 500 }}>
-            {answered} of {total} answered
-          </div>
-          <div className="text-[12px]" style={{ color: "var(--muted)" }}>
-            ✓ {haveCount} have · ❌ {needCount} to order
-          </div>
+      {/* Progress strip — counts what you just answered this session */}
+      <div className="border-hair rounded-xl p-3 mb-5 flex items-center justify-between gap-3">
+        <div className="flex gap-3 text-[12px]" style={{ color: "var(--muted)" }}>
+          <span>{remaining} left</span>
+          {haveCount > 0 && <span>· ✓ {haveCount}</span>}
+          {needCount > 0 && <span>· ❌ {needCount}</span>}
+          {skipCount > 0 && <span>· ⏭ {skipCount}</span>}
         </div>
-        {answered === total && total > 0 && (
+        {needCount > 0 && (
           <Link
             href="/purchases"
-            className="px-3 py-2 rounded-lg text-[13px]"
+            className="px-3 py-1.5 rounded-lg text-[12px]"
             style={{
               background: "var(--foreground)",
               color: "var(--background)",
               fontWeight: 500,
             }}
           >
-            See shopping list →
+            Shopping list →
           </Link>
         )}
       </div>
@@ -164,17 +157,32 @@ export default function AuditPage() {
         );
       })}
 
-      {total === 0 && (
+      {remaining === 0 && (
         <div
           className="border-hair rounded-xl p-8 text-center"
           style={{ color: "var(--muted)" }}
         >
           <div className="text-[14px]" style={{ fontWeight: 500 }}>
-            All clear
+            {haveCount + needCount + skipCount > 0 ? "All clear ✓" : "Nothing to audit"}
           </div>
           <div className="text-[13px] mt-1">
-            Nothing left to audit.
+            {haveCount + needCount + skipCount > 0
+              ? `Audited ${haveCount + needCount + skipCount} items this session.`
+              : "Every item has been audited."}
           </div>
+          {needCount > 0 && (
+            <Link
+              href="/purchases"
+              className="inline-block mt-3 px-3 py-2 rounded-lg text-[13px]"
+              style={{
+                background: "var(--foreground)",
+                color: "var(--background)",
+                fontWeight: 500,
+              }}
+            >
+              See shopping list →
+            </Link>
+          )}
         </div>
       )}
     </div>
@@ -190,17 +198,10 @@ function AuditRow({
   busy: boolean;
   onChoice: (item: Item, choice: "have" | "need" | "skip") => void;
 }) {
-  const answered = item.owned === true || item.owned === false;
-  const isHave = item.owned === true;
-  const isNeed = item.owned === false;
-
   return (
     <div
       className="border-hair rounded-xl p-3"
-      style={{
-        opacity: answered ? 0.75 : 1,
-        background: answered ? "var(--surface-alt)" : "var(--background)",
-      }}
+      style={{ opacity: busy ? 0.5 : 1, transition: "opacity 0.15s" }}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
@@ -228,21 +229,18 @@ function AuditRow({
       <div className="flex gap-1.5">
         <ChoiceButton
           label="✓ Have"
-          active={isHave}
           busy={busy}
           variant="have"
           onClick={() => onChoice(item, "have")}
         />
         <ChoiceButton
           label="❌ Need"
-          active={isNeed}
           busy={busy}
           variant="need"
           onClick={() => onChoice(item, "need")}
         />
         <ChoiceButton
           label="⏭ Skip"
-          active={false}
           busy={busy}
           variant="skip"
           onClick={() => onChoice(item, "skip")}
@@ -254,40 +252,29 @@ function AuditRow({
 
 function ChoiceButton({
   label,
-  active,
   busy,
   variant,
   onClick,
 }: {
   label: string;
-  active: boolean;
   busy: boolean;
   variant: "have" | "need" | "skip";
   onClick: () => void;
 }) {
-  const bg = active
-    ? variant === "have"
-      ? "#E1F5EE"
-      : variant === "need"
-        ? "#FAEEDA"
-        : "var(--surface-alt)"
-    : "var(--background)";
-  const color = active
-    ? variant === "have"
+  const color =
+    variant === "have"
       ? "#04342C"
       : variant === "need"
         ? "#412402"
-        : "var(--foreground)"
-    : "var(--muted)";
+        : "var(--muted)";
   return (
     <button
       onClick={onClick}
       disabled={busy}
       className="flex-1 py-2 rounded-lg text-[13px] border-hair"
       style={{
-        background: bg,
+        background: "var(--background)",
         color,
-        fontWeight: active ? 500 : 400,
         opacity: busy ? 0.5 : 1,
       }}
     >

@@ -179,59 +179,59 @@ export default function TodayPage() {
   }
 
   const dateLabel = new Date().toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
+    weekday: "short",
+    month: "short",
     day: "numeric",
   });
+  const wakeStr = oura?.wake_time
+    ? new Date(oura.wake_time).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
+
+  // Collect compact stat pills — only render those that exist
+  const stats: { label: string; value: string }[] = [];
+  if (wakeStr) stats.push({ label: "Wake", value: wakeStr });
+  if (oura?.sleep_score != null) stats.push({ label: "Sleep", value: String(oura.sleep_score) });
+  if (oura?.readiness != null) stats.push({ label: "Ready", value: String(oura.readiness) });
+  if (oura?.hrv != null) stats.push({ label: "HRV", value: String(oura.hrv) });
+  if (macros) {
+    stats.push({ label: "kcal", value: String(macros.calories) });
+    stats.push({ label: "P", value: `${macros.protein_g}g` });
+  }
 
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
-          Today
-        </h1>
-        <div
-          className="text-[13px] mt-1"
-          style={{ color: "var(--muted)" }}
-        >
-          {dateLabel} · Day {dayPostOp} post-op · {takenCount}/{totalActive} logged
+      <header className="mb-5">
+        <div className="flex items-baseline justify-between gap-2">
+          <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+            Today
+          </h1>
+          <div className="text-[12px]" style={{ color: "var(--muted)" }}>
+            {dateLabel} · Day {dayPostOp} · {takenCount}/{totalActive}
+          </div>
         </div>
-        {oura && (oura.wake_time || oura.readiness) && (
-          <div
-            className="text-[12px] mt-2 flex flex-wrap gap-x-3 gap-y-1"
-            style={{ color: "var(--muted)" }}
-          >
-            {oura.wake_time && (
-              <span>
-                💍 Woke at{" "}
-                <span style={{ fontWeight: 500 }}>
-                  {new Date(oura.wake_time).toLocaleTimeString(undefined, {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </span>
-            )}
-            {oura.readiness != null && <span>Readiness {oura.readiness}</span>}
-            {oura.hrv != null && <span>HRV {oura.hrv}</span>}
-            {oura.rhr != null && <span>RHR {oura.rhr}</span>}
-            {oura.sleep_score != null && <span>Sleep {oura.sleep_score}</span>}
+        {stats.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {stats.map((s) => (
+              <div
+                key={s.label}
+                className="text-[11px] px-2 py-1 rounded-md border-hair"
+                style={{ background: "var(--surface-alt)" }}
+              >
+                <span style={{ color: "var(--muted)" }}>{s.label} </span>
+                <span style={{ fontWeight: 500 }}>{s.value}</span>
+              </div>
+            ))}
           </div>
         )}
         {macros && (
           <div
-            className="text-[12px] mt-2 flex flex-wrap gap-x-3 gap-y-1"
+            className="text-[11px] mt-2"
             style={{ color: "var(--muted)" }}
           >
-            <span>
-              🎯 <span style={{ fontWeight: 500 }}>{macros.calories}</span> kcal
-            </span>
-            <span>{macros.protein_g}g protein</span>
-            <span>{macros.fat_g}g fat</span>
-            <span>{macros.carbs_g}g carbs</span>
-            <span>
-              · per meal {macros.per_meal.calories} / {macros.per_meal.protein_g}g P
-            </span>
+            Per meal: {macros.per_meal.calories} kcal · {macros.per_meal.protein_g}g P · {macros.per_meal.fat_g}g F · {macros.per_meal.carbs_g}g C
           </div>
         )}
       </header>

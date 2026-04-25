@@ -231,47 +231,6 @@ Do NOT include a proposal block. This is just a suggestion — the user can brin
   }
 }
 
-// Generate a Claude-written morning check-in question based on recent data
-export async function generateMorningCheckin(
-  userId: string,
-): Promise<InsightRow[]> {
-  try {
-    const ctx = await buildContextForUser(userId);
-    const system = contextToSystemPrompt(ctx);
-    const anthropic = getAnthropic();
-    const res = await anthropic.messages.create({
-      model: MODELS.chat,
-      max_tokens: 300,
-      system,
-      messages: [
-        {
-          role: "user",
-          content: `Write a brief (2-3 sentences) morning check-in for Giovanni based on his recent symptom logs, adherence, and post-op day. Ask ONE focused question. Return only the check-in text, no preamble.`,
-        },
-      ],
-    });
-    const text = res.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b as { text: string }).text)
-      .join("\n")
-      .trim();
-    if (!text) return [];
-    return [
-      {
-        user_id: userId,
-        type: "morning_checkin",
-        title: "Morning check-in",
-        body: text,
-        confidence: "medium",
-        status: "new",
-      },
-    ];
-  } catch (e) {
-    console.error("morning checkin generation failed", e);
-    return [];
-  }
-}
-
 // ----- Reorder alerts -----
 // For items marked `using` with days_supply + arrived_on set, flag when
 // estimated depletion is within 7 days and no alert was sent yet.
