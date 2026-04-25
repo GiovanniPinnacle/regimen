@@ -94,7 +94,16 @@ export default function ItemCard({
           )}
         </div>
 
-        {item.notes && (
+        {item.usage_notes && (
+          <div
+            className="text-[12px] mt-1.5 leading-relaxed whitespace-pre-line"
+            style={{ color: "var(--foreground)", opacity: 0.85 }}
+          >
+            {item.usage_notes}
+          </div>
+        )}
+
+        {item.notes && !item.usage_notes && (
           <div
             className="text-[12px] mt-1.5"
             style={{ color: "var(--muted)" }}

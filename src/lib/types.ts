@@ -98,6 +98,9 @@ export type Item = {
   days_supply?: number | null;
   unit_cost?: number | null;
   reorder_alert_sent_at?: string | null;
+  usage_notes?: string | null;
+  research_summary?: string | null;
+  research_generated_at?: string | null;
   created_at?: string;
   // Transient/rendering-only — populated client-side
   __companions?: Item[];

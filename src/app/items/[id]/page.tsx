@@ -12,6 +12,7 @@ import { getItemInfo } from "@/lib/item-info";
 import type { Item } from "@/lib/types";
 import ItemActions from "@/components/ItemActions";
 import PurchaseStateControl from "@/components/PurchaseStateControl";
+import RegenerateResearchButton from "@/components/RegenerateResearchButton";
 
 export default async function ItemDetailPage({
   params,
@@ -127,6 +128,44 @@ export default async function ItemDetailPage({
       </header>
 
       <ItemActions item={item} />
+
+      {item.usage_notes && (
+        <Section title="How to use">
+          <div
+            className="text-[14px] leading-relaxed whitespace-pre-line"
+          >
+            {item.usage_notes}
+          </div>
+        </Section>
+      )}
+
+      {item.research_summary && (
+        <Section title="Research notes">
+          <div
+            className="text-[13px] leading-relaxed whitespace-pre-line"
+            style={{ color: "var(--muted)" }}
+          >
+            {item.research_summary}
+          </div>
+          <div className="mt-3">
+            <RegenerateResearchButton itemId={item.id} hasResearch={true} />
+          </div>
+        </Section>
+      )}
+
+      {!item.research_summary && !item.usage_notes && (
+        <Section title="Research notes">
+          <div
+            className="border-hair rounded-lg p-3 text-[13px]"
+            style={{ color: "var(--muted)" }}
+          >
+            No research generated yet.
+            <div className="mt-2">
+              <RegenerateResearchButton itemId={item.id} hasResearch={false} />
+            </div>
+          </div>
+        </Section>
+      )}
 
       <Section title="Purchase state">
         <PurchaseStateControl item={item} />

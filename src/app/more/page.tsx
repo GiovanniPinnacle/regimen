@@ -3,6 +3,7 @@ import SignOutButton from "@/components/SignOutButton";
 import SyncSeedButton from "@/components/SyncSeedButton";
 import PushSettings from "@/components/PushSettings";
 import OuraSettings from "@/components/OuraSettings";
+import BulkResearchButton from "@/components/BulkResearchButton";
 
 const LINKS = [
   {
@@ -149,6 +150,16 @@ export default function MorePage() {
           Notifications
         </h2>
         <PushSettings />
+      </section>
+
+      <section className="mt-6">
+        <h2
+          className="text-[11px] uppercase tracking-wider mb-3"
+          style={{ color: "var(--muted)", fontWeight: 500 }}
+        >
+          Research
+        </h2>
+        <BulkResearchButton />
       </section>
 
       <section className="mt-6">

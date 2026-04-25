@@ -167,11 +167,23 @@ export default function ItemForm({ initial, onSaved }: Props) {
           : null,
     };
 
+    let savedId: string | undefined = initial?.id;
     if (initial?.id) {
       await client.from("items").update(row).eq("id", initial.id);
     } else {
-      await client.from("items").insert(row);
+      const { data: inserted } = await client
+        .from("items")
+        .insert(row)
+        .select("id")
+        .single();
+      if (inserted?.id) savedId = inserted.id;
     }
+
+    // Fire-and-forget research generation for new items (or items missing research)
+    if (savedId) {
+      fetch(`/api/items/${savedId}/research`, { method: "POST" }).catch(() => null);
+    }
+
     setSaving(false);
     if (onSaved) onSaved();
     else router.push("/stack");
