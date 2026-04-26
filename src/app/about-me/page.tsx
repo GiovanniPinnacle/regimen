@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import AboutMeQuickInputs from "@/components/AboutMeQuickInputs";
 
 type AboutMe = {
   // Goals & vision
@@ -188,10 +189,12 @@ export default function AboutMePage() {
           About me
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          The context Claude needs to give you sharper answers. Auto-saves on
-          blur. {filledCount}/{totalFields} fields filled.
+          {filledCount}/{totalFields} fields filled. Skip the form — chat
+          or paste below instead.
         </div>
       </header>
+
+      <AboutMeQuickInputs />
 
       <div className="flex flex-col gap-8">
         {SECTIONS.map((section) => (
