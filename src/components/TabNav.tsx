@@ -1,5 +1,10 @@
 "use client";
 
+// Bottom nav — 5 tabs, optimized for revenue + daily engagement.
+// Today (engagement) · Protocols (affiliate/premium revenue driver) ·
+// Stack (manage) · Refine (Pro tier driver) · More (everything else).
+// Scan + Recipes moved to /more "Tools" since they're occasional, not daily.
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -22,6 +27,18 @@ const TABS: Tab[] = [
     ),
   },
   {
+    href: "/protocols",
+    label: "Protocols",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 4h6a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v0a2 2 0 0 1 2-2z" />
+        <path d="M5 6h0a2 2 0 0 1 2-2h0M19 6h0a2 2 0 0 0-2-2h0" />
+        <path d="M5 6v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6" />
+        <path d="M9 13l2 2 4-4" />
+      </svg>
+    ),
+  },
+  {
     href: "/stack",
     label: "Stack",
     icon: (
@@ -33,22 +50,13 @@ const TABS: Tab[] = [
     ),
   },
   {
-    href: "/scan",
-    label: "Scan",
+    href: "/refine",
+    label: "Refine",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-        <circle cx="12" cy="13" r="4" />
-      </svg>
-    ),
-  },
-  {
-    href: "/recipes",
-    label: "Recipes",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-        <path d="M9 7h6M9 11h6M9 15h4" />
+        <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z" />
+        <path d="M19 14l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" />
+        <path d="M5 17l.5 1.5 1.5.5-1.5.5L5 21l-.5-1.5L3 19l1.5-.5z" />
       </svg>
     ),
   },

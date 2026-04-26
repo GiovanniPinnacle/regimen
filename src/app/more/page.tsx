@@ -5,98 +5,165 @@ import PushSettings from "@/components/PushSettings";
 import OuraSettings from "@/components/OuraSettings";
 import BulkResearchButton from "@/components/BulkResearchButton";
 
-const LINKS = [
+// /more is now grouped — five clear sections so users find what they need
+// without scrolling through 18 flat links. Revenue drivers (Protocols,
+// Refine, About me) live in the bottom nav or get top-of-page emphasis;
+// /more is for managing your stack + setup + occasional tools.
+
+type NavLink = {
+  href: string;
+  label: string;
+  desc: string;
+  emoji?: string;
+};
+
+type Section = {
+  title: string;
+  blurb?: string;
+  links: NavLink[];
+};
+
+const SECTIONS: Section[] = [
   {
-    href: "/protocols",
-    label: "Protocols",
-    desc: "Prebuilt regimens — recovery, fitness, posture, sleep. Enroll once, items auto-populate Today.",
-    emphasized: true,
+    title: "Manage your stack",
+    blurb: "Items, audits, queues, shopping",
+    links: [
+      {
+        href: "/items/new",
+        label: "Add item",
+        desc: "Manually add supp / topical / practice / food",
+        emoji: "+",
+      },
+      {
+        href: "/audit",
+        label: "Stack audit",
+        desc: "What you have vs need to order — fast, one-tap",
+        emoji: "✓",
+      },
+      {
+        href: "/purchases",
+        label: "Shopping list",
+        desc: "Items you marked 'need to order'",
+        emoji: "🛒",
+      },
+      {
+        href: "/wishlist",
+        label: "Wishlist",
+        desc: "Things you're considering — no commitment",
+        emoji: "★",
+      },
+      {
+        href: "/queued",
+        label: "Queued items",
+        desc: "Waiting for a trigger to activate (e.g., Day 14+)",
+        emoji: "⏳",
+      },
+      {
+        href: "/backburner",
+        label: "Parked",
+        desc: "Items parked with revisit conditions",
+        emoji: "🅿️",
+      },
+    ],
   },
   {
-    href: "/about-me",
-    label: "About me",
-    desc: "Goals, lifestyle, health history, family, vision — context Claude actually uses",
-    emphasized: true,
+    title: "Insights & data",
+    blurb: "Logs, trends, biomarkers",
+    links: [
+      {
+        href: "/tests",
+        label: "Bloodwork & tests",
+        desc: "Bloodwork, panels, scans",
+        emoji: "🩸",
+      },
+      {
+        href: "/costs",
+        label: "Stack costs",
+        desc: "Monthly run-rate + cost breakdown",
+        emoji: "💰",
+      },
+      {
+        href: "/sequence",
+        label: "Optimal sequence",
+        desc: "Research-backed daily order — when to take what",
+        emoji: "📊",
+      },
+      {
+        href: "/changelog",
+        label: "Changelog",
+        desc: "Every protocol change logged",
+        emoji: "📝",
+      },
+      {
+        href: "/reviews",
+        label: "Reviews",
+        desc: "Scheduled checkpoints + decisions due",
+        emoji: "🗓️",
+      },
+    ],
   },
   {
-    href: "/profile",
-    label: "Profile + portions",
-    desc: "Weight, activity, goals → macro targets + per-meal portions",
+    title: "Profile & setup",
+    blurb: "About you, preferences, hard limits",
+    links: [
+      {
+        href: "/about-me",
+        label: "About me",
+        desc: "Goals, lifestyle, history — context Claude uses",
+        emoji: "👤",
+      },
+      {
+        href: "/profile",
+        label: "Profile + macros",
+        desc: "Weight, activity, goals → calorie/macro targets",
+        emoji: "⚖️",
+      },
+      {
+        href: "/hard-nos",
+        label: "Hard NOs",
+        desc: "Banned foods, supps, products, approaches",
+        emoji: "🚫",
+      },
+      {
+        href: "/data",
+        label: "Data imports",
+        desc: "Oura CSV, bloodwork PDFs",
+        emoji: "📥",
+      },
+    ],
   },
   {
-    href: "/tests",
-    label: "Tests",
-    desc: "Bloodwork, panels, scans — kept here so they don't crowd Today",
+    title: "Tools",
+    blurb: "Camera, recipes, voice memo",
+    links: [
+      {
+        href: "/scan",
+        label: "Scan",
+        desc: "Photo of food, pill bottle, scalp — Claude analyzes",
+        emoji: "📷",
+      },
+      {
+        href: "/recipes",
+        label: "Recipes",
+        desc: "Saved meals + Claude-generated recipes",
+        emoji: "🍳",
+      },
+    ],
+  },
+];
+
+const STRATEGY_LINKS: NavLink[] = [
+  {
+    href: "/strategy",
+    label: "Strategy doc",
+    desc: "Vision, packs, monetization, roadmap, competitive landscape",
+    emoji: "🧭",
   },
   {
-    href: "/refine",
-    label: "What can I drop this week?",
-    desc: "Claude scans your data and surfaces refinement opportunities",
-  },
-  {
-    href: "/sequence",
-    label: "Optimal sequence",
-    desc: "Research-backed daily order — when to take what + why",
-  },
-  {
-    href: "/logos",
-    label: "Logo concepts (preview)",
-    desc: "8 mark concepts at multiple sizes, light + dark",
-  },
-  {
-    href: "/costs",
-    label: "Stack costs",
-    desc: "Monthly run-rate + cost breakdown by type",
-  },
-  {
-    href: "/wishlist",
-    label: "Wishlist",
-    desc: "Quick-add things you're considering — no commitment",
-  },
-  {
-    href: "/queued",
-    label: "Queued items",
-    desc: "Items waiting on a trigger to activate",
-  },
-  {
-    href: "/audit",
-    label: "Stack audit",
-    desc: "Mark what you have vs need to order — fast, one-tap",
-  },
-  {
-    href: "/purchases",
-    label: "Shopping list",
-    desc: "Items you marked 'need to order'",
-  },
-  {
-    href: "/items/new",
-    label: "Add item manually",
-    desc: "Supplement, topical, device, practice, food, gear",
-  },
-  {
-    href: "/backburner",
-    label: "Parked (back burner)",
-    desc: "Items parked with revisit conditions",
-  },
-  {
-    href: "/data",
-    label: "Data imports",
-    desc: "Oura CSV, bloodwork PDFs",
-  },
-  {
-    href: "/reviews",
-    label: "Reviews",
-    desc: "Scheduled checkpoints + decisions due",
-  },
-  {
-    href: "/changelog",
-    label: "Changelog",
-    desc: "Every protocol change logged",
-  },
-  {
-    href: "/hard-nos",
-    label: "Hard NOs",
-    desc: "Banned foods, supps, products, approaches",
+    href: "/welcome",
+    label: "Magic moment (replay)",
+    desc: "Re-run the first refinement reveal",
+    emoji: "✨",
   },
 ];
 
@@ -107,103 +174,161 @@ export default function MorePage() {
         <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
           More
         </h1>
+        <p
+          className="text-[13px] mt-1"
+          style={{ color: "var(--muted)" }}
+        >
+          Everything beyond Today. Grouped — find what you need fast.
+        </p>
       </header>
 
-      <div className="flex flex-col gap-2">
-        {LINKS.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            className={`rounded-2xl p-4 flex items-center justify-between gap-3 transition-all ${l.emphasized ? "" : "card-glass"}`}
-            style={
-              l.emphasized
-                ? {
-                    background:
-                      "linear-gradient(135deg, var(--olive) 0%, var(--olive-deep) 100%)",
-                    color: "#FBFAF6",
-                    boxShadow: "0 8px 24px rgba(74, 82, 48, 0.25)",
-                  }
-                : undefined
-            }
-          >
-            <div>
-              <div className="text-[15px]" style={{ fontWeight: 500 }}>
-                {l.label}
-              </div>
-              <div
-                className="text-[13px]"
-                style={{
-                  color: l.emphasized ? "#FBFAF6" : "var(--muted)",
-                  opacity: l.emphasized ? 0.85 : 1,
-                }}
-              >
-                {l.desc}
-              </div>
-            </div>
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                color: l.emphasized ? "#FBFAF6" : "var(--muted)",
-                opacity: l.emphasized ? 0.85 : 1,
-              }}
+      {SECTIONS.map((section) => (
+        <section key={section.title} className="mb-8">
+          <div className="mb-3">
+            <h2
+              className="text-[11px] uppercase tracking-wider"
+              style={{ color: "var(--muted)", fontWeight: 600 }}
             >
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </Link>
-        ))}
-      </div>
+              {section.title}
+            </h2>
+            {section.blurb && (
+              <p
+                className="text-[12px] mt-0.5"
+                style={{ color: "var(--muted)", opacity: 0.7 }}
+              >
+                {section.blurb}
+              </p>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {section.links.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="rounded-2xl p-3 card-glass flex flex-col gap-1 transition-all"
+              >
+                <div className="flex items-center gap-2">
+                  {l.emoji && (
+                    <span
+                      className="text-[14px] leading-none shrink-0"
+                      style={{ width: "18px", textAlign: "center" }}
+                      aria-hidden
+                    >
+                      {l.emoji}
+                    </span>
+                  )}
+                  <div
+                    className="text-[14px] leading-snug"
+                    style={{ fontWeight: 500 }}
+                  >
+                    {l.label}
+                  </div>
+                </div>
+                <div
+                  className="text-[11px] leading-snug"
+                  style={{ color: "var(--muted)" }}
+                >
+                  {l.desc}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
 
-      <section className="mt-10">
+      {/* Settings groups (Oura, push, research, maintenance) */}
+      <section className="mb-6">
         <h2
           className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
+          style={{ color: "var(--muted)", fontWeight: 600 }}
         >
           Integrations
         </h2>
         <OuraSettings />
       </section>
 
-      <section className="mt-6">
+      <section className="mb-6">
         <h2
           className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
+          style={{ color: "var(--muted)", fontWeight: 600 }}
         >
           Notifications
         </h2>
         <PushSettings />
       </section>
 
-      <section className="mt-6">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
+      {/* Strategy + dev tools — collapsed below the fold */}
+      <details className="mb-6">
+        <summary
+          className="cursor-pointer list-none flex items-center justify-between py-2"
+          style={{ color: "var(--muted)" }}
         >
-          Research
-        </h2>
-        <BulkResearchButton />
-      </section>
+          <span
+            className="text-[11px] uppercase tracking-wider"
+            style={{ fontWeight: 600 }}
+          >
+            Vision & advanced
+          </span>
+          <span className="text-[12px]">⌄</span>
+        </summary>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          {STRATEGY_LINKS.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="rounded-2xl p-3 card-glass flex flex-col gap-1"
+            >
+              <div className="flex items-center gap-2">
+                {l.emoji && (
+                  <span
+                    className="text-[14px] leading-none shrink-0"
+                    style={{ width: "18px", textAlign: "center" }}
+                    aria-hidden
+                  >
+                    {l.emoji}
+                  </span>
+                )}
+                <div
+                  className="text-[14px] leading-snug"
+                  style={{ fontWeight: 500 }}
+                >
+                  {l.label}
+                </div>
+              </div>
+              <div
+                className="text-[11px] leading-snug"
+                style={{ color: "var(--muted)" }}
+              >
+                {l.desc}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </details>
 
-      <section className="mt-6">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
+      <details className="mb-6">
+        <summary
+          className="cursor-pointer list-none flex items-center justify-between py-2"
+          style={{ color: "var(--muted)" }}
         >
-          Maintenance
-        </h2>
-        <SyncSeedButton />
-      </section>
+          <span
+            className="text-[11px] uppercase tracking-wider"
+            style={{ fontWeight: 600 }}
+          >
+            Maintenance
+          </span>
+          <span className="text-[12px]">⌄</span>
+        </summary>
+        <div className="flex flex-col gap-3 mt-2">
+          <BulkResearchButton />
+          <SyncSeedButton />
+        </div>
+      </details>
 
-      <section className="mt-6">
+      <section>
         <h2
           className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
+          style={{ color: "var(--muted)", fontWeight: 600 }}
         >
           Account
         </h2>
