@@ -365,19 +365,67 @@ export default function TodayPage() {
     stats.push({ label: "P", value: `${macros.protein_g}g` });
   }
 
+  const progressPct =
+    totalActive > 0 ? Math.round((takenCount / totalActive) * 100) : 0;
+
   return (
     <div className="pb-24">
       <header className="mb-5">
-        <div className="flex items-baseline justify-between gap-2">
-          <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+        <div
+          className="text-[12px] uppercase tracking-wider"
+          style={{ color: "var(--muted)", fontWeight: 500, letterSpacing: "0.06em" }}
+        >
+          {dateLabel} · Day {dayPostOp}
+        </div>
+        <div className="flex items-baseline justify-between gap-2 mt-1">
+          <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
             Today
           </h1>
-          <div className="text-[12px]" style={{ color: "var(--muted)" }}>
-            {dateLabel} · Day {dayPostOp} · {takenCount}/{totalActive}
+          <div className="flex items-baseline gap-1">
+            <span
+              className="text-[24px] tabular-nums leading-none"
+              style={{
+                fontWeight: 600,
+                color:
+                  progressPct >= 80
+                    ? "var(--olive)"
+                    : progressPct >= 50
+                      ? "var(--warn)"
+                      : "var(--foreground)",
+              }}
+            >
+              {takenCount}
+            </span>
+            <span
+              className="text-[14px] leading-none"
+              style={{ color: "var(--muted)" }}
+            >
+              /{totalActive}
+            </span>
           </div>
         </div>
+        {totalActive > 0 && (
+          <div
+            className="mt-3 h-1 rounded-full overflow-hidden"
+            style={{ background: "var(--surface-alt)" }}
+            aria-label={`${progressPct}% complete`}
+          >
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${progressPct}%`,
+                background:
+                  progressPct >= 80
+                    ? "var(--olive)"
+                    : progressPct >= 50
+                      ? "var(--warn)"
+                      : "var(--olive-light)",
+              }}
+            />
+          </div>
+        )}
         {stats.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
+          <div className="flex flex-wrap gap-1.5 mt-4">
             {stats.map((s) => (
               <div
                 key={s.label}

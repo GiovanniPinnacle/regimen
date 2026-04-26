@@ -157,6 +157,59 @@ button {
   border: none;
   padding: 0;
   cursor: pointer;
+  /* Apple-style press feedback — scale + transition on every button */
+  transition:
+    transform 120ms cubic-bezier(0.4, 0, 0.2, 1),
+    background 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    opacity 200ms ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+a {
+  transition:
+    transform 120ms cubic-bezier(0.4, 0, 0.2, 1),
+    background 200ms ease,
+    color 200ms ease,
+    opacity 200ms ease;
+}
+
+a:active {
+  transform: scale(0.98);
+}
+
+/* ============== Interaction polish utilities ============== */
+
+/* Reach 44pt minimum touch target without changing visual size — adds
+   invisible padding via a :before pseudo-element. Apply via .tap-target. */
+.tap-target {
+  position: relative;
+}
+.tap-target::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  z-index: 0;
+}
+.tap-target > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Pressable card — adds the press feedback to any clickable card */
+.pressable {
+  transition:
+    transform 120ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 200ms ease,
+    background 200ms ease;
+}
+.pressable:active {
+  transform: scale(0.98);
 }
 
 /* ============== Borders + hairlines ============== */
