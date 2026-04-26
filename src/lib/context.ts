@@ -31,6 +31,23 @@ export type ProtocolContext = {
     item_name: string;
     skipped_reason: string;
   }[];
+  /** Last 30 days of one-tap reactions, aggregated per item. */
+  recentReactions: {
+    item_id: string;
+    item_name: string;
+    helped: number;
+    no_change: number;
+    worse: number;
+    forgot: number;
+    total: number;
+    most_recent: string;
+  }[];
+  /** Last 14 days of voice memos — verbatim transcripts, with tag. */
+  recentVoiceMemos: {
+    transcript: string;
+    context_tag: string | null;
+    created_at: string;
+  }[];
   hardNos: string[];
   macros: MacroTargets | null;
   profile: {
@@ -74,8 +91,16 @@ export async function buildContextForUser(
 ): Promise<ProtocolContext> {
   const admin = createAdminClient();
 
-  const [itemsRes, symptomsRes, stackLogRes, profileRes, checkinsRes, skipsRes] =
-    await Promise.all([
+  const [
+    itemsRes,
+    symptomsRes,
+    stackLogRes,
+    profileRes,
+    checkinsRes,
+    skipsRes,
+    reactionsRes,
+    voiceMemosRes,
+  ] = await Promise.all([
       admin.from("items").select("*").eq("user_id", userId),
       admin
         .from("symptom_log")
@@ -120,6 +145,25 @@ export async function buildContextForUser(
         )
         .order("date", { ascending: false })
         .limit(40),
+      admin
+        .from("item_reactions")
+        .select("item_id, reaction, reacted_on, items(name)")
+        .eq("user_id", userId)
+        .gte(
+          "reacted_on",
+          new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
+        )
+        .order("reacted_on", { ascending: false }),
+      admin
+        .from("voice_memos")
+        .select("transcript, context_tag, created_at")
+        .eq("user_id", userId)
+        .gte(
+          "created_at",
+          new Date(Date.now() - 14 * 86400000).toISOString(),
+        )
+        .order("created_at", { ascending: false })
+        .limit(15),
     ]);
 
   const allItems = (itemsRes.data ?? []) as Item[];
@@ -173,6 +217,53 @@ export async function buildContextForUser(
     }))
     .filter((s) => s.skipped_reason);
 
+  // Aggregate reactions per item over last 30 days
+  type ReactionRow = {
+    item_id: string;
+    reaction: string;
+    reacted_on: string;
+    items?: { name?: string } | null;
+  };
+  const reactionAgg = new Map<
+    string,
+    {
+      item_id: string;
+      item_name: string;
+      helped: number;
+      no_change: number;
+      worse: number;
+      forgot: number;
+      total: number;
+      most_recent: string;
+    }
+  >();
+  for (const row of (reactionsRes.data ?? []) as ReactionRow[]) {
+    const id = row.item_id;
+    const name = row.items?.name ?? "(unknown)";
+    if (!reactionAgg.has(id)) {
+      reactionAgg.set(id, {
+        item_id: id,
+        item_name: name,
+        helped: 0,
+        no_change: 0,
+        worse: 0,
+        forgot: 0,
+        total: 0,
+        most_recent: row.reacted_on,
+      });
+    }
+    const entry = reactionAgg.get(id)!;
+    if (row.reaction === "helped") entry.helped++;
+    else if (row.reaction === "no_change") entry.no_change++;
+    else if (row.reaction === "worse") entry.worse++;
+    else if (row.reaction === "forgot") entry.forgot++;
+    entry.total++;
+    if (row.reacted_on > entry.most_recent) entry.most_recent = row.reacted_on;
+  }
+  const recentReactions = Array.from(reactionAgg.values()).sort(
+    (a, b) => b.total - a.total,
+  );
+
   return {
     userId,
     dayPostOp: daysSincePostOp(),
@@ -183,6 +274,16 @@ export async function buildContextForUser(
     recentAdherence,
     recentCheckins: (checkinsRes.data ?? []) as ProtocolContext["recentCheckins"],
     recentSkips,
+    recentReactions,
+    recentVoiceMemos: ((voiceMemosRes.data ?? []) as {
+      transcript: string;
+      context_tag: string | null;
+      created_at: string;
+    }[]).map((v) => ({
+      transcript: v.transcript,
+      context_tag: v.context_tag,
+      created_at: v.created_at,
+    })),
     hardNos: HARD_NOS.map((h) => `${h.name}${h.reason ? ` (${h.reason})` : ""}`),
     macros,
     profile: profile
@@ -323,6 +424,48 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     for (const s of ctx.recentSkips) {
       lines.push(`- ${s.date}: ${s.item_name} → "${s.skipped_reason}"`);
     }
+    lines.push(``);
+  }
+  if (ctx.recentVoiceMemos.length > 0) {
+    lines.push(`# VOICE MEMOS (last 14 days — verbatim from user)`);
+    lines.push(`# These are direct from his mouth. Treat as primary source. Read carefully — may contain side-effect reports, frustrations, requests, or context that's not in any other field.`);
+    for (const m of ctx.recentVoiceMemos) {
+      const date = m.created_at.slice(0, 10);
+      const tag = m.context_tag ? ` [${m.context_tag}]` : "";
+      lines.push(`- ${date}${tag}: "${m.transcript}"`);
+    }
+    lines.push(``);
+  }
+  if (ctx.recentReactions.length > 0) {
+    lines.push(`# ITEM REACTIONS (last 30 days — RP-style stim/fatigue tags)`);
+    lines.push(
+      `# These are the user's per-item self-ratings. STRONG SIGNAL for refinement.`,
+    );
+    for (const r of ctx.recentReactions) {
+      const parts = [
+        r.helped > 0 ? `helped ×${r.helped}` : null,
+        r.no_change > 0 ? `no_change ×${r.no_change}` : null,
+        r.worse > 0 ? `worse ×${r.worse}` : null,
+        r.forgot > 0 ? `forgot ×${r.forgot}` : null,
+      ].filter(Boolean);
+      lines.push(`- ${r.item_name}: ${parts.join(", ")} (${r.total} reactions)`);
+    }
+    lines.push(``);
+    lines.push(
+      `## REACTION INTERPRETATION RULES (use when refining):`,
+    );
+    lines.push(
+      `- 5+ "no_change" reactions and minimal "helped" → strong drop candidate`,
+    );
+    lines.push(
+      `- 2+ "worse" reactions → URGENT review — flag for him to drop or troubleshoot`,
+    );
+    lines.push(
+      `- 5+ "forgot" reactions → adherence problem, not efficacy — suggest moving slot or pairing with existing habit, not dropping`,
+    );
+    lines.push(
+      `- "Helped" majority + sustained over 30 days → keep, reinforce`,
+    );
     lines.push(``);
   }
   lines.push(`# BEHAVIOR RULES`);

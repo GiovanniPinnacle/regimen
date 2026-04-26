@@ -9,6 +9,8 @@ import SkipReasonSheet from "@/components/SkipReasonSheet";
 import SwapSheet from "@/components/SwapSheet";
 import QuickCheckin from "@/components/QuickCheckin";
 import DayStrip, { type SlotStat } from "@/components/DayStrip";
+import PatternCard from "@/components/PatternCard";
+import VoiceMemo from "@/components/VoiceMemo";
 import type { Item, ItemType, TimingSlot } from "@/lib/types";
 import {
   getItemsByStatus,
@@ -404,6 +406,7 @@ export default function TodayPage() {
       <OnboardingBanner />
       <AuditPrompt />
       <InsightsBanner />
+      <PatternCard />
 
       {(() => {
         const hour = new Date().getHours();
@@ -766,6 +769,8 @@ export default function TodayPage() {
           refreshLogs();
         }}
       />
+
+      <VoiceMemo />
     </div>
   );
 }
