@@ -9,6 +9,8 @@ type Props = {
   item: Item;
   taken?: boolean;
   onToggle?: (id: string) => void;
+  onSkip?: (item: Item) => void;
+  skipReason?: string | null;
   showGoals?: boolean;
   showTrigger?: boolean;
   showTypeIcon?: boolean;
@@ -18,19 +20,23 @@ export default function ItemCard({
   item,
   taken,
   onToggle,
+  onSkip,
+  skipReason,
   showGoals = true,
   showTrigger = false,
   showTypeIcon = true,
 }: Props) {
   const interactive = typeof onToggle === "function";
   const typeIcon = ITEM_TYPE_ICONS[item.item_type] ?? "";
+  const skipped = !taken && !!skipReason;
 
   return (
     <div
       className="border-hair rounded-xl p-4 flex items-start gap-3 transition-colors"
       style={{
-        background: taken ? "var(--surface-alt)" : "var(--background)",
-        opacity: taken ? 0.72 : 1,
+        background:
+          taken || skipped ? "var(--surface-alt)" : "var(--background)",
+        opacity: taken ? 0.72 : skipped ? 0.55 : 1,
       }}
     >
       {interactive ? (
@@ -94,13 +100,35 @@ export default function ItemCard({
           )}
         </div>
 
-        {item.usage_notes && (
+        {item.usage_notes && !skipped && (
           <div
             className="text-[12px] mt-1.5 leading-relaxed whitespace-pre-line"
             style={{ color: "var(--foreground)", opacity: 0.85 }}
           >
             {item.usage_notes}
           </div>
+        )}
+
+        {skipped && skipReason && (
+          <div
+            className="text-[12px] mt-1.5"
+            style={{ color: "var(--muted)", fontStyle: "italic" }}
+          >
+            Skipped: {skipReason}
+          </div>
+        )}
+
+        {interactive && !taken && !skipped && onSkip && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSkip(item);
+            }}
+            className="text-[11px] mt-2"
+            style={{ color: "var(--muted)", textDecoration: "underline" }}
+          >
+            Skip with reason
+          </button>
         )}
 
         {item.notes && !item.usage_notes && (

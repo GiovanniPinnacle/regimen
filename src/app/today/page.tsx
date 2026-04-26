@@ -6,10 +6,13 @@ import SymptomForm from "@/components/SymptomForm";
 import InsightsBanner from "@/components/InsightsBanner";
 import OnboardingBanner from "@/components/OnboardingBanner";
 import AuditPrompt from "@/components/AuditPrompt";
+import SkipReasonSheet from "@/components/SkipReasonSheet";
+import QuickCheckin from "@/components/QuickCheckin";
 import type { Item, ItemType, TimingSlot } from "@/lib/types";
 import {
   getItemsByStatus,
   getTakenMap,
+  getStackLogDetailed,
   toggleTaken,
   getOuraToday,
 } from "@/lib/storage";
@@ -27,9 +30,23 @@ import { createClient } from "@/lib/supabase/client";
 const NON_CHECKOFF_SLOTS: TimingSlot[] = ["situational"];
 const COLLAPSE_KEY = "regimen.today.collapsed.v1";
 
+// Map timing_slot → "now or past" relative to current hour
+// Used for the time-window nag banner.
+function slotIsPast(slot: TimingSlot, hour: number): boolean {
+  if (slot === "pre_breakfast" && hour >= 9) return true;
+  if (slot === "breakfast" && hour >= 11) return true;
+  if (slot === "pre_workout" && hour >= 12) return true;
+  if (slot === "lunch" && hour >= 15) return true;
+  if (slot === "dinner" && hour >= 20) return true;
+  if (slot === "pre_bed" && hour >= 23) return true;
+  return false;
+}
+
 export default function TodayPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [taken, setTakenState] = useState<Record<string, boolean>>({});
+  const [skipReasons, setSkipReasons] = useState<Record<string, string>>({});
+  const [skipTarget, setSkipTarget] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
   const [userCollapsed, setUserCollapsed] = useState<Record<string, boolean>>({});
   const [oura, setOura] = useState<
@@ -46,6 +63,15 @@ export default function TodayPage() {
   const today = todayISO();
   const dayPostOp = daysSincePostOp();
 
+  async function refreshLogs() {
+    const detailed = await getStackLogDetailed(today);
+    const skipMap: Record<string, string> = {};
+    for (const e of detailed) {
+      if (!e.taken && e.skipped_reason) skipMap[e.item_id] = e.skipped_reason;
+    }
+    setSkipReasons(skipMap);
+  }
+
   useEffect(() => {
     (async () => {
       const [active, map, ouraData] = await Promise.all([
@@ -56,6 +82,7 @@ export default function TodayPage() {
       setItems(active);
       setTakenState(map);
       setOura(ouraData);
+      await refreshLogs();
       setLoading(false);
     })();
     (async () => {
@@ -152,6 +179,18 @@ export default function TodayPage() {
   async function handleToggle(id: string) {
     const newVal = await toggleTaken(today, id);
     setTakenState((prev) => ({ ...prev, [id]: newVal }));
+    if (newVal) {
+      // Taking it clears any prior skip reason
+      setSkipReasons((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  }
+
+  function handleSkip(item: Item) {
+    setSkipTarget(item);
   }
 
   function toggleCollapse(slot: TimingSlot) {
@@ -243,9 +282,53 @@ export default function TodayPage() {
         )}
       </header>
 
+      <QuickCheckin date={today} />
+
       <OnboardingBanner />
       <AuditPrompt />
       <InsightsBanner />
+
+      {(() => {
+        const hour = new Date().getHours();
+        // Find any past-window slots with un-checked, un-skipped items
+        const overdue: { slot: TimingSlot; count: number }[] = [];
+        for (const slot of TIMING_ORDER) {
+          if (NON_CHECKOFF_SLOTS.includes(slot)) continue;
+          if (!slotIsPast(slot, hour)) continue;
+          const list = grouped[slot] ?? [];
+          const missing = list.filter(
+            (i) => !taken[i.id] && !skipReasons[i.id],
+          ).length;
+          if (missing > 0) overdue.push({ slot, count: missing });
+        }
+        if (overdue.length === 0) return null;
+        const total = overdue.reduce((s, o) => s + o.count, 0);
+        return (
+          <div
+            className="border-hair rounded-xl p-3 mb-5 flex items-start gap-3"
+            style={{ background: "#FAEEDA" }}
+          >
+            <div className="text-[16px] leading-none mt-0.5">⏰</div>
+            <div className="flex-1">
+              <div className="text-[13px]" style={{ fontWeight: 500 }}>
+                {total} item{total === 1 ? "" : "s"} pending from earlier today
+              </div>
+              <div
+                className="text-[12px] mt-0.5"
+                style={{ color: "var(--muted)" }}
+              >
+                {overdue
+                  .map(
+                    (o) =>
+                      `${TIMING_LABELS[o.slot]} (${o.count})`,
+                  )
+                  .join(" · ")}
+                {" "}— take or tap "Skip with reason" so we can learn the pattern.
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="flex flex-col gap-2">
         {TIMING_ORDER.map((slot) => {
@@ -324,10 +407,16 @@ export default function TodayPage() {
                       key={item.id}
                       item={item}
                       taken={taken[item.id] ?? false}
+                      skipReason={skipReasons[item.id]}
                       onToggle={
                         NON_CHECKOFF_SLOTS.includes(slot)
                           ? undefined
                           : handleToggle
+                      }
+                      onSkip={
+                        NON_CHECKOFF_SLOTS.includes(slot)
+                          ? undefined
+                          : handleSkip
                       }
                       showGoals={false}
                       showTypeIcon={false}
@@ -349,6 +438,16 @@ export default function TodayPage() {
         </h2>
         <SymptomForm date={today} />
       </section>
+
+      <SkipReasonSheet
+        item={skipTarget}
+        date={today}
+        open={skipTarget !== null}
+        onClose={() => setSkipTarget(null)}
+        onSkipped={() => {
+          refreshLogs();
+        }}
+      />
     </div>
   );
 }

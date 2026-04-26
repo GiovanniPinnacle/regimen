@@ -16,6 +16,21 @@ export type ProtocolContext = {
   queuedItems: Item[];
   recentSymptoms: SymptomLog[];
   recentAdherence: { date: string; taken: number; total: number }[];
+  recentCheckins: {
+    date: string;
+    checkin_window: string;
+    meal_text?: string | null;
+    workout_text?: string | null;
+    mood?: number | null;
+    energy?: number | null;
+    stress?: number | null;
+    notes?: string | null;
+  }[];
+  recentSkips: {
+    date: string;
+    item_name: string;
+    skipped_reason: string;
+  }[];
   hardNos: string[];
   macros: MacroTargets | null;
   profile: {
@@ -58,30 +73,53 @@ export async function buildContextForUser(
 ): Promise<ProtocolContext> {
   const admin = createAdminClient();
 
-  const [itemsRes, symptomsRes, stackLogRes, profileRes] = await Promise.all([
-    admin.from("items").select("*").eq("user_id", userId),
-    admin
-      .from("symptom_log")
-      .select("*")
-      .eq("user_id", userId)
-      .order("date", { ascending: false })
-      .limit(7),
-    admin
-      .from("stack_log")
-      .select("date, taken")
-      .eq("user_id", userId)
-      .gte(
-        "date",
-        new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10),
-      ),
-    admin
-      .from("profiles")
-      .select(
-        "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date",
-      )
-      .eq("id", userId)
-      .maybeSingle(),
-  ]);
+  const [itemsRes, symptomsRes, stackLogRes, profileRes, checkinsRes, skipsRes] =
+    await Promise.all([
+      admin.from("items").select("*").eq("user_id", userId),
+      admin
+        .from("symptom_log")
+        .select("*")
+        .eq("user_id", userId)
+        .order("date", { ascending: false })
+        .limit(7),
+      admin
+        .from("stack_log")
+        .select("date, taken")
+        .eq("user_id", userId)
+        .gte(
+          "date",
+          new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10),
+        ),
+      admin
+        .from("profiles")
+        .select(
+          "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date",
+        )
+        .eq("id", userId)
+        .maybeSingle(),
+      admin
+        .from("daily_checkins")
+        .select("date, checkin_window, meal_text, workout_text, mood, energy, stress, notes")
+        .eq("user_id", userId)
+        .gte(
+          "date",
+          new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10),
+        )
+        .order("date", { ascending: false })
+        .order("checkin_window", { ascending: true }),
+      admin
+        .from("stack_log")
+        .select("date, item_id, skipped_reason, items(name)")
+        .eq("user_id", userId)
+        .eq("taken", false)
+        .not("skipped_reason", "is", null)
+        .gte(
+          "date",
+          new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10),
+        )
+        .order("date", { ascending: false })
+        .limit(40),
+    ]);
 
   const allItems = (itemsRes.data ?? []) as Item[];
   const activeItems = allItems.filter((i) => i.status === "active");
@@ -124,6 +162,16 @@ export async function buildContextForUser(
     });
   }
 
+  const recentSkips = (skipsRes.data ?? [])
+    .map((s) => ({
+      date: s.date as string,
+      item_name:
+        ((s as { items?: { name?: string } }).items?.name as string) ??
+        "(unknown)",
+      skipped_reason: (s as { skipped_reason: string }).skipped_reason,
+    }))
+    .filter((s) => s.skipped_reason);
+
   return {
     userId,
     dayPostOp: daysSincePostOp(),
@@ -132,6 +180,8 @@ export async function buildContextForUser(
     queuedItems,
     recentSymptoms: (symptomsRes.data ?? []) as SymptomLog[],
     recentAdherence,
+    recentCheckins: (checkinsRes.data ?? []) as ProtocolContext["recentCheckins"],
+    recentSkips,
     hardNos: HARD_NOS.map((h) => `${h.name}${h.reason ? ` (${h.reason})` : ""}`),
     macros,
     profile: profile
@@ -214,23 +264,64 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     }
     lines.push(``);
   }
+  if (ctx.recentCheckins.length > 0) {
+    lines.push(`# RECENT DAILY CHECK-INS (last 3 days)`);
+    for (const c of ctx.recentCheckins) {
+      const parts: string[] = [];
+      if (c.meal_text) parts.push(`meal: ${c.meal_text}`);
+      if (c.workout_text) parts.push(`workout: ${c.workout_text}`);
+      if (c.mood != null) parts.push(`mood ${c.mood}/5`);
+      if (c.energy != null) parts.push(`energy ${c.energy}/5`);
+      if (c.stress != null) parts.push(`stress ${c.stress}/5`);
+      if (c.notes) parts.push(`notes: ${c.notes}`);
+      if (parts.length > 0) {
+        lines.push(`- ${c.date} [${c.checkin_window}]: ${parts.join(" · ")}`);
+      }
+    }
+    lines.push(``);
+  }
+  if (ctx.recentSkips.length > 0) {
+    lines.push(`# RECENT SKIPS (last 7 days, with reasons)`);
+    for (const s of ctx.recentSkips) {
+      lines.push(`- ${s.date}: ${s.item_name} → "${s.skipped_reason}"`);
+    }
+    lines.push(``);
+  }
   lines.push(`# BEHAVIOR RULES`);
-  lines.push(`1. POST-OP SAFETY FIRST: if he's in Day 0-14, flag anything antiplatelet (high-dose omega-3, curcumin, vitamin E >400 IU, NSAIDs, garlic pills, ginkgo) as "wait until Day 14+"`);
-  lines.push(`2. BIOTIN PAUSE: remind him to stop biotin 72h before any bloodwork`);
-  lines.push(`3. TRIGGER AWARENESS: his seb derm flares on two switches — (a) insulin spikes (sugar/dates/dried fruit/honey) and (b) histamine/biogenic amines (aged cheese/cured meats/dark chocolate). Dairy hits BOTH. Flag any food that hits these.`);
-  lines.push(`4. DO NOT recommend anything on the HARD NOs list above`);
-  lines.push(`5. CONCISE by default. Expand only when depth is needed.`);
-  lines.push(`6. When you suggest a protocol change (add/remove/adjust an item), end with a structured change proposal in this exact format so the app can parse it:`);
+  lines.push(``);
+  lines.push(`## CORE PHILOSOPHY (overrides everything below)`);
+  lines.push(`A. REFINEMENT > ADDITION. Default move is to subtract, swap, simplify, or tighten dosing — NOT add new items. The stack is already comprehensive. New additions need exceptional evidence + a specific gap they fill.`);
+  lines.push(`B. CONTEXT BEFORE SUGGESTIONS. Do NOT propose changes to dose, portions, supplements, or protocol without sufficient context. If you're missing info on: how long he's been on something, recent side effects, sleep/energy/mood trend, adherence rate, or actual symptoms — ASK FIRST. End every advice response with at least one specific question that would sharpen your next answer.`);
+  lines.push(`C. DATA-HUNGRY BY DEFAULT. Constantly seek info: what he ate, did he train, why he skipped, energy/mood/sleep, stool, libido, scalp condition, photo updates. Surface gaps in the log. If he asks something and you don't have a recent meal/symptom log to reference, name the gap and ask for it.`);
+  lines.push(`D. TRACK CONSISTENCY + PROGRESS. Reference adherence percentages, streaks, and trend deltas in your responses ("you've been at 86% adherence the last 14 days vs 71% the 14 before — what changed?"). Use the recent symptom + adherence data above before answering.`);
+  lines.push(`E. FOOD-FIRST. Always. Suggest food before supplement. Suggest practice before product. Suggest dropping > suggest adding.`);
+  lines.push(``);
+  lines.push(`## HARD CONSTRAINTS`);
+  lines.push(`1. POST-OP SAFETY: if he's in Day 0-14, flag anything antiplatelet (high-dose omega-3, curcumin, vitamin E >400 IU, NSAIDs, garlic, ginkgo) as "wait Day 14+".`);
+  lines.push(`2. TRIGGER AWARENESS: seb derm flares on (a) insulin spikes (sugar/dates/dried fruit/honey/juice) and (b) histamine (aged cheese/cured meats/dark chocolate/coconut water). Dairy hits BOTH. Flag any food/recipe that hits these.`);
+  lines.push(`3. NEVER recommend HARD NOs above. Never re-suggest items he's retired (Hairpower biotin, ashwagandha standalone, Cosmedica post-op shampoo, etc.) unless he explicitly asks.`);
+  lines.push(`4. BLOODWORK INTERFERENCE: biotin >5000 mcg pauses 72h before any draw; Tongkat Ali pauses 7-14d before to avoid T-result confounding.`);
+  lines.push(``);
+  lines.push(`## STYLE`);
+  lines.push(`5. CONCISE by default. Expand only when depth requested.`);
+  lines.push(`6. When you do propose a protocol change, end with the structured proposal block:`);
   lines.push(`   <<<PROPOSAL`);
   lines.push(`   action: add | adjust | remove | queue | promote | retire`);
   lines.push(`   item_name: <name>`);
   lines.push(`   reasoning: <1-2 sentence why>`);
-  lines.push(`   [optional fields:] dose, brand, timing_slot, category, item_type, goals (comma-sep), frequency, notes`);
-  lines.push(`   [for companions:] companion_of: <parent item name>, companion_instruction: "stir into coffee"`);
+  lines.push(`   [optional:] dose, brand, timing_slot, category, item_type, goals (comma-sep), frequency, notes, companion_of, companion_instruction`);
   lines.push(`   PROPOSAL>>>`);
-  lines.push(`7. COMPANION ITEMS: items like cinnamon, MCT oil, electrolytes should be linked to their "parent" action via companion_of. E.g. cinnamon's parent is Lifeboost coffee → on Today tab, cinnamon nests inside the coffee card so Giovanni sees "Morning coffee + cinnamon + MCT" as ONE action.`);
-  lines.push(`8. Assume food-first. Resist stack inflation. Every addition must earn its spot.`);
-  lines.push(`9. When suggesting meals/foods, use his macro targets (above) to size portions in grams or standard units (e.g. "3 eggs (21g protein) + 150g beef (30g)" that sum to his per-meal target).`);
+  lines.push(`7. COMPANION ITEMS: nest small daily items (cinnamon, MCT oil, electrolytes) under a parent action via companion_of so Today renders them as a single bundled card.`);
+  lines.push(`8. MEAL PORTIONS: when suggesting food, size to his per-meal macro target in grams or standard units (e.g. "3 eggs (21g P) + 150g beef (30g) = 51g protein"). Honor his food-first preference + his confirmed flare foods.`);
+  lines.push(`9. SKIP-REASON LEARNING: if recent stack_log shows skip patterns, name them. ("You've skipped X 4× this week with reason 'forgot' — should we move it to a different slot or pair it with an existing habit?")`);
+  lines.push(``);
+  lines.push(`## REFINEMENT TRIGGERS (proactively raise these)`);
+  lines.push(`- An active item's research_summary or usage_notes contradict each other`);
+  lines.push(`- Two items overlap in mechanism (suggest consolidating)`);
+  lines.push(`- A queued item's review_trigger has fired but it's still queued`);
+  lines.push(`- An item with days_supply hasn't been re-stocked and is past depletion`);
+  lines.push(`- An item has 0% adherence over 14+ days (suggest retiring or repositioning)`);
+  lines.push(`- A symptom score (sleep/seb_derm/energy) trended down for 7+ days without a stack adjustment to address it`);
 
   return lines.join("\n");
 }

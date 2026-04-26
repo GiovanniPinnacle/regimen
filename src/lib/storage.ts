@@ -107,7 +107,11 @@ export async function toggleTaken(
     const newTaken = !existing.taken;
     const { error } = await client
       .from("stack_log")
-      .update({ taken: newTaken, logged_at: new Date().toISOString() })
+      .update({
+        taken: newTaken,
+        skipped_reason: newTaken ? null : (existing as { skipped_reason?: string }).skipped_reason ?? null,
+        logged_at: new Date().toISOString(),
+      })
       .eq("id", existing.id);
     if (error) console.error("toggleTaken update", error);
     return newTaken;
@@ -122,6 +126,75 @@ export async function toggleTaken(
     if (error) console.error("toggleTaken insert", error);
     return true;
   }
+}
+
+// Mark an item as explicitly skipped today, with a reason.
+// Different semantics from "untaken" — captures *why* and surfaces patterns.
+export async function logSkip(
+  date: string,
+  itemId: string,
+  reason: string,
+): Promise<void> {
+  const client = supa();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user) return;
+
+  const { data: existing } = await client
+    .from("stack_log")
+    .select("id")
+    .eq("date", date)
+    .eq("item_id", itemId)
+    .maybeSingle();
+
+  const row = {
+    user_id: user.id,
+    date,
+    item_id: itemId,
+    taken: false,
+    skipped_reason: reason,
+    logged_at: new Date().toISOString(),
+  };
+  if (existing) {
+    const { error } = await client
+      .from("stack_log")
+      .update(row)
+      .eq("id", existing.id);
+    if (error) console.error("logSkip update", error);
+  } else {
+    const { error } = await client.from("stack_log").insert(row);
+    if (error) console.error("logSkip insert", error);
+  }
+}
+
+// Get full stack log for a date (with skipped reasons)
+export async function getStackLogDetailed(
+  date: string,
+): Promise<
+  {
+    id: string;
+    item_id: string;
+    taken: boolean;
+    skipped_reason?: string | null;
+    logged_at: string;
+  }[]
+> {
+  const { data, error } = await supa()
+    .from("stack_log")
+    .select("id, item_id, taken, skipped_reason, logged_at")
+    .eq("date", date);
+  if (error) {
+    console.error("getStackLogDetailed", error);
+    return [];
+  }
+  return (data ?? []) as {
+    id: string;
+    item_id: string;
+    taken: boolean;
+    skipped_reason?: string | null;
+    logged_at: string;
+  }[];
 }
 
 // ---------- Symptom log ----------
