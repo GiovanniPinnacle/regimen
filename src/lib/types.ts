@@ -104,6 +104,12 @@ export type Item = {
   deep_research?: string | null;
   deep_research_generated_at?: string | null;
   sort_order?: number | null;
+  // Affiliate primitive — see migration 014. Recommendations are picked
+  // first; affiliates are metadata on already-recommended items.
+  vendor?: string | null;
+  affiliate_url?: string | null;
+  list_price_cents?: number | null;
+  vendor_sku?: string | null;
   created_at?: string;
   // Transient/rendering-only — populated client-side
   __companions?: Item[];

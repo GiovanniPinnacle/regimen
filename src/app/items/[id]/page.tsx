@@ -331,17 +331,72 @@ export default async function ItemDetailPage({
         </Section>
       )}
 
-      {item.purchase_url && (
-        <Section title="Purchase">
-          <a
-            href={item.purchase_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[13px] underline"
-            style={{ color: "var(--muted)" }}
-          >
-            {new URL(item.purchase_url).hostname}
-          </a>
+      {(item.affiliate_url || item.purchase_url) && (
+        <Section title="Get this">
+          {item.affiliate_url ? (
+            <div className="flex flex-col gap-2">
+              <a
+                href={item.affiliate_url}
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                className="rounded-2xl px-4 py-3 flex items-center justify-between gap-3"
+                style={{
+                  background: "var(--olive)",
+                  color: "#FBFAF6",
+                  fontWeight: 500,
+                }}
+              >
+                <span className="flex flex-col">
+                  <span className="text-[14px]">
+                    Get on {item.vendor ?? "vendor"} →
+                  </span>
+                  {item.list_price_cents != null && (
+                    <span
+                      className="text-[11px]"
+                      style={{ opacity: 0.78 }}
+                    >
+                      ${(item.list_price_cents / 100).toFixed(2)}
+                    </span>
+                  )}
+                </span>
+                <span
+                  className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
+                  style={{
+                    background: "rgba(251, 250, 246, 0.18)",
+                    fontWeight: 600,
+                    letterSpacing: "0.06em",
+                  }}
+                >
+                  Affiliate
+                </span>
+              </a>
+              <div
+                className="text-[11px] leading-relaxed"
+                style={{ color: "var(--muted)" }}
+              >
+                Regimen earns a commission on this link. Recommendations are
+                picked first — affiliates are metadata on already-recommended
+                items, never the reason for them.{" "}
+                <Link
+                  href="/strategy"
+                  className="underline"
+                  style={{ color: "var(--olive)" }}
+                >
+                  How this works
+                </Link>
+              </div>
+            </div>
+          ) : item.purchase_url ? (
+            <a
+              href={item.purchase_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[13px] underline"
+              style={{ color: "var(--muted)" }}
+            >
+              {new URL(item.purchase_url).hostname}
+            </a>
+          ) : null}
         </Section>
       )}
 
