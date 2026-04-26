@@ -39,6 +39,7 @@ export type ProtocolContext = {
     body_goal?: string;
     meals_per_day?: number;
   } | null;
+  aboutMe: Record<string, string> | null;
 };
 
 const GOALS_IN_ORDER = [
@@ -93,7 +94,7 @@ export async function buildContextForUser(
       admin
         .from("profiles")
         .select(
-          "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date",
+          "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, about_me",
         )
         .eq("id", userId)
         .maybeSingle(),
@@ -192,6 +193,7 @@ export async function buildContextForUser(
           meals_per_day: profile.meals_per_day ?? undefined,
         }
       : null,
+    aboutMe: (profile?.about_me as Record<string, string> | null) ?? null,
   };
 }
 
@@ -220,6 +222,42 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   lines.push(`# HARD NOs — never recommend, always flag if detected in a photo or food log:`);
   for (const n of ctx.hardNos) lines.push(`- ${n}`);
   lines.push(``);
+  if (ctx.aboutMe && Object.keys(ctx.aboutMe).length > 0) {
+    lines.push(`# ABOUT GIOVANNI — RICH CONTEXT (use this; it's filled by him)`);
+    const am = ctx.aboutMe;
+    if (am.top_goals) lines.push(`## Top goals (his words):\n${am.top_goals}`);
+    if (am.why_doing_this) lines.push(`## Why he's doing this:\n${am.why_doing_this}`);
+    if (am.goal_3mo) lines.push(`## 3-month vision: ${am.goal_3mo}`);
+    if (am.goal_6mo) lines.push(`## 6-month vision: ${am.goal_6mo}`);
+    if (am.goal_12mo) lines.push(`## 12-month vision: ${am.goal_12mo}`);
+    if (am.work_type) lines.push(`## Work: ${am.work_type} (${am.work_hours ?? "hours not set"})`);
+    if (am.typical_wake || am.typical_bed) {
+      lines.push(`## Sleep window: ${am.typical_wake ?? "?"} → ${am.typical_bed ?? "?"}`);
+    }
+    if (am.cooking_ability) lines.push(`## Cooking: ${am.cooking_ability}`);
+    if (am.travel_pattern) lines.push(`## Travel: ${am.travel_pattern}`);
+    if (am.current_stressors) lines.push(`## Current stressors:\n${am.current_stressors}`);
+    if (am.relationship_status) lines.push(`## Relationship: ${am.relationship_status}`);
+    if (am.family_history) lines.push(`## Family history:\n${am.family_history}`);
+    if (am.past_diagnoses) lines.push(`## Past diagnoses: ${am.past_diagnoses}`);
+    if (am.past_surgeries) lines.push(`## Past surgeries: ${am.past_surgeries}`);
+    if (am.current_medications) lines.push(`## Current medications: ${am.current_medications}`);
+    if (am.allergies_sensitivities) lines.push(`## Allergies/sensitivities: ${am.allergies_sensitivities}`);
+    if (am.chronic_issues) lines.push(`## Chronic issues: ${am.chronic_issues}`);
+    if (am.resting_heart_rate) lines.push(`## RHR: ${am.resting_heart_rate}`);
+    if (am.hrv_baseline) lines.push(`## HRV baseline: ${am.hrv_baseline}`);
+    if (am.bp_baseline) lines.push(`## BP baseline: ${am.bp_baseline}`);
+    if (am.body_fat_estimate) lines.push(`## Body fat estimate: ${am.body_fat_estimate}`);
+    if (am.cuisine_preferences) lines.push(`## Cuisine prefs: ${am.cuisine_preferences}`);
+    if (am.hard_food_dislikes) lines.push(`## Won't eat: ${am.hard_food_dislikes}`);
+    if (am.exercise_preferences) lines.push(`## Exercise prefs: ${am.exercise_preferences}`);
+    if (am.communication_style) lines.push(`## How to talk to him: ${am.communication_style}`);
+    if (am.values) lines.push(`## Values: ${am.values}`);
+    if (am.what_success_looks_like) lines.push(`## Success looks like:\n${am.what_success_looks_like}`);
+    if (am.current_wins) lines.push(`## Current wins: ${am.current_wins}`);
+    if (am.current_blockers) lines.push(`## Current blockers: ${am.current_blockers}`);
+    lines.push(``);
+  }
   if (ctx.macros) {
     lines.push(`# DAILY MACRO TARGETS (from profile)`);
     lines.push(

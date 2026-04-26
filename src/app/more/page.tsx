@@ -7,10 +7,25 @@ import BulkResearchButton from "@/components/BulkResearchButton";
 
 const LINKS = [
   {
+    href: "/about-me",
+    label: "About me",
+    desc: "Goals, lifestyle, health history, family, vision — context Claude actually uses",
+    emphasized: true,
+  },
+  {
     href: "/profile",
     label: "Profile + portions",
     desc: "Weight, activity, goals → macro targets + per-meal portions",
-    emphasized: true,
+  },
+  {
+    href: "/tests",
+    label: "Tests",
+    desc: "Bloodwork, panels, scans — kept here so they don't crowd Today",
+  },
+  {
+    href: "/refine",
+    label: "What can I drop this week?",
+    desc: "Claude scans your data and surfaces refinement opportunities",
   },
   {
     href: "/sequence",

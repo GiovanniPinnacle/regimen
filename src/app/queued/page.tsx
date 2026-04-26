@@ -12,7 +12,8 @@ export default function QueuedPage() {
   useEffect(() => {
     (async () => {
       const list = await getItemsByStatus("queued");
-      setItems(list);
+      // Hide tests from Queued — they live on /tests in More
+      setItems(list.filter((i) => i.item_type !== "test"));
       setLoading(false);
     })();
   }, []);
@@ -32,7 +33,7 @@ export default function QueuedPage() {
           Queued
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          {items.length} items waiting for their trigger
+          {items.length} items waiting for their trigger · tests live in <a href="/tests" style={{ textDecoration: "underline" }}>/tests</a>
         </div>
       </header>
 

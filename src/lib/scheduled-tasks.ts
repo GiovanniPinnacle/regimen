@@ -231,6 +231,77 @@ Do NOT include a proposal block. This is just a suggestion — the user can brin
   }
 }
 
+// ----- Day-milestone auto-promote -----
+// Scans queued items whose review_trigger matches "Day N+" or "Day N "
+// and promotes them to active when current dayPostOp >= N. Logs to changelog
+// and surfaces an insight notification.
+export async function promoteDayMilestoneItems(
+  userId: string,
+): Promise<InsightRow[]> {
+  const admin = createAdminClient();
+  const today = daysSincePostOp();
+
+  const { data: queued } = await admin
+    .from("items")
+    .select("id, name, review_trigger")
+    .eq("user_id", userId)
+    .eq("status", "queued")
+    .not("review_trigger", "is", null);
+
+  if (!queued || queued.length === 0) return [];
+
+  // Match patterns like "Day 14+", "Day 21 ", "Day 14"
+  const dayRegex = /\bDay\s+(\d+)\s*\+?/i;
+  const ready: { id: string; name: string; trigger: string; day: number }[] = [];
+
+  for (const item of queued) {
+    const m = item.review_trigger?.match(dayRegex);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    if (Number.isFinite(n) && today >= n) {
+      ready.push({
+        id: item.id,
+        name: item.name,
+        trigger: item.review_trigger ?? "",
+        day: n,
+      });
+    }
+  }
+  if (ready.length === 0) return [];
+
+  const todayISO = new Date().toISOString().slice(0, 10);
+
+  // Promote
+  for (const r of ready) {
+    await admin
+      .from("items")
+      .update({ status: "active", started_on: todayISO })
+      .eq("id", r.id);
+    await admin.from("changelog").insert({
+      user_id: userId,
+      change_type: "promote",
+      item_id: r.id,
+      item_name: r.name,
+      reasoning: `Auto-promoted: Day ${r.day}+ trigger fired (today is Day ${today}).`,
+      triggered_by: "cron-day-milestone",
+      approved_by_user: false,
+    });
+  }
+
+  return [
+    {
+      user_id: userId,
+      type: "day_milestone",
+      title: `🎯 ${ready.length} item${ready.length === 1 ? "" : "s"} auto-activated for Day ${today}`,
+      body: ready
+        .map((r) => `- ${r.name} (was: ${r.trigger})`)
+        .join("\n"),
+      confidence: "high",
+      status: "new",
+    },
+  ];
+}
+
 // ----- Reorder alerts -----
 // For items marked `using` with days_supply + arrived_on set, flag when
 // estimated depletion is within 7 days and no alert was sent yet.

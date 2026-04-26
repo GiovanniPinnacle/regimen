@@ -9,6 +9,7 @@ import {
   generateBiotinAlert,
   generateDailySuggestion,
   generateReorderAlerts,
+  promoteDayMilestoneItems,
 } from "@/lib/scheduled-tasks";
 import { sendPushToUser } from "@/lib/push-server";
 import { syncOuraForUser } from "@/lib/oura-sync";
@@ -43,6 +44,10 @@ export async function GET(request: NextRequest) {
     // Sync Oura first so morning check-in + daily suggestion can reference fresh data
     await syncOuraForUser(userId, 2).catch(() => null);
 
+    // promoteDayMilestoneItems must run BEFORE the milestone insight generator
+    // so it can flip queued → active on items whose Day N+ trigger has fired.
+    const promoted = await promoteDayMilestoneItems(userId).catch(() => []);
+
     const generators = await Promise.all([
       generateDayMilestoneInsights(userId).catch(() => []),
       generateCycleInsights(userId).catch(() => []),
@@ -50,6 +55,7 @@ export async function GET(request: NextRequest) {
       generateDailySuggestion(userId).catch(() => []),
       generateReorderAlerts(userId).catch(() => []),
     ]);
+    generators.unshift(promoted);
 
     const all = generators.flat();
     const breakdown: Record<string, number> = {};
