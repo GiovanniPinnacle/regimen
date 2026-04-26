@@ -6,7 +6,7 @@ const PUBLIC_PATHS = [
   "/auth/callback",
   "/auth/confirm",
   "/api/cron",
-  "/logos", // logo mockup preview — no user data
+  "/logos", // logo mockup previews (and subpaths) — no user data
 ];
 
 // 90 days — beyond iOS Safari ITP's 7-day storage cap for inactive sites,
