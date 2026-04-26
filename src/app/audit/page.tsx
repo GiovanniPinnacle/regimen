@@ -6,11 +6,11 @@ import { createClient } from "@/lib/supabase/client";
 import type { Item, ItemType } from "@/lib/types";
 import { ITEM_TYPE_ICONS, ITEM_TYPE_LABELS } from "@/lib/constants";
 
-// Types that make sense to audit — things you OWN
+// Types that make sense to audit — things you BUY (not foods, not practices).
+// Food items are groceries — you just buy them. Practices have no inventory.
 const AUDITABLE_TYPES: ItemType[] = [
   "supplement",
   "topical",
-  "food",
   "device",
   "gear",
   "test",
@@ -19,12 +19,9 @@ const AUDITABLE_TYPES: ItemType[] = [
 const TYPE_ORDER: ItemType[] = [
   "supplement",
   "topical",
-  "food",
   "device",
   "gear",
   "test",
-  "practice",
-  "procedure",
 ];
 
 export default function AuditPage() {
@@ -105,7 +102,8 @@ export default function AuditPage() {
           Stack audit
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          Tap ✓ Have / ❌ Need / ⏭ Skip — items disappear as you answer.
+          Tap ✓ Have / ❌ Need / ⏭ Skip — items disappear as you answer. Only
+          shows things you actually buy (no foods, no practices).
         </div>
       </header>
 
