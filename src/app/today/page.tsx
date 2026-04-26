@@ -11,6 +11,11 @@ import QuickCheckin from "@/components/QuickCheckin";
 import DayStrip, { type SlotStat } from "@/components/DayStrip";
 import PatternCard from "@/components/PatternCard";
 import VoiceMemo from "@/components/VoiceMemo";
+import {
+  SkeletonLine,
+  SkeletonItemList,
+  SkeletonPill,
+} from "@/components/Skeleton";
 import type { Item, ItemType, TimingSlot } from "@/lib/types";
 import {
   getItemsByStatus,
@@ -336,8 +341,24 @@ export default function TodayPage() {
 
   if (loading) {
     return (
-      <div className="py-12 text-center" style={{ color: "var(--muted)" }}>
-        Loading…
+      <div className="pb-24">
+        <header className="mb-5">
+          <SkeletonLine width={120} height={12} />
+          <div className="flex items-baseline justify-between gap-2 mt-2">
+            <SkeletonLine width={120} height={32} />
+            <SkeletonLine width={56} height={24} />
+          </div>
+          <div
+            className="mt-3 h-1 rounded-full"
+            style={{ background: "var(--surface-alt)" }}
+          />
+        </header>
+        <div className="flex gap-2 mb-4 overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonPill key={i} width={76} height={48} />
+          ))}
+        </div>
+        <SkeletonItemList count={5} />
       </div>
     );
   }

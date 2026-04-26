@@ -11,6 +11,13 @@ import {
   ITEM_TYPE_LABELS,
   ITEM_TYPE_ICONS,
 } from "@/lib/constants";
+import EmptyState from "@/components/EmptyState";
+import {
+  SkeletonLine,
+  SkeletonPill,
+  SkeletonItemList,
+  SkeletonCard,
+} from "@/components/Skeleton";
 
 const CATEGORY_FILTERS: Array<{ value: "all" | Category; label: string }> = [
   { value: "all", label: "All" },
@@ -161,8 +168,20 @@ export default function StackPage() {
 
   if (loading) {
     return (
-      <div className="py-12 text-center" style={{ color: "var(--muted)" }}>
-        Loading…
+      <div className="pb-28">
+        <header className="mb-4">
+          <SkeletonLine width={140} height={32} />
+          <div className="mt-2">
+            <SkeletonLine width={100} height={12} />
+          </div>
+        </header>
+        <SkeletonCard height={48} className="mb-3" />
+        <div className="flex gap-2 mb-3 overflow-hidden">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <SkeletonPill key={i} width={86} height={32} />
+          ))}
+        </div>
+        <SkeletonItemList count={6} />
       </div>
     );
   }
@@ -562,13 +581,25 @@ export default function StackPage() {
       )}
 
       {sorted.length === 0 && (
-        <div
-          className="text-[13px] text-center py-10"
-          style={{ color: "var(--muted)" }}
-        >
-          {search.trim()
-            ? `No matches for "${search}".`
-            : "No items match your filters."}
+        <div className="mt-6">
+          <EmptyState
+            icon={search.trim() ? "🔎" : "🎯"}
+            title={
+              search.trim()
+                ? `No matches for "${search}"`
+                : "No items match your filters"
+            }
+            body={
+              search.trim()
+                ? "Try a different keyword or clear your search."
+                : "Try clearing filters or adding your first item."
+            }
+            primary={
+              hasActiveFilter
+                ? { label: "Clear filters", onClick: clearFilters }
+                : { label: "Add an item", href: "/items/new" }
+            }
+          />
         </div>
       )}
     </div>

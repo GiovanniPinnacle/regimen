@@ -212,6 +212,43 @@ a:active {
   transform: scale(0.98);
 }
 
+/* ============== Skeleton loaders ============== */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    var(--surface-alt) 0%,
+    var(--border) 50%,
+    var(--surface-alt) 100%
+  );
+  background-size: 200px 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+.skeleton-text {
+  height: 1em;
+  border-radius: 4px;
+}
+
+.skeleton-pill {
+  border-radius: 999px;
+}
+
+.skeleton-card {
+  border-radius: 16px;
+}
+
 /* ============== Borders + hairlines ============== */
 .border-hair {
   border: 1px solid var(--border);
