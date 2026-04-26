@@ -362,6 +362,41 @@ export async function getEnrollment(slug: string): Promise<{
   } | null;
 }
 
+// ---------- Adherence per item ----------
+
+/** Returns adherence (0..1) per item over the last N days. */
+export async function getAdherenceMap(
+  itemIds: string[],
+  days = 14,
+): Promise<Record<string, number>> {
+  if (itemIds.length === 0) return {};
+  const since = new Date(Date.now() - days * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const { data, error } = await supa()
+    .from("stack_log")
+    .select("item_id, taken, date")
+    .in("item_id", itemIds)
+    .gte("date", since);
+  if (error) {
+    console.error("getAdherenceMap", error);
+    return {};
+  }
+  const counts = new Map<string, { taken: number; total: number }>();
+  for (const row of data ?? []) {
+    const id = row.item_id as string;
+    if (!counts.has(id)) counts.set(id, { taken: 0, total: 0 });
+    const c = counts.get(id)!;
+    c.total++;
+    if (row.taken) c.taken++;
+  }
+  const map: Record<string, number> = {};
+  for (const [id, c] of counts.entries()) {
+    map[id] = c.total > 0 ? c.taken / c.total : 0;
+  }
+  return map;
+}
+
 // ---------- Item reactions ----------
 
 export async function getReactionForToday(

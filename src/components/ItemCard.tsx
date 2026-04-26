@@ -17,6 +17,10 @@ type Props = {
   showGoals?: boolean;
   showTrigger?: boolean;
   showTypeIcon?: boolean;
+  /** Adherence fraction (0..1) over recent window — shows as small chip. */
+  adherence?: number | null;
+  /** Days of supply remaining — negative = depleted. Shows warning chip. */
+  daysSupplyLeft?: number | null;
   /** Compact mode (Today): hide usage_notes, notes, goals; show companions
    * count chip; tap a chevron or the Details summary for inline expand. */
   compact?: boolean;
@@ -32,6 +36,8 @@ export default function ItemCard({
   showGoals = true,
   showTrigger = false,
   showTypeIcon = true,
+  adherence = null,
+  daysSupplyLeft = null,
   compact = false,
 }: Props) {
   const interactive = typeof onToggle === "function";
@@ -286,6 +292,58 @@ export default function ItemCard({
         {/* NON-COMPACT: full inline metadata (Stack, Item Detail) */}
         {!compact && (
           <>
+            {(adherence != null || daysSupplyLeft != null) && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {adherence != null && (
+                  <span
+                    className="text-[10px] px-2 py-0.5 rounded-full"
+                    style={{
+                      background:
+                        adherence >= 0.8
+                          ? "var(--olive-tint)"
+                          : adherence >= 0.5
+                            ? "rgba(194, 145, 66, 0.15)"
+                            : "rgba(176, 0, 32, 0.10)",
+                      color:
+                        adherence >= 0.8
+                          ? "var(--olive)"
+                          : adherence >= 0.5
+                            ? "#C29142"
+                            : "#b00020",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {Math.round(adherence * 100)}% (14d)
+                  </span>
+                )}
+                {daysSupplyLeft != null && daysSupplyLeft < 14 && (
+                  <span
+                    className="text-[10px] px-2 py-0.5 rounded-full"
+                    style={{
+                      background:
+                        daysSupplyLeft < 0
+                          ? "rgba(176, 0, 32, 0.10)"
+                          : daysSupplyLeft < 7
+                            ? "rgba(194, 145, 66, 0.15)"
+                            : "var(--surface-alt)",
+                      color:
+                        daysSupplyLeft < 0
+                          ? "#b00020"
+                          : daysSupplyLeft < 7
+                            ? "#C29142"
+                            : "var(--muted)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {daysSupplyLeft < 0
+                      ? "⚠ depleted"
+                      : daysSupplyLeft === 0
+                        ? "out today"
+                        : `${daysSupplyLeft}d left`}
+                  </span>
+                )}
+              </div>
+            )}
             {item.usage_notes && !skipped && (
               <div
                 className="text-[12px] mt-1.5 leading-relaxed whitespace-pre-line"

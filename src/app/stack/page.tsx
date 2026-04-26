@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ItemCard from "@/components/ItemCard";
-import { getItemsByStatus } from "@/lib/storage";
+import { getItemsByStatus, getAdherenceMap } from "@/lib/storage";
 import type { Category, Goal, Item, ItemType } from "@/lib/types";
 import {
   CATEGORY_COLORS,
@@ -33,11 +33,33 @@ const TYPE_FILTERS: Array<{ value: "all" | ItemType; label: string }> = [
   { value: "test", label: "🧪 Tests" },
 ];
 
+type SortMode = "default" | "name" | "adherence_low" | "supply_low" | "recent";
+
+const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: "default", label: "Default" },
+  { value: "name", label: "Name A-Z" },
+  { value: "adherence_low", label: "Adherence: low → high" },
+  { value: "supply_low", label: "Supply running out first" },
+  { value: "recent", label: "Recently added" },
+];
+
+function calcSupplyLeft(item: Item): number | null {
+  if (!item.days_supply || !item.started_on) return null;
+  const startedAt = new Date(item.started_on);
+  const daysElapsed = Math.floor(
+    (Date.now() - startedAt.getTime()) / 86400000,
+  );
+  return item.days_supply - daysElapsed;
+}
+
 export default function StackPage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [adherenceMap, setAdherenceMap] = useState<Record<string, number>>({});
+  const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | ItemType>("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | Category>("all");
   const [goalFilter, setGoalFilter] = useState<"all" | Goal>("all");
+  const [sortMode, setSortMode] = useState<SortMode>("default");
   const [groupByType, setGroupByType] = useState(true);
   const [loading, setLoading] = useState(true);
 
@@ -45,6 +67,10 @@ export default function StackPage() {
     (async () => {
       const all = await getItemsByStatus("active");
       setItems(all);
+      // Compute adherence in parallel — non-blocking for first paint
+      const ids = all.map((i) => i.id);
+      const adh = await getAdherenceMap(ids, 14);
+      setAdherenceMap(adh);
       setLoading(false);
     })();
   }, []);
@@ -55,18 +81,70 @@ export default function StackPage() {
     return Array.from(set);
   }, [items]);
 
+  // Compute supply left per item
+  const supplyMap = useMemo(() => {
+    const m: Record<string, number | null> = {};
+    for (const i of items) m[i.id] = calcSupplyLeft(i);
+    return m;
+  }, [items]);
+
+  // Supply alerts — items running out
+  const supplyAlerts = useMemo(() => {
+    return items
+      .map((i) => ({ item: i, days: supplyMap[i.id] }))
+      .filter((x) => x.days != null && (x.days as number) < 14)
+      .sort((a, b) => (a.days as number) - (b.days as number));
+  }, [items, supplyMap]);
+
+  // Filter
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return items.filter((i) => {
       if (typeFilter !== "all" && i.item_type !== typeFilter) return false;
       if (categoryFilter !== "all" && i.category !== categoryFilter)
         return false;
       if (goalFilter !== "all" && !i.goals.includes(goalFilter)) return false;
+      if (q) {
+        const hay =
+          `${i.name} ${i.brand ?? ""} ${i.usage_notes ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
       return true;
     });
-  }, [items, typeFilter, categoryFilter, goalFilter]);
+  }, [items, typeFilter, categoryFilter, goalFilter, search]);
+
+  // Sort
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    if (sortMode === "name") {
+      arr.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortMode === "adherence_low") {
+      arr.sort((a, b) => {
+        const aa = adherenceMap[a.id] ?? 1; // items without data → end
+        const bb = adherenceMap[b.id] ?? 1;
+        return aa - bb;
+      });
+    } else if (sortMode === "supply_low") {
+      arr.sort((a, b) => {
+        const aa = supplyMap[a.id];
+        const bb = supplyMap[b.id];
+        if (aa == null && bb == null) return 0;
+        if (aa == null) return 1;
+        if (bb == null) return -1;
+        return aa - bb;
+      });
+    } else if (sortMode === "recent") {
+      arr.sort((a, b) => {
+        const at = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return bt - at;
+      });
+    }
+    return arr;
+  }, [filtered, sortMode, adherenceMap, supplyMap]);
 
   const grouped = useMemo(() => {
-    if (!groupByType) return null;
+    if (!groupByType || sortMode !== "default") return null;
     const map: Record<ItemType, Item[]> = {
       supplement: [],
       topical: [],
@@ -77,9 +155,9 @@ export default function StackPage() {
       gear: [],
       test: [],
     };
-    for (const item of filtered) map[item.item_type].push(item);
+    for (const item of sorted) map[item.item_type].push(item);
     return map;
-  }, [filtered, groupByType]);
+  }, [sorted, groupByType, sortMode]);
 
   if (loading) {
     return (
@@ -90,12 +168,18 @@ export default function StackPage() {
   }
 
   const hasActiveFilter =
-    typeFilter !== "all" || categoryFilter !== "all" || goalFilter !== "all";
+    typeFilter !== "all" ||
+    categoryFilter !== "all" ||
+    goalFilter !== "all" ||
+    search.trim() !== "" ||
+    sortMode !== "default";
 
   function clearFilters() {
     setTypeFilter("all");
     setCategoryFilter("all");
     setGoalFilter("all");
+    setSearch("");
+    setSortMode("default");
   }
 
   return (
@@ -109,7 +193,7 @@ export default function StackPage() {
             className="text-[12px] mt-1"
             style={{ color: "var(--muted)" }}
           >
-            {filtered.length} of {items.length} active
+            {sorted.length} of {items.length} active
           </div>
         </div>
         <Link
@@ -125,11 +209,109 @@ export default function StackPage() {
         </Link>
       </header>
 
-      {/* Type filter — primary, with counts */}
+      {/* Supply alerts banner */}
+      {supplyAlerts.length > 0 && (
+        <details
+          className="mb-3 rounded-2xl"
+          style={{
+            background:
+              supplyAlerts.some((a) => (a.days as number) < 0)
+                ? "rgba(176, 0, 32, 0.06)"
+                : "rgba(194, 145, 66, 0.08)",
+            border:
+              supplyAlerts.some((a) => (a.days as number) < 0)
+                ? "1px solid rgba(176, 0, 32, 0.20)"
+                : "1px solid rgba(194, 145, 66, 0.25)",
+          }}
+        >
+          <summary
+            className="cursor-pointer list-none p-3 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-[14px]">⚠️</span>
+              <span className="text-[13px]" style={{ fontWeight: 500 }}>
+                {supplyAlerts.filter((a) => (a.days as number) < 0).length >
+                  0 && (
+                  <>
+                    {
+                      supplyAlerts.filter((a) => (a.days as number) < 0)
+                        .length
+                    }{" "}
+                    depleted ·{" "}
+                  </>
+                )}
+                {supplyAlerts.filter(
+                  (a) => (a.days as number) >= 0 && (a.days as number) < 14,
+                ).length}{" "}
+                running low
+              </span>
+            </div>
+            <span className="text-[12px]" style={{ color: "var(--muted)" }}>
+              ⌄
+            </span>
+          </summary>
+          <div className="px-3 pb-3 flex flex-col gap-1.5">
+            {supplyAlerts.slice(0, 8).map((a) => (
+              <Link
+                key={a.item.id}
+                href={`/items/${a.item.id}`}
+                className="rounded-lg px-3 py-2 flex items-center justify-between gap-2 text-[12px]"
+                style={{ background: "rgba(255,255,255,0.4)" }}
+              >
+                <span style={{ fontWeight: 500 }}>{a.item.name}</span>
+                <span
+                  style={{
+                    color:
+                      (a.days as number) < 0
+                        ? "#b00020"
+                        : (a.days as number) < 7
+                          ? "#C29142"
+                          : "var(--muted)",
+                    fontWeight: 600,
+                  }}
+                >
+                  {(a.days as number) < 0
+                    ? "depleted"
+                    : `${a.days as number}d left`}
+                </span>
+              </Link>
+            ))}
+            <Link
+              href="/purchases"
+              className="text-[12px] text-center mt-1 px-3 py-2 rounded-lg"
+              style={{
+                color: "var(--olive)",
+                background: "rgba(255,255,255,0.4)",
+                fontWeight: 500,
+                textDecoration: "underline",
+              }}
+            >
+              Open shopping list →
+            </Link>
+          </div>
+        </details>
+      )}
+
+      {/* Search */}
+      <div className="mb-3">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, brand, or notes…"
+          className="w-full rounded-xl px-4 py-2.5 text-[14px]"
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            color: "var(--foreground)",
+          }}
+        />
+      </div>
+
+      {/* Type filter */}
       <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-2">
         {TYPE_FILTERS.map((f) => {
           const active = typeFilter === f.value;
-          // Counts pre-filter on type alone (so user sees how many of each)
           const count =
             f.value === "all"
               ? items.length
@@ -140,9 +322,7 @@ export default function StackPage() {
               onClick={() => setTypeFilter(f.value)}
               className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5 transition-all"
               style={{
-                background: active
-                  ? "var(--olive)"
-                  : "var(--surface-glass)",
+                background: active ? "var(--olive)" : "var(--surface-glass)",
                 color: active ? "#FBFAF6" : "var(--muted)",
                 fontWeight: active ? 600 : 400,
                 border: active
@@ -172,7 +352,7 @@ export default function StackPage() {
         })}
       </div>
 
-      {/* Secondary filters — collapsed by default */}
+      {/* Sort + secondary filters */}
       <details className="mb-3 group">
         <summary
           className="flex items-center justify-between text-[11px] cursor-pointer list-none py-1"
@@ -180,8 +360,10 @@ export default function StackPage() {
         >
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              More filters
-              <span className="transition-transform group-open:rotate-180">⌄</span>
+              Sort & filter
+              <span className="transition-transform group-open:rotate-180">
+                ⌄
+              </span>
             </span>
             {hasActiveFilter && (
               <button
@@ -196,22 +378,60 @@ export default function StackPage() {
               </button>
             )}
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              setGroupByType(!groupByType);
-            }}
-          >
-            {groupByType ? "Flat ⇅" : "Grouped ⇅"}
-          </button>
+          <span>
+            {sortMode !== "default" &&
+              `· ${SORT_OPTIONS.find((s) => s.value === sortMode)?.label}`}
+          </span>
         </summary>
-        <div className="pt-2">
-          <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-1">
+
+        <div className="pt-3">
+          <div
+            className="text-[10px] uppercase tracking-wider mb-1.5"
+            style={{ color: "var(--muted)", fontWeight: 600 }}
+          >
+            Sort
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-3">
+            {SORT_OPTIONS.map((s) => (
+              <button
+                key={s.value}
+                onClick={() => {
+                  setSortMode(s.value);
+                  if (s.value !== "default") setGroupByType(false);
+                }}
+                className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap"
+                style={{
+                  background:
+                    sortMode === s.value
+                      ? "var(--olive)"
+                      : "var(--surface)",
+                  color:
+                    sortMode === s.value ? "#FBFAF6" : "var(--muted)",
+                  border:
+                    sortMode === s.value
+                      ? "1px solid var(--olive)"
+                      : "1px solid var(--border)",
+                  fontWeight: sortMode === s.value ? 600 : 400,
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          <div
+            className="text-[10px] uppercase tracking-wider mb-1.5"
+            style={{ color: "var(--muted)", fontWeight: 600 }}
+          >
+            Category
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-2">
             {CATEGORY_FILTERS.map((f) => {
               const active = categoryFilter === f.value;
               const colors =
-                f.value !== "all" ? CATEGORY_COLORS[f.value as Category] : null;
+                f.value !== "all"
+                  ? CATEGORY_COLORS[f.value as Category]
+                  : null;
               return (
                 <button
                   key={f.value}
@@ -233,13 +453,26 @@ export default function StackPage() {
               );
             })}
           </div>
+
+          <div
+            className="text-[10px] uppercase tracking-wider mb-1.5"
+            style={{ color: "var(--muted)", fontWeight: 600 }}
+          >
+            Goal
+          </div>
           <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5">
             <button
               onClick={() => setGoalFilter("all")}
               className="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap border-hair"
               style={{
-                background: goalFilter === "all" ? "var(--foreground)" : "var(--background)",
-                color: goalFilter === "all" ? "var(--background)" : "var(--muted)",
+                background:
+                  goalFilter === "all"
+                    ? "var(--foreground)"
+                    : "var(--background)",
+                color:
+                  goalFilter === "all"
+                    ? "var(--background)"
+                    : "var(--muted)",
                 fontWeight: goalFilter === "all" ? 500 : 400,
               }}
             >
@@ -251,8 +484,12 @@ export default function StackPage() {
                 onClick={() => setGoalFilter(g)}
                 className="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap border-hair"
                 style={{
-                  background: goalFilter === g ? "var(--foreground)" : "var(--background)",
-                  color: goalFilter === g ? "var(--background)" : "var(--muted)",
+                  background:
+                    goalFilter === g
+                      ? "var(--foreground)"
+                      : "var(--background)",
+                  color:
+                    goalFilter === g ? "var(--background)" : "var(--muted)",
                   fontWeight: goalFilter === g ? 500 : 400,
                 }}
               >
@@ -264,21 +501,22 @@ export default function StackPage() {
       </details>
 
       {/* List */}
-      {groupByType && grouped ? (
+      {grouped ? (
         <div className="flex flex-col gap-3">
           {(Object.keys(grouped) as ItemType[]).map((t) => {
             const list = grouped[t];
             if (list.length === 0) return null;
             return (
               <details key={t} className="group" open>
-                <summary
-                  className="cursor-pointer list-none flex items-center justify-between gap-3 py-2 px-1 rounded-lg"
-                >
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-3 py-2 px-1 rounded-lg">
                   <div className="flex items-center gap-2">
                     <span className="text-[16px]">{ITEM_TYPE_ICONS[t]}</span>
                     <span
                       className="text-[13px] uppercase tracking-wider"
-                      style={{ color: "var(--foreground-soft)", fontWeight: 600 }}
+                      style={{
+                        color: "var(--foreground-soft)",
+                        fontWeight: 600,
+                      }}
                     >
                       {ITEM_TYPE_LABELS[t]}s
                     </span>
@@ -298,7 +536,12 @@ export default function StackPage() {
                 </summary>
                 <div className="flex flex-col gap-2 mt-2">
                   {list.map((item) => (
-                    <ItemCard key={item.id} item={item} />
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      adherence={adherenceMap[item.id] ?? null}
+                      daysSupplyLeft={supplyMap[item.id]}
+                    />
                   ))}
                 </div>
               </details>
@@ -307,18 +550,25 @@ export default function StackPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {filtered.map((item) => (
-            <ItemCard key={item.id} item={item} />
+          {sorted.map((item) => (
+            <ItemCard
+              key={item.id}
+              item={item}
+              adherence={adherenceMap[item.id] ?? null}
+              daysSupplyLeft={supplyMap[item.id]}
+            />
           ))}
         </div>
       )}
 
-      {filtered.length === 0 && (
+      {sorted.length === 0 && (
         <div
           className="text-[13px] text-center py-10"
           style={{ color: "var(--muted)" }}
         >
-          No items match your filters.
+          {search.trim()
+            ? `No matches for "${search}".`
+            : "No items match your filters."}
         </div>
       )}
     </div>
