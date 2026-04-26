@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ItemCard from "@/components/ItemCard";
-import SymptomForm from "@/components/SymptomForm";
 import InsightsBanner from "@/components/InsightsBanner";
 import OnboardingBanner from "@/components/OnboardingBanner";
 import AuditPrompt from "@/components/AuditPrompt";
@@ -747,16 +746,6 @@ export default function TodayPage() {
               );
             })()}
       </div>
-
-      <section className="mt-10">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          How are you today?
-        </h2>
-        <SymptomForm date={today} />
-      </section>
 
       <SkipReasonSheet
         item={skipTarget}
