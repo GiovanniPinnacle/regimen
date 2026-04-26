@@ -151,10 +151,7 @@ export default function QuickCheckin({ date }: { date: string }) {
   const prompt = WINDOW_PROMPTS[w];
 
   return (
-    <section
-      className="border-hair rounded-xl p-4 mb-6"
-      style={{ background: "var(--surface-alt)" }}
-    >
+    <section className="glass-tint-purple rounded-2xl p-4 mb-6">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="text-[16px] leading-none">{prompt.emoji}</div>

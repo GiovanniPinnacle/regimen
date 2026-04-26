@@ -1,22 +1,81 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --muted: #6b6f76;
-  --border: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.14);
-  --surface-alt: #fafafa;
+  /* Backgrounds — warm whites + creams */
+  --background: #FAF8F2;
+  --surface: #FFFFFF;
+  --surface-alt: #F2EEE2;
+  --surface-glass: rgba(255, 255, 255, 0.55);
+  --surface-glass-strong: rgba(255, 255, 255, 0.75);
+  --surface-glass-tint: rgba(168, 146, 224, 0.06);
+
+  /* Inks */
+  --foreground: #1F1A14;
+  --foreground-soft: #3D3A2F;
+  --muted: #807666;
+
+  /* Olive — primary (matches Building Blocks logo in forest) */
+  --olive: #4A5230;
+  --olive-deep: #2E3A1F;
+  --olive-light: #7B8B5A;
+  --olive-tint: #E8EDDF;
+
+  /* Tan — warm secondary surfaces */
+  --tan: #D4C9B0;
+  --tan-light: #E8E2D5;
+  --tan-deep: #B8A881;
+
+  /* Purple — energy / accent */
+  --purple: #6B5BCD;
+  --purple-soft: #A892E0;
+  --purple-deep: #3D2D7A;
+  --purple-tint: #EFEAFB;
+
+  /* Borders + shadows */
+  --border: rgba(31, 26, 20, 0.08);
+  --border-strong: rgba(31, 26, 20, 0.15);
+  --shadow-glass: 0 8px 32px rgba(31, 26, 20, 0.06);
+  --shadow-card: 0 2px 8px rgba(31, 26, 20, 0.04);
+  --shadow-lift: 0 12px 40px rgba(61, 45, 122, 0.08);
+
+  /* Semantic */
+  --success: #4A8B5C;
+  --warn: #C29142;
+  --error: #B0413E;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --muted: #8a8f98;
-    --border: rgba(255, 255, 255, 0.1);
-    --border-strong: rgba(255, 255, 255, 0.18);
-    --surface-alt: #121212;
+    --background: #0A0A08;
+    --surface: #15140F;
+    --surface-alt: #1F1D17;
+    --surface-glass: rgba(31, 29, 23, 0.55);
+    --surface-glass-strong: rgba(31, 29, 23, 0.78);
+    --surface-glass-tint: rgba(168, 146, 224, 0.07);
+
+    --foreground: #FBFAF6;
+    --foreground-soft: #D4CFC0;
+    --muted: #948B78;
+
+    --olive: #9CAB7E;
+    --olive-deep: #5A6A3A;
+    --olive-light: #BDC9A2;
+    --olive-tint: #2A3020;
+
+    --tan: #B8A881;
+    --tan-light: #3D372A;
+    --tan-deep: #D4C9B0;
+
+    --purple: #A892E0;
+    --purple-soft: #8B7FE8;
+    --purple-deep: #6B5BCD;
+    --purple-tint: #2A2540;
+
+    --border: rgba(251, 250, 246, 0.08);
+    --border-strong: rgba(251, 250, 246, 0.15);
+    --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-lift: 0 12px 40px rgba(168, 146, 224, 0.15);
   }
 }
 
@@ -27,8 +86,11 @@
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-surface-alt: var(--surface-alt);
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  --color-olive: var(--olive);
+  --color-purple: var(--purple);
+  --color-tan: var(--tan);
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 html,
@@ -39,6 +101,53 @@ body {
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  letter-spacing: -0.005em;
+}
+
+/* Soft ambient gradients on the body — gives the whole app a vibrancy
+   layer without screaming. The blurry purple + olive pools shift faintly
+   behind glass cards. */
+body {
+  background:
+    radial-gradient(
+      ellipse at 18% 8%,
+      rgba(168, 146, 224, 0.10) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse at 85% 92%,
+      rgba(123, 139, 90, 0.10) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse at 90% 15%,
+      rgba(212, 201, 176, 0.12) 0%,
+      transparent 40%
+    ),
+    var(--background);
+  min-height: 100dvh;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background:
+      radial-gradient(
+        ellipse at 18% 8%,
+        rgba(168, 146, 224, 0.12) 0%,
+        transparent 45%
+      ),
+      radial-gradient(
+        ellipse at 85% 92%,
+        rgba(123, 139, 90, 0.10) 0%,
+        transparent 45%
+      ),
+      radial-gradient(
+        ellipse at 90% 15%,
+        rgba(184, 168, 129, 0.06) 0%,
+        transparent 40%
+      ),
+      var(--background);
+  }
 }
 
 button {
@@ -50,6 +159,7 @@ button {
   cursor: pointer;
 }
 
+/* ============== Borders + hairlines ============== */
 .border-hair {
   border: 1px solid var(--border);
 }
@@ -61,4 +171,166 @@ button {
 }
 .border-hair-strong {
   border: 1px solid var(--border-strong);
+}
+
+/* ============== Glass surfaces ============== */
+.glass {
+  background: var(--surface-glass);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-glass);
+}
+.glass-strong {
+  background: var(--surface-glass-strong);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-glass);
+}
+.glass-tint-purple {
+  background: linear-gradient(
+    135deg,
+    rgba(168, 146, 224, 0.15) 0%,
+    rgba(168, 146, 224, 0.05) 100%
+  );
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(168, 146, 224, 0.18);
+}
+.glass-tint-olive {
+  background: linear-gradient(
+    135deg,
+    rgba(123, 139, 90, 0.15) 0%,
+    rgba(123, 139, 90, 0.05) 100%
+  );
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(123, 139, 90, 0.18);
+}
+.glass-tint-tan {
+  background: linear-gradient(
+    135deg,
+    rgba(212, 201, 176, 0.4) 0%,
+    rgba(212, 201, 176, 0.15) 100%
+  );
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(184, 168, 129, 0.25);
+}
+
+/* ============== Card variants ============== */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+}
+.card-glass {
+  background: var(--surface-glass);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-glass);
+}
+
+/* ============== Buttons ============== */
+.btn-primary {
+  background: var(--olive);
+  color: #FBFAF6;
+  font-weight: 500;
+  border-radius: 12px;
+  padding: 0.625rem 1rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-primary:hover {
+  box-shadow: var(--shadow-lift);
+}
+.btn-primary:active {
+  transform: scale(0.98);
+}
+.btn-purple {
+  background: var(--purple);
+  color: #FBFAF6;
+  font-weight: 500;
+  border-radius: 12px;
+  padding: 0.625rem 1rem;
+}
+.btn-ghost {
+  background: var(--surface-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  color: var(--foreground-soft);
+  font-weight: 500;
+  border-radius: 12px;
+  padding: 0.625rem 1rem;
+}
+
+/* ============== Pill / chip ============== */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: var(--surface-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.chip-active {
+  background: var(--foreground);
+  color: var(--background);
+  border-color: var(--foreground);
+}
+.chip-purple {
+  background: var(--purple-tint);
+  color: var(--purple-deep);
+  border-color: rgba(107, 91, 205, 0.2);
+}
+.chip-olive {
+  background: var(--olive-tint);
+  color: var(--olive-deep);
+  border-color: rgba(123, 139, 90, 0.25);
+}
+
+/* ============== Accent text ============== */
+.accent-purple {
+  color: var(--purple);
+}
+.accent-olive {
+  color: var(--olive);
+}
+
+/* Scrollbar polish */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+  border: 2px solid var(--background);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Focus polish */
+*:focus-visible {
+  outline: 2px solid var(--purple-soft);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Selection color */
+::selection {
+  background: var(--purple-tint);
+  color: var(--purple-deep);
 }

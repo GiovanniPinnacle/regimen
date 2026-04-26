@@ -263,11 +263,12 @@ export default function TodayPage() {
             {stats.map((s) => (
               <div
                 key={s.label}
-                className="text-[11px] px-2 py-1 rounded-md border-hair"
-                style={{ background: "var(--surface-alt)" }}
+                className="text-[11px] px-2.5 py-1 rounded-full glass"
               >
                 <span style={{ color: "var(--muted)" }}>{s.label} </span>
-                <span style={{ fontWeight: 500 }}>{s.value}</span>
+                <span style={{ fontWeight: 600, color: "var(--olive)" }}>
+                  {s.value}
+                </span>
               </div>
             ))}
           </div>
@@ -305,8 +306,14 @@ export default function TodayPage() {
         const total = overdue.reduce((s, o) => s + o.count, 0);
         return (
           <div
-            className="border-hair rounded-xl p-3 mb-5 flex items-start gap-3"
-            style={{ background: "#FAEEDA" }}
+            className="rounded-2xl p-3 mb-5 flex items-start gap-3"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(194, 145, 66, 0.18) 0%, rgba(194, 145, 66, 0.08) 100%)",
+              backdropFilter: "blur(20px) saturate(180%)",
+              WebkitBackdropFilter: "blur(20px) saturate(180%)",
+              border: "1px solid rgba(194, 145, 66, 0.25)",
+            }}
           >
             <div className="text-[16px] leading-none mt-0.5">⏰</div>
             <div className="flex-1">
@@ -345,9 +352,10 @@ export default function TodayPage() {
           return (
             <section
               key={slot}
-              className="border-hair rounded-xl overflow-hidden"
+              className={`rounded-2xl overflow-hidden transition-all ${collapsed ? "" : "card-glass"}`}
               style={{
-                background: collapsed ? "var(--surface-alt)" : "var(--background)",
+                background: collapsed ? "var(--surface-alt)" : undefined,
+                border: collapsed ? "1px solid var(--border)" : undefined,
               }}
             >
               <button
@@ -365,8 +373,8 @@ export default function TodayPage() {
                     <div
                       className="text-[12px]"
                       style={{
-                        color: allDone ? "#04342C" : "var(--muted)",
-                        fontWeight: allDone ? 500 : 400,
+                        color: allDone ? "var(--olive)" : "var(--muted)",
+                        fontWeight: allDone ? 600 : 400,
                       }}
                     >
                       {allDone ? "✓ All done" : `${slotTaken} / ${slotTotal}`}

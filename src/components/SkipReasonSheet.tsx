@@ -52,13 +52,16 @@ export default function SkipReasonSheet({
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.4)" }}
+      style={{
+        background: "rgba(31, 26, 20, 0.5)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+      }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-t-2xl p-5 pb-8"
+        className="w-full max-w-md rounded-t-3xl p-5 pb-8 glass-strong"
         style={{
-          background: "var(--background)",
           paddingBottom: "calc(env(safe-area-inset-bottom, 0) + 1.5rem)",
         }}
         onClick={(e) => e.stopPropagation()}

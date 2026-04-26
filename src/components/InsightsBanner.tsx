@@ -92,8 +92,7 @@ export default function InsightsBanner() {
           <button
             key={i.id}
             onClick={() => openInChat(i)}
-            className="border-hair rounded-xl p-4 text-left w-full transition-colors active:scale-[0.99]"
-            style={{ background: "var(--surface-alt)" }}
+            className="glass-tint-tan rounded-2xl p-4 text-left w-full transition-all active:scale-[0.99]"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex gap-3 min-w-0 flex-1">

@@ -32,25 +32,40 @@ export default function ItemCard({
 
   return (
     <div
-      className="border-hair rounded-xl p-4 flex items-start gap-3 transition-colors"
+      className={`rounded-xl p-4 flex items-start gap-3 transition-all ${taken ? "" : skipped ? "" : "card-glass"}`}
       style={{
         background:
-          taken || skipped ? "var(--surface-alt)" : "var(--background)",
-        opacity: taken ? 0.72 : skipped ? 0.55 : 1,
+          taken
+            ? "var(--olive-tint)"
+            : skipped
+              ? "var(--surface-alt)"
+              : undefined,
+        border:
+          taken
+            ? "1px solid rgba(123, 139, 90, 0.25)"
+            : skipped
+              ? "1px solid var(--border)"
+              : undefined,
+        opacity: taken ? 0.85 : skipped ? 0.55 : 1,
       }}
     >
       {interactive ? (
         <button
           onClick={() => onToggle?.(item.id)}
-          className="mt-0.5 shrink-0 h-6 w-6 rounded-full flex items-center justify-center border-hair-strong transition-colors"
+          className="mt-0.5 shrink-0 h-6 w-6 rounded-full flex items-center justify-center transition-all"
           style={{
-            background: taken ? "var(--foreground)" : "transparent",
-            borderColor: taken ? "var(--foreground)" : undefined,
+            background: taken ? "var(--olive)" : "transparent",
+            border: taken
+              ? "1px solid var(--olive)"
+              : "1.5px solid var(--border-strong)",
+            boxShadow: taken
+              ? "0 2px 6px rgba(74, 82, 48, 0.3)"
+              : undefined,
           }}
           aria-label={taken ? "Mark as not taken" : "Mark as taken"}
         >
           {taken && (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--background)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FBFAF6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12l5 5L20 7" />
             </svg>
           )}

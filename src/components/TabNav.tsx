@@ -76,9 +76,8 @@ export default function TabNav() {
   }
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-hair-t"
+      className="fixed bottom-0 left-0 right-0 z-50 glass-strong border-hair-t"
       style={{
-        background: "var(--background)",
         paddingBottom: "env(safe-area-inset-bottom, 0)",
       }}
     >
@@ -91,15 +90,15 @@ export default function TabNav() {
             <li key={tab.href}>
               <Link
                 href={tab.href}
-                className="flex flex-col items-center justify-center gap-1 py-3 w-full"
+                className="flex flex-col items-center justify-center gap-1 py-3 w-full transition-colors"
                 style={{
-                  color: active ? "var(--foreground)" : "var(--muted)",
+                  color: active ? "var(--olive)" : "var(--muted)",
                 }}
               >
                 <span style={{ opacity: active ? 1 : 0.8 }}>{tab.icon}</span>
                 <span
                   className="text-[11px]"
-                  style={{ fontWeight: active ? 500 : 400 }}
+                  style={{ fontWeight: active ? 600 : 400 }}
                 >
                   {tab.label}
                 </span>

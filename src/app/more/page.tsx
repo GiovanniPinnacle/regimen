@@ -108,12 +108,14 @@ export default function MorePage() {
           <Link
             key={l.href}
             href={l.href}
-            className="border-hair rounded-xl p-4 flex items-center justify-between gap-3"
+            className={`rounded-2xl p-4 flex items-center justify-between gap-3 transition-all ${l.emphasized ? "" : "card-glass"}`}
             style={
               l.emphasized
                 ? {
-                    background: "var(--foreground)",
-                    color: "var(--background)",
+                    background:
+                      "linear-gradient(135deg, var(--olive) 0%, var(--olive-deep) 100%)",
+                    color: "#FBFAF6",
+                    boxShadow: "0 8px 24px rgba(74, 82, 48, 0.25)",
                   }
                 : undefined
             }
@@ -125,8 +127,8 @@ export default function MorePage() {
               <div
                 className="text-[13px]"
                 style={{
-                  color: l.emphasized ? "var(--background)" : "var(--muted)",
-                  opacity: l.emphasized ? 0.75 : 1,
+                  color: l.emphasized ? "#FBFAF6" : "var(--muted)",
+                  opacity: l.emphasized ? 0.85 : 1,
                 }}
               >
                 {l.desc}
@@ -142,8 +144,8 @@ export default function MorePage() {
               strokeLinecap="round"
               strokeLinejoin="round"
               style={{
-                color: l.emphasized ? "var(--background)" : "var(--muted)",
-                opacity: l.emphasized ? 0.75 : 1,
+                color: l.emphasized ? "#FBFAF6" : "var(--muted)",
+                opacity: l.emphasized ? 0.85 : 1,
               }}
             >
               <path d="M9 6l6 6-6 6" />

@@ -138,10 +138,13 @@ export default function AskClaude() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Ask Claude"
-        className="fixed bottom-24 right-5 z-40 h-14 w-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95"
+        className="fixed bottom-24 right-5 z-40 h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-95"
         style={{
-          background: "var(--foreground)",
-          color: "var(--background)",
+          background:
+            "linear-gradient(135deg, var(--purple) 0%, var(--purple-deep) 100%)",
+          color: "#FBFAF6",
+          boxShadow:
+            "0 12px 32px rgba(107, 91, 205, 0.4), 0 4px 12px rgba(61, 45, 122, 0.3)",
           paddingBottom: "env(safe-area-inset-bottom, 0)",
         }}
       >
