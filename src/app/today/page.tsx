@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ItemCard from "@/components/ItemCard";
 import SymptomForm from "@/components/SymptomForm";
 import InsightsBanner from "@/components/InsightsBanner";
@@ -9,6 +9,7 @@ import AuditPrompt from "@/components/AuditPrompt";
 import SkipReasonSheet from "@/components/SkipReasonSheet";
 import SwapSheet from "@/components/SwapSheet";
 import QuickCheckin from "@/components/QuickCheckin";
+import DayStrip, { type SlotStat } from "@/components/DayStrip";
 import type { Item, ItemType, TimingSlot } from "@/lib/types";
 import {
   getItemsByStatus,
@@ -30,6 +31,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const NON_CHECKOFF_SLOTS: TimingSlot[] = ["situational"];
 const COLLAPSE_KEY = "regimen.today.collapsed.v1";
+const ACTIVE_SLOT_KEY = "regimen.today.activeSlot.v2";
 
 // Map timing_slot → "now or past" relative to current hour
 // Used for the time-window nag banner.
@@ -43,6 +45,43 @@ function slotIsPast(slot: TimingSlot, hour: number): boolean {
   return false;
 }
 
+// Which timing slot matches the current hour?
+function slotForHour(hour: number): TimingSlot {
+  if (hour < 9) return "pre_breakfast";
+  if (hour < 11) return "breakfast";
+  if (hour < 15) return "lunch";
+  if (hour < 20) return "dinner";
+  return "pre_bed";
+}
+
+// Pick the best default slot to show: the current-hour slot if it has items,
+// otherwise the next non-empty checkoff slot (forward → backward fallback).
+function pickDefaultSlot(
+  hour: number,
+  grouped: Record<TimingSlot, Item[]>,
+): TimingSlot | "all" {
+  const order: TimingSlot[] = [
+    "pre_breakfast",
+    "breakfast",
+    "pre_workout",
+    "lunch",
+    "dinner",
+    "pre_bed",
+  ];
+  const primary = slotForHour(hour);
+  if ((grouped[primary]?.length ?? 0) > 0) return primary;
+  const idx = order.indexOf(primary);
+  for (let i = idx + 1; i < order.length; i++) {
+    if ((grouped[order[i]]?.length ?? 0) > 0) return order[i];
+  }
+  for (let i = idx - 1; i >= 0; i--) {
+    if ((grouped[order[i]]?.length ?? 0) > 0) return order[i];
+  }
+  if ((grouped.ongoing?.length ?? 0) > 0) return "ongoing";
+  if ((grouped.situational?.length ?? 0) > 0) return "situational";
+  return "all";
+}
+
 export default function TodayPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [taken, setTakenState] = useState<Record<string, boolean>>({});
@@ -51,6 +90,14 @@ export default function TodayPage() {
   const [swapTarget, setSwapTarget] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
   const [userCollapsed, setUserCollapsed] = useState<Record<string, boolean>>({});
+  const [activeSlot, setActiveSlot] = useState<TimingSlot | "all">("all");
+  // Track if user explicitly chose a slot this session — if so, don't
+  // auto-shift them when the hour rolls over.
+  const [userPickedSlot, setUserPickedSlot] = useState(false);
+  // Touch start coords for swipe-between-slots gesture.
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(
+    null,
+  );
   const [oura, setOura] = useState<
     | {
         wake_time?: string | null;
@@ -124,6 +171,17 @@ export default function TodayPage() {
     } catch {}
   }, [today]);
 
+  function changeSlot(slot: TimingSlot | "all") {
+    setActiveSlot(slot);
+    setUserPickedSlot(true);
+    try {
+      localStorage.setItem(
+        ACTIVE_SLOT_KEY,
+        JSON.stringify({ date: today, slot }),
+      );
+    } catch {}
+  }
+
   const daily = useMemo(
     () =>
       items.filter((i) => DAILY_LOGGABLE_TYPES.includes(i.item_type as ItemType)),
@@ -177,6 +235,59 @@ export default function TodayPage() {
   );
   const totalActive = checkoffItems.length;
   const takenCount = checkoffItems.filter((i) => taken[i.id]).length;
+
+  // Once items load, pick a default active slot (or restore the user's choice
+  // for today if one is persisted). If hours roll over while the page is open
+  // and the user hasn't manually picked, the active slot tracks the clock.
+  useEffect(() => {
+    if (loading) return;
+    setActiveSlot((prev) => {
+      if (userPickedSlot) return prev;
+      try {
+        const raw = localStorage.getItem(ACTIVE_SLOT_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as {
+            date: string;
+            slot: TimingSlot | "all";
+          };
+          if (parsed.date === today) {
+            return parsed.slot;
+          }
+        }
+      } catch {}
+      const hour = new Date().getHours();
+      return pickDefaultSlot(hour, grouped);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, grouped, today]);
+
+  // Build slot stats for the DayStrip — only include slots that have items.
+  const slotStats: SlotStat[] = useMemo(() => {
+    const hour = new Date().getHours();
+    const currentSlot = slotForHour(hour);
+    return TIMING_ORDER.filter((s) => (grouped[s] ?? []).length > 0).map(
+      (slot) => {
+        const list = grouped[slot];
+        const isCheckoff = !NON_CHECKOFF_SLOTS.includes(slot);
+        const total = isCheckoff ? list.length : 0;
+        const takenN = isCheckoff
+          ? list.filter((i) => taken[i.id]).length
+          : 0;
+        const skippedN = isCheckoff
+          ? list.filter((i) => !taken[i.id] && skipReasons[i.id]).length
+          : 0;
+        return {
+          slot,
+          total: isCheckoff ? total : list.length,
+          taken: takenN,
+          skipped: skippedN,
+          past: isCheckoff && slotIsPast(slot, hour),
+          current: isCheckoff && currentSlot === slot,
+          noCheckoff: !isCheckoff,
+        };
+      },
+    );
+  }, [grouped, taken, skipReasons]);
 
   async function handleToggle(id: string) {
     const newVal = await toggleTaken(today, id);
@@ -343,88 +454,246 @@ export default function TodayPage() {
         );
       })()}
 
-      <div className="flex flex-col gap-2">
-        {TIMING_ORDER.map((slot) => {
-          const list = grouped[slot];
-          if (list.length === 0) return null;
-          const collapsed = isCollapsed(slot);
-          const slotTaken = list.filter((i) => taken[i.id]).length;
-          const slotTotal = NON_CHECKOFF_SLOTS.includes(slot)
-            ? list.length
-            : list.length;
-          const allDone =
-            !NON_CHECKOFF_SLOTS.includes(slot) && slotTaken === slotTotal;
+      <DayStrip
+        stats={slotStats}
+        totalTaken={takenCount}
+        totalAll={totalActive}
+        active={activeSlot}
+        onChange={changeSlot}
+      />
 
-          return (
-            <section
-              key={slot}
-              className={`rounded-2xl overflow-hidden transition-all ${collapsed ? "" : "card-glass"}`}
-              style={{
-                background: collapsed ? "var(--surface-alt)" : undefined,
-                border: collapsed ? "1px solid var(--border)" : undefined,
-              }}
-            >
-              <button
-                onClick={() => toggleCollapse(slot)}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className="text-[11px] uppercase tracking-wider"
-                    style={{ color: "var(--muted)", fontWeight: 500 }}
-                  >
-                    {TIMING_LABELS[slot]}
-                  </div>
-                  {!NON_CHECKOFF_SLOTS.includes(slot) && (
-                    <div
-                      className="text-[12px]"
-                      style={{
-                        color: allDone ? "var(--olive)" : "var(--muted)",
-                        fontWeight: allDone ? 600 : 400,
-                      }}
-                    >
-                      {allDone ? "✓ All done" : `${slotTaken} / ${slotTotal}`}
-                    </div>
-                  )}
-                  {NON_CHECKOFF_SLOTS.includes(slot) && (
-                    <div
-                      className="text-[12px]"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {list.length} {list.length === 1 ? "item" : "items"}
-                    </div>
-                  )}
-                </div>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+      <div
+        className="flex flex-col gap-2"
+        onTouchStart={(e) => {
+          if (activeSlot === "all") return;
+          const t = e.touches[0];
+          touchStartRef.current = {
+            x: t.clientX,
+            y: t.clientY,
+            time: Date.now(),
+          };
+        }}
+        onTouchEnd={(e) => {
+          if (activeSlot === "all" || !touchStartRef.current) return;
+          const start = touchStartRef.current;
+          touchStartRef.current = null;
+          const t = e.changedTouches[0];
+          const dx = t.clientX - start.x;
+          const dy = t.clientY - start.y;
+          const dt = Date.now() - start.time;
+          if (Math.abs(dy) > 60) return;
+          if (Math.abs(dx) < 70) return;
+          if (dt > 700) return;
+          const orderedSlots = [
+            ...TIMING_ORDER.filter((s) => (grouped[s]?.length ?? 0) > 0),
+          ];
+          const idx = orderedSlots.indexOf(activeSlot);
+          if (idx === -1) return;
+          if (dx < 0 && idx < orderedSlots.length - 1) {
+            changeSlot(orderedSlots[idx + 1]);
+          } else if (dx > 0 && idx > 0) {
+            changeSlot(orderedSlots[idx - 1]);
+          }
+        }}
+      >
+        {activeSlot === "all"
+          ? TIMING_ORDER.map((slot) => {
+              const list = grouped[slot];
+              if (list.length === 0) return null;
+              const collapsed = isCollapsed(slot);
+              const slotTaken = list.filter((i) => taken[i.id]).length;
+              const slotTotal = list.length;
+              const allDone =
+                !NON_CHECKOFF_SLOTS.includes(slot) &&
+                slotTaken === slotTotal;
+
+              return (
+                <section
+                  key={slot}
+                  className={`rounded-2xl overflow-hidden transition-all ${collapsed ? "" : "card-glass"}`}
                   style={{
-                    color: "var(--muted)",
-                    transform: collapsed ? "rotate(0deg)" : "rotate(180deg)",
-                    transition: "transform 0.15s ease",
+                    background: collapsed ? "var(--surface-alt)" : undefined,
+                    border: collapsed ? "1px solid var(--border)" : undefined,
                   }}
                 >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
+                  <button
+                    onClick={() => toggleCollapse(slot)}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="text-[11px] uppercase tracking-wider"
+                        style={{ color: "var(--muted)", fontWeight: 500 }}
+                      >
+                        {TIMING_LABELS[slot]}
+                      </div>
+                      {!NON_CHECKOFF_SLOTS.includes(slot) && (
+                        <div
+                          className="text-[12px]"
+                          style={{
+                            color: allDone ? "var(--olive)" : "var(--muted)",
+                            fontWeight: allDone ? 600 : 400,
+                          }}
+                        >
+                          {allDone
+                            ? "✓ All done"
+                            : `${slotTaken} / ${slotTotal}`}
+                        </div>
+                      )}
+                      {NON_CHECKOFF_SLOTS.includes(slot) && (
+                        <div
+                          className="text-[12px]"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          {list.length} {list.length === 1 ? "item" : "items"}
+                        </div>
+                      )}
+                    </div>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        color: "var(--muted)",
+                        transform: collapsed
+                          ? "rotate(0deg)"
+                          : "rotate(180deg)",
+                        transition: "transform 0.15s ease",
+                      }}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
 
-              {!collapsed && (() => {
-                const todo = list.filter(
-                  (i) => !taken[i.id] && !skipReasons[i.id],
-                );
-                const done = list.filter(
-                  (i) => taken[i.id] || skipReasons[i.id],
-                );
-                const isCheckoff = !NON_CHECKOFF_SLOTS.includes(slot);
+                  {!collapsed && (() => {
+                    const todo = list.filter(
+                      (i) => !taken[i.id] && !skipReasons[i.id],
+                    );
+                    const done = list.filter(
+                      (i) => taken[i.id] || skipReasons[i.id],
+                    );
+                    const isCheckoff = !NON_CHECKOFF_SLOTS.includes(slot);
+                    return (
+                      <div className="px-3 pb-3 flex flex-col gap-2">
+                        {(isCheckoff ? todo : list).map((item) => (
+                          <ItemCard
+                            key={item.id}
+                            item={item}
+                            taken={taken[item.id] ?? false}
+                            skipReason={skipReasons[item.id]}
+                            onToggle={isCheckoff ? handleToggle : undefined}
+                            onSkip={isCheckoff ? handleSkip : undefined}
+                            onSwap={isCheckoff ? handleSwap : undefined}
+                            showGoals={false}
+                            showTypeIcon={false}
+                            compact
+                          />
+                        ))}
+                        {isCheckoff && done.length > 0 && (
+                          <details className="mt-1">
+                            <summary
+                              className="cursor-pointer list-none px-1 py-2 flex items-center justify-between text-[11px] rounded-lg transition-colors"
+                              style={{ color: "var(--muted)" }}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <span
+                                  className="text-[14px] leading-none"
+                                  style={{ color: "var(--olive)" }}
+                                >
+                                  ✓
+                                </span>
+                                <span>Done ({done.length})</span>
+                              </span>
+                              <span className="text-[12px]">⌄</span>
+                            </summary>
+                            <div className="flex flex-col gap-2 mt-2">
+                              {done.map((item) => (
+                                <ItemCard
+                                  key={item.id}
+                                  item={item}
+                                  taken={taken[item.id] ?? false}
+                                  skipReason={skipReasons[item.id]}
+                                  onToggle={handleToggle}
+                                  onSkip={handleSkip}
+                                  showGoals={false}
+                                  showTypeIcon={false}
+                                  compact
+                                />
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </section>
+              );
+            })
+          : (() => {
+              const list = grouped[activeSlot] ?? [];
+              if (list.length === 0) {
                 return (
-                  <div className="px-3 pb-3 flex flex-col gap-2">
-                    {/* TODO items first (or all if non-checkoff slot) */}
+                  <div
+                    className="rounded-2xl p-8 text-center text-[13px]"
+                    style={{
+                      color: "var(--muted)",
+                      border: "1px solid var(--border)",
+                      background: "var(--surface-alt)",
+                    }}
+                  >
+                    No items in {TIMING_LABELS[activeSlot]} yet.
+                  </div>
+                );
+              }
+              const isCheckoff = !NON_CHECKOFF_SLOTS.includes(activeSlot);
+              const todo = list.filter(
+                (i) => !taken[i.id] && !skipReasons[i.id],
+              );
+              const done = list.filter(
+                (i) => taken[i.id] || skipReasons[i.id],
+              );
+              const slotTaken = list.filter((i) => taken[i.id]).length;
+              const allDone = isCheckoff && slotTaken === list.length;
+              return (
+                <section className="rounded-2xl card-glass overflow-hidden">
+                  <div
+                    className="px-4 py-3 flex items-center justify-between"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <div className="flex items-baseline gap-3">
+                      <div
+                        className="text-[11px] uppercase tracking-wider"
+                        style={{ color: "var(--muted)", fontWeight: 500 }}
+                      >
+                        {TIMING_LABELS[activeSlot]}
+                      </div>
+                      <div
+                        className="text-[12px]"
+                        style={{
+                          color: allDone ? "var(--olive)" : "var(--muted)",
+                          fontWeight: allDone ? 600 : 400,
+                        }}
+                      >
+                        {!isCheckoff
+                          ? `${list.length} item${list.length === 1 ? "" : "s"}`
+                          : allDone
+                            ? "✓ All done"
+                            : `${slotTaken} / ${list.length}`}
+                      </div>
+                    </div>
+                    <div
+                      className="text-[10px]"
+                      style={{ color: "var(--muted)", opacity: 0.6 }}
+                    >
+                      ← swipe →
+                    </div>
+                  </div>
+                  <div className="px-3 pb-3 pt-3 flex flex-col gap-2">
                     {(isCheckoff ? todo : list).map((item) => (
                       <ItemCard
                         key={item.id}
@@ -439,14 +708,11 @@ export default function TodayPage() {
                         compact
                       />
                     ))}
-                    {/* DONE archive — collapsed by default */}
                     {isCheckoff && done.length > 0 && (
                       <details className="mt-1">
                         <summary
-                          className="cursor-pointer list-none px-1 py-2 flex items-center justify-between text-[11px] rounded-lg transition-colors"
-                          style={{
-                            color: "var(--muted)",
-                          }}
+                          className="cursor-pointer list-none px-1 py-2 flex items-center justify-between text-[11px] rounded-lg"
+                          style={{ color: "var(--muted)" }}
                         >
                           <span className="flex items-center gap-1.5">
                             <span
@@ -455,9 +721,7 @@ export default function TodayPage() {
                             >
                               ✓
                             </span>
-                            <span>
-                              Done ({done.length})
-                            </span>
+                            <span>Done ({done.length})</span>
                           </span>
                           <span className="text-[12px]">⌄</span>
                         </summary>
@@ -479,11 +743,9 @@ export default function TodayPage() {
                       </details>
                     )}
                   </div>
-                );
-              })()}
-            </section>
-          );
-        })}
+                </section>
+              );
+            })()}
       </div>
 
       <section className="mt-10">
