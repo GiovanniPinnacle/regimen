@@ -7,6 +7,7 @@ import InsightsBanner from "@/components/InsightsBanner";
 import OnboardingBanner from "@/components/OnboardingBanner";
 import AuditPrompt from "@/components/AuditPrompt";
 import SkipReasonSheet from "@/components/SkipReasonSheet";
+import SwapSheet from "@/components/SwapSheet";
 import QuickCheckin from "@/components/QuickCheckin";
 import type { Item, ItemType, TimingSlot } from "@/lib/types";
 import {
@@ -47,6 +48,7 @@ export default function TodayPage() {
   const [taken, setTakenState] = useState<Record<string, boolean>>({});
   const [skipReasons, setSkipReasons] = useState<Record<string, string>>({});
   const [skipTarget, setSkipTarget] = useState<Item | null>(null);
+  const [swapTarget, setSwapTarget] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
   const [userCollapsed, setUserCollapsed] = useState<Record<string, boolean>>({});
   const [oura, setOura] = useState<
@@ -191,6 +193,10 @@ export default function TodayPage() {
 
   function handleSkip(item: Item) {
     setSkipTarget(item);
+  }
+
+  function handleSwap(item: Item) {
+    setSwapTarget(item);
   }
 
   function toggleCollapse(slot: TimingSlot) {
@@ -427,6 +433,7 @@ export default function TodayPage() {
                         skipReason={skipReasons[item.id]}
                         onToggle={isCheckoff ? handleToggle : undefined}
                         onSkip={isCheckoff ? handleSkip : undefined}
+                        onSwap={isCheckoff ? handleSwap : undefined}
                         showGoals={false}
                         showTypeIcon={false}
                         compact
@@ -495,6 +502,16 @@ export default function TodayPage() {
         open={skipTarget !== null}
         onClose={() => setSkipTarget(null)}
         onSkipped={() => {
+          refreshLogs();
+        }}
+      />
+
+      <SwapSheet
+        item={swapTarget}
+        date={today}
+        open={swapTarget !== null}
+        onClose={() => setSwapTarget(null)}
+        onSwapped={() => {
           refreshLogs();
         }}
       />

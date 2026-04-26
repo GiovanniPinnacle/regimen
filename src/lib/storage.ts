@@ -128,6 +128,18 @@ export async function toggleTaken(
   }
 }
 
+// Mark a food item as "ate something else instead." Records what was
+// actually eaten so Claude has real food data, not idealized.
+export async function logSwap(
+  date: string,
+  itemId: string,
+  whatYouAte: string,
+): Promise<void> {
+  // Reuse stack_log.skipped_reason with a "Swapped: " prefix so it's
+  // distinguishable from regular skips. Claude parses this in context.ts.
+  await logSkip(date, itemId, `Swapped: ${whatYouAte}`);
+}
+
 // Mark an item as explicitly skipped today, with a reason.
 // Different semantics from "untaken" — captures *why* and surfaces patterns.
 export async function logSkip(

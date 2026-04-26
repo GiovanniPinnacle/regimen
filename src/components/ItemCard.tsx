@@ -11,6 +11,7 @@ type Props = {
   taken?: boolean;
   onToggle?: (id: string) => void;
   onSkip?: (item: Item) => void;
+  onSwap?: (item: Item) => void;
   skipReason?: string | null;
   showGoals?: boolean;
   showTrigger?: boolean;
@@ -25,6 +26,7 @@ export default function ItemCard({
   taken,
   onToggle,
   onSkip,
+  onSwap,
   skipReason,
   showGoals = true,
   showTrigger = false,
@@ -34,7 +36,9 @@ export default function ItemCard({
   const interactive = typeof onToggle === "function";
   const typeIcon = ITEM_TYPE_ICONS[item.item_type] ?? "";
   const skipped = !taken && !!skipReason;
+  const swapped = skipped && skipReason?.startsWith("Swapped:");
   const [expanded, setExpanded] = useState(false);
+  const isFood = item.item_type === "food";
 
   const hasInlineMore =
     !!item.usage_notes ||
@@ -154,28 +158,49 @@ export default function ItemCard({
           </div>
         </div>
 
-        {/* Skip chip stays visible always */}
+        {/* Skip / Swap chip stays visible always */}
         {skipped && skipReason && (
           <div
             className="text-[11px] mt-1"
-            style={{ color: "var(--muted)", fontStyle: "italic" }}
+            style={{
+              color: swapped ? "var(--olive)" : "var(--muted)",
+              fontStyle: "italic",
+            }}
           >
-            Skipped: {skipReason}
+            {swapped
+              ? `↔ ${skipReason.replace(/^Swapped:\s*/i, "")}`
+              : `Skipped: ${skipReason}`}
           </div>
         )}
 
-        {/* Skip-with-reason inline button (only when not taken/skipped) */}
-        {compact && interactive && !taken && !skipped && onSkip && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onSkip(item);
-            }}
-            className="text-[10px] mt-1"
-            style={{ color: "var(--muted)", opacity: 0.7 }}
-          >
-            skip
-          </button>
+        {/* Inline action links (compact, only when not yet acted on) */}
+        {compact && interactive && !taken && !skipped && (
+          <div className="flex gap-3 mt-1">
+            {isFood && onSwap && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSwap(item);
+                }}
+                className="text-[10px]"
+                style={{ color: "var(--olive)", opacity: 0.85 }}
+              >
+                ↔ swap
+              </button>
+            )}
+            {onSkip && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSkip(item);
+                }}
+                className="text-[10px]"
+                style={{ color: "var(--muted)", opacity: 0.7 }}
+              >
+                skip
+              </button>
+            )}
+          </div>
         )}
 
         {/* COMPACT expanded section */}
@@ -222,17 +247,36 @@ export default function ItemCard({
                 ))}
               </div>
             )}
-            {!taken && !skipped && interactive && onSkip && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSkip(item);
-                }}
-                className="text-[11px] self-start"
-                style={{ color: "var(--muted)", textDecoration: "underline" }}
-              >
-                Skip with reason
-              </button>
+            {!taken && !skipped && interactive && (
+              <div className="flex gap-3 self-start">
+                {isFood && onSwap && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSwap(item);
+                    }}
+                    className="text-[11px]"
+                    style={{
+                      color: "var(--olive)",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    ↔ Swap (ate something else)
+                  </button>
+                )}
+                {onSkip && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSkip(item);
+                    }}
+                    className="text-[11px]"
+                    style={{ color: "var(--muted)", textDecoration: "underline" }}
+                  >
+                    Skip with reason
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
