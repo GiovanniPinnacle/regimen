@@ -307,6 +307,58 @@ export async function addChangelog(entry: ChangelogEntry): Promise<void> {
   if (error) console.error("addChangelog", error);
 }
 
+// ---------- Protocols ----------
+export async function getEnrollments(): Promise<
+  {
+    id: string;
+    protocol_slug: string;
+    enrolled_at: string;
+    start_date: string;
+    status: string;
+  }[]
+> {
+  const { data, error } = await supa()
+    .from("protocol_enrollments")
+    .select("id, protocol_slug, enrolled_at, start_date, status")
+    .order("enrolled_at", { ascending: false });
+  if (error) {
+    console.error("getEnrollments", error);
+    return [];
+  }
+  return (data ?? []) as {
+    id: string;
+    protocol_slug: string;
+    enrolled_at: string;
+    start_date: string;
+    status: string;
+  }[];
+}
+
+export async function getEnrollment(slug: string): Promise<{
+  id: string;
+  protocol_slug: string;
+  enrolled_at: string;
+  start_date: string;
+  status: string;
+} | null> {
+  const { data, error } = await supa()
+    .from("protocol_enrollments")
+    .select("id, protocol_slug, enrolled_at, start_date, status")
+    .eq("protocol_slug", slug)
+    .maybeSingle();
+  if (error) {
+    console.error("getEnrollment", error);
+    return null;
+  }
+  return data as {
+    id: string;
+    protocol_slug: string;
+    enrolled_at: string;
+    start_date: string;
+    status: string;
+  } | null;
+}
+
 // ---------- Legacy no-ops for backwards-compat ----------
 export async function ensureSeeded(): Promise<void> {
   // Seeding happens server-side in /auth/callback on first sign-in.

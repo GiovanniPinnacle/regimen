@@ -110,9 +110,113 @@ export type Item = {
   affiliate_url?: string | null;
   list_price_cents?: number | null;
   vendor_sku?: string | null;
+  // Protocol provenance — see migration 015.
+  from_protocol_slug?: string | null;
+  from_protocol_item_key?: string | null;
   created_at?: string;
   // Transient/rendering-only — populated client-side
   __companions?: Item[];
+};
+
+// ---------- Protocols (prebuilt regimens shipped in /lib/protocols) ----------
+
+export type ProtocolCategory =
+  | "recovery"
+  | "fitness"
+  | "posture"
+  | "sleep"
+  | "hair"
+  | "skin"
+  | "metabolic"
+  | "mind"
+  | "longevity";
+
+export type ProtocolItem = {
+  /** Stable key — used to track this item in the user's items table. */
+  key: string;
+  name: string;
+  brand?: string;
+  dose?: string;
+  item_type: ItemType;
+  timing_slot: TimingSlot;
+  category: Category;
+  goals: Goal[];
+  /** Day relative to enrollment start. 0 = day of enrollment. */
+  starts_on_day?: number;
+  /** Day after which item expires. null = stays for full protocol duration. */
+  ends_on_day?: number | null;
+  /** Simple frequency for protocol authoring; becomes a ScheduleRule on enroll. */
+  schedule_rule?: Frequency;
+  usage_notes?: string;
+  research_summary?: string;
+  citations?: string[];
+  vendor?: string;
+  affiliate_url?: string;
+  list_price_cents?: number;
+  /** Photo/video URL for how-to (form, application, etc.) */
+  media_url?: string;
+  sort_order?: number;
+  /** Key of the parent item this companions to (within same protocol). */
+  companion_of?: string;
+  companion_instruction?: string;
+  /** Free-form review trigger (e.g., "Day 30 — assess shock loss"). */
+  review_trigger?: string;
+};
+
+export type ProtocolPhase = {
+  /** e.g. "Days 0-3 — Critical post-op" */
+  label: string;
+  starts_on_day: number;
+  ends_on_day: number;
+  summary: string;
+  what_to_expect?: string[];
+  red_flags?: string[];
+};
+
+export type ProtocolTimelineMilestone = {
+  /** "Week 3", "Day 30", "Month 2" */
+  marker: string;
+  starts_on_day: number;
+  expect: string;
+  evidence?: string;
+};
+
+export type Protocol = {
+  slug: string;
+  name: string;
+  tagline: string;
+  description: string;
+  category: ProtocolCategory;
+  duration_days: number;
+  /** SVG/emoji string or image URL for the cover. Keep simple. */
+  cover_emoji?: string;
+  cover_image_url?: string;
+  hero_video_url?: string;
+  author: {
+    name: string;
+    credentials?: string;
+    bio?: string;
+  };
+  /** 0 = free. Paid protocols can be unlocked via credit or Pro tier. */
+  pricing_cents: number;
+  is_official: boolean;
+  research_summary: string;
+  expected_timeline: ProtocolTimelineMilestone[];
+  phases?: ProtocolPhase[];
+  safety_notes: string;
+  contraindications?: string[];
+  items: ProtocolItem[];
+  /** Tags for browse/filter. */
+  tags?: string[];
+};
+
+export type ProtocolEnrollment = {
+  id: string;
+  user_id: string;
+  protocol_slug: string;
+  enrolled_at: string;
+  start_date: string;
+  status: "active" | "completed" | "paused" | "cancelled";
 };
 
 export type RecipeIngredient = {

@@ -7,6 +7,12 @@ import BulkResearchButton from "@/components/BulkResearchButton";
 
 const LINKS = [
   {
+    href: "/protocols",
+    label: "Protocols",
+    desc: "Prebuilt regimens — recovery, fitness, posture, sleep. Enroll once, items auto-populate Today.",
+    emphasized: true,
+  },
+  {
     href: "/about-me",
     label: "About me",
     desc: "Goals, lifestyle, health history, family, vision — context Claude actually uses",
