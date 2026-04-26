@@ -18,6 +18,11 @@ const LINKS = [
     desc: "Research-backed daily order — when to take what + why",
   },
   {
+    href: "/logos",
+    label: "Logo concepts (preview)",
+    desc: "8 mark concepts at multiple sizes, light + dark",
+  },
+  {
     href: "/costs",
     label: "Stack costs",
     desc: "Monthly run-rate + cost breakdown by type",
