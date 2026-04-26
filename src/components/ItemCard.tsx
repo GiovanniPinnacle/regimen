@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { Item } from "@/lib/types";
 import CategoryBadge from "./CategoryBadge";
+import ReactionRow, { shouldShowReaction } from "./ReactionRow";
 import { GOAL_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
 
 type Props = {
@@ -278,6 +279,7 @@ export default function ItemCard({
                 )}
               </div>
             )}
+            {shouldShowReaction(item) && <ReactionRow itemId={item.id} compact />}
           </div>
         )}
 
@@ -363,6 +365,9 @@ export default function ItemCard({
               >
                 Skip with reason
               </button>
+            )}
+            {shouldShowReaction(item) && (
+              <ReactionRow itemId={item.id} compact={false} />
             )}
           </>
         )}

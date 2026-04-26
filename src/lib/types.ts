@@ -219,6 +219,34 @@ export type ProtocolEnrollment = {
   status: "active" | "completed" | "paused" | "cancelled";
 };
 
+// ---------- Item reactions (RP-style stim/fatigue tags) ----------
+
+export type ReactionType = "helped" | "no_change" | "worse" | "forgot";
+
+export type ItemReaction = {
+  id: string;
+  user_id: string;
+  item_id: string;
+  reaction: ReactionType;
+  reacted_on: string;
+  notes?: string | null;
+  created_at: string;
+};
+
+export const REACTION_LABELS: Record<ReactionType, string> = {
+  helped: "Helped",
+  no_change: "No change",
+  worse: "Worse",
+  forgot: "Forgot",
+};
+
+export const REACTION_EMOJI: Record<ReactionType, string> = {
+  helped: "👍",
+  no_change: "✋",
+  worse: "👎",
+  forgot: "❓",
+};
+
 export type RecipeIngredient = {
   name: string;
   amount?: string;

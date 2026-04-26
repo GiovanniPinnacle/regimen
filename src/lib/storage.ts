@@ -6,9 +6,12 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { todayISO } from "@/lib/constants";
 import type {
   ChangelogEntry,
   Item,
+  ItemReaction,
+  ReactionType,
   StackLogEntry,
   SymptomLog,
 } from "./types";
@@ -357,6 +360,84 @@ export async function getEnrollment(slug: string): Promise<{
     start_date: string;
     status: string;
   } | null;
+}
+
+// ---------- Item reactions ----------
+
+export async function getReactionForToday(
+  itemId: string,
+): Promise<ItemReaction | null> {
+  const { data, error } = await supa()
+    .from("item_reactions")
+    .select("*")
+    .eq("item_id", itemId)
+    .eq("reacted_on", todayISO())
+    .maybeSingle();
+  if (error) {
+    console.error("getReactionForToday", error);
+    return null;
+  }
+  return data as ItemReaction | null;
+}
+
+export async function setReaction(
+  itemId: string,
+  reaction: ReactionType,
+  notes?: string,
+): Promise<boolean> {
+  const client = supa();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user) return false;
+
+  const today = todayISO();
+  const { error } = await client.from("item_reactions").upsert(
+    {
+      user_id: user.id,
+      item_id: itemId,
+      reaction,
+      reacted_on: today,
+      notes,
+    },
+    { onConflict: "user_id,item_id,reacted_on" },
+  );
+  if (error) {
+    console.error("setReaction", error);
+    return false;
+  }
+  return true;
+}
+
+export async function getRecentReactions(
+  itemId: string,
+  days = 30,
+): Promise<ItemReaction[]> {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const { data, error } = await supa()
+    .from("item_reactions")
+    .select("*")
+    .eq("item_id", itemId)
+    .gte("reacted_on", since.toISOString().slice(0, 10))
+    .order("reacted_on", { ascending: false });
+  if (error) {
+    console.error("getRecentReactions", error);
+    return [];
+  }
+  return (data ?? []) as ItemReaction[];
+}
+
+export async function getReactionsSummary(
+  itemId: string,
+): Promise<{ helped: number; no_change: number; worse: number; forgot: number }> {
+  const reactions = await getRecentReactions(itemId, 60);
+  return {
+    helped: reactions.filter((r) => r.reaction === "helped").length,
+    no_change: reactions.filter((r) => r.reaction === "no_change").length,
+    worse: reactions.filter((r) => r.reaction === "worse").length,
+    forgot: reactions.filter((r) => r.reaction === "forgot").length,
+  };
 }
 
 // ---------- Legacy no-ops for backwards-compat ----------

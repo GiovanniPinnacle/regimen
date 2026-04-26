@@ -5,9 +5,11 @@
 
 import type { Protocol } from "@/lib/types";
 import { FUE_RECOVERY_90 } from "./fue-recovery-90";
+import { SLEEP_RESTORATION_21 } from "./sleep-restoration-21";
+import { BEGINNER_STRENGTH_8W } from "./beginner-strength-8w";
 
 // "Coming soon" placeholders — visible on browse but not enrollable yet.
-// Authored over time. Each one is a future commit.
+// Each one is a future authoring commit.
 const PLACEHOLDERS: Protocol[] = [
   {
     slug: "posture-reset-28",
@@ -29,42 +31,6 @@ const PLACEHOLDERS: Protocol[] = [
     tags: ["posture", "mobility", "desk-job", "coming-soon"],
   },
   {
-    slug: "sleep-restoration-21",
-    name: "Sleep Restoration — 21 Day",
-    tagline: "Light, temperature, food timing, and supps that actually move sleep scores.",
-    description:
-      "21-day protocol focused on the four high-leverage sleep variables: morning sun within 30 min of waking, no caffeine after noon, room ≤ 65°F, magnesium glycinate + glycine PM. Tracks Oura/Apple Health sleep scores; refines based on what's moving.",
-    category: "sleep",
-    duration_days: 21,
-    cover_emoji: "😴",
-    author: { name: "Regimen", credentials: "Coming soon" },
-    pricing_cents: 0,
-    is_official: true,
-    research_summary: "Coming soon.",
-    expected_timeline: [],
-    safety_notes: "Coming soon.",
-    items: [],
-    tags: ["sleep", "circadian", "coming-soon"],
-  },
-  {
-    slug: "beginner-strength-8w",
-    name: "Beginner Strength — 8 Week",
-    tagline: "3 days/week. Squat, hinge, push, pull, carry. Linear progression.",
-    description:
-      "Bare-essentials strength foundation. 3 sessions per week, ~45 minutes each. Squat, deadlift variation, bench, row, carry. Linear progression with a deload week 8. Form videos for every lift. RPE-tagged so the app refines load each session.",
-    category: "fitness",
-    duration_days: 56,
-    cover_emoji: "🏋️",
-    author: { name: "Regimen", credentials: "Coming soon" },
-    pricing_cents: 0,
-    is_official: true,
-    research_summary: "Coming soon.",
-    expected_timeline: [],
-    safety_notes: "Coming soon.",
-    items: [],
-    tags: ["fitness", "strength", "beginner", "coming-soon"],
-  },
-  {
     slug: "cortisol-reset-42",
     name: "Cortisol Reset — 6 Week",
     tagline: "Light + breath + food + caffeine timing to flatten the AM cortisol spike.",
@@ -84,7 +50,12 @@ const PLACEHOLDERS: Protocol[] = [
   },
 ];
 
-const PROTOCOLS: Protocol[] = [FUE_RECOVERY_90, ...PLACEHOLDERS];
+const PROTOCOLS: Protocol[] = [
+  FUE_RECOVERY_90,
+  SLEEP_RESTORATION_21,
+  BEGINNER_STRENGTH_8W,
+  ...PLACEHOLDERS,
+];
 
 export function listProtocols(): Protocol[] {
   return PROTOCOLS;
