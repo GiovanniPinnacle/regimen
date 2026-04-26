@@ -408,30 +408,72 @@ export default function TodayPage() {
                 </svg>
               </button>
 
-              {!collapsed && (
-                <div className="px-3 pb-3 flex flex-col gap-2">
-                  {list.map((item) => (
-                    <ItemCard
-                      key={item.id}
-                      item={item}
-                      taken={taken[item.id] ?? false}
-                      skipReason={skipReasons[item.id]}
-                      onToggle={
-                        NON_CHECKOFF_SLOTS.includes(slot)
-                          ? undefined
-                          : handleToggle
-                      }
-                      onSkip={
-                        NON_CHECKOFF_SLOTS.includes(slot)
-                          ? undefined
-                          : handleSkip
-                      }
-                      showGoals={false}
-                      showTypeIcon={false}
-                    />
-                  ))}
-                </div>
-              )}
+              {!collapsed && (() => {
+                const todo = list.filter(
+                  (i) => !taken[i.id] && !skipReasons[i.id],
+                );
+                const done = list.filter(
+                  (i) => taken[i.id] || skipReasons[i.id],
+                );
+                const isCheckoff = !NON_CHECKOFF_SLOTS.includes(slot);
+                return (
+                  <div className="px-3 pb-3 flex flex-col gap-2">
+                    {/* TODO items first (or all if non-checkoff slot) */}
+                    {(isCheckoff ? todo : list).map((item) => (
+                      <ItemCard
+                        key={item.id}
+                        item={item}
+                        taken={taken[item.id] ?? false}
+                        skipReason={skipReasons[item.id]}
+                        onToggle={isCheckoff ? handleToggle : undefined}
+                        onSkip={isCheckoff ? handleSkip : undefined}
+                        showGoals={false}
+                        showTypeIcon={false}
+                        compact
+                      />
+                    ))}
+                    {/* DONE archive — collapsed by default */}
+                    {isCheckoff && done.length > 0 && (
+                      <details className="mt-1">
+                        <summary
+                          className="cursor-pointer list-none px-1 py-2 flex items-center justify-between text-[11px] rounded-lg transition-colors"
+                          style={{
+                            color: "var(--muted)",
+                          }}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <span
+                              className="text-[14px] leading-none"
+                              style={{ color: "var(--olive)" }}
+                            >
+                              ✓
+                            </span>
+                            <span>
+                              Done ({done.length})
+                            </span>
+                          </span>
+                          <span className="text-[12px]">⌄</span>
+                        </summary>
+                        <div className="flex flex-col gap-2 mt-2">
+                          {done.map((item) => (
+                            <ItemCard
+                              key={item.id}
+                              item={item}
+                              taken={taken[item.id] ?? false}
+                              skipReason={skipReasons[item.id]}
+                              onToggle={handleToggle}
+                              onSkip={handleSkip}
+                              showGoals={false}
+                              showTypeIcon={false}
+                              compact
+                            />
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                );
+              })()}
             </section>
           );
         })}

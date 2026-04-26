@@ -125,22 +125,48 @@ export default function StackPage() {
         </Link>
       </header>
 
-      {/* Type filter — primary */}
+      {/* Type filter — primary, with counts */}
       <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-2">
         {TYPE_FILTERS.map((f) => {
           const active = typeFilter === f.value;
+          // Counts pre-filter on type alone (so user sees how many of each)
+          const count =
+            f.value === "all"
+              ? items.length
+              : items.filter((i) => i.item_type === f.value).length;
           return (
             <button
               key={f.value}
               onClick={() => setTypeFilter(f.value)}
-              className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap border-hair"
+              className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5 transition-all"
               style={{
-                background: active ? "var(--foreground)" : "var(--background)",
-                color: active ? "var(--background)" : "var(--muted)",
-                fontWeight: active ? 500 : 400,
+                background: active
+                  ? "var(--olive)"
+                  : "var(--surface-glass)",
+                color: active ? "#FBFAF6" : "var(--muted)",
+                fontWeight: active ? 600 : 400,
+                border: active
+                  ? "1px solid var(--olive)"
+                  : "1px solid var(--border)",
+                backdropFilter: active ? undefined : "blur(8px)",
+                WebkitBackdropFilter: active ? undefined : "blur(8px)",
               }}
             >
-              {f.label}
+              <span>{f.label}</span>
+              <span
+                className="text-[10px] px-1.5 rounded-full"
+                style={{
+                  background: active
+                    ? "rgba(251, 250, 246, 0.2)"
+                    : "var(--border)",
+                  color: active ? "#FBFAF6" : "var(--muted)",
+                  fontWeight: 500,
+                  minWidth: 18,
+                  textAlign: "center",
+                }}
+              >
+                {count}
+              </span>
             </button>
           );
         })}
@@ -239,24 +265,43 @@ export default function StackPage() {
 
       {/* List */}
       {groupByType && grouped ? (
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-3">
           {(Object.keys(grouped) as ItemType[]).map((t) => {
             const list = grouped[t];
             if (list.length === 0) return null;
             return (
-              <section key={t}>
-                <h2
-                  className="text-[11px] uppercase tracking-wider mb-2"
-                  style={{ color: "var(--muted)", fontWeight: 500 }}
+              <details key={t} className="group" open>
+                <summary
+                  className="cursor-pointer list-none flex items-center justify-between gap-3 py-2 px-1 rounded-lg"
                 >
-                  {ITEM_TYPE_ICONS[t]} {ITEM_TYPE_LABELS[t]} ({list.length})
-                </h2>
-                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[16px]">{ITEM_TYPE_ICONS[t]}</span>
+                    <span
+                      className="text-[13px] uppercase tracking-wider"
+                      style={{ color: "var(--foreground-soft)", fontWeight: 600 }}
+                    >
+                      {ITEM_TYPE_LABELS[t]}s
+                    </span>
+                    <span
+                      className="text-[11px] px-2 py-0.5 rounded-full chip-olive"
+                      style={{ fontWeight: 600 }}
+                    >
+                      {list.length}
+                    </span>
+                  </div>
+                  <span
+                    className="text-[12px] transition-transform group-open:rotate-180"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    ⌄
+                  </span>
+                </summary>
+                <div className="flex flex-col gap-2 mt-2">
                   {list.map((item) => (
                     <ItemCard key={item.id} item={item} />
                   ))}
                 </div>
-              </section>
+              </details>
             );
           })}
         </div>
