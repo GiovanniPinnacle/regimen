@@ -155,7 +155,7 @@ function Pill({
         background: bg,
         border,
         boxShadow: active
-          ? "0 4px 14px rgba(74, 82, 48, 0.18)"
+          ? "0 4px 14px var(--accent-glow)"
           : undefined,
         minWidth: "70px",
         opacity: dim && !active ? 0.55 : 1,

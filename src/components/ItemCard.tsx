@@ -72,7 +72,7 @@ export default function ItemCard({
               : undefined,
         border:
           taken
-            ? "1px solid rgba(123, 139, 90, 0.25)"
+            ? "1px solid var(--accent-glow)"
             : skipped
               ? "1px solid var(--border)"
               : undefined,
@@ -89,7 +89,7 @@ export default function ItemCard({
               ? "1px solid var(--olive)"
               : "1.5px solid var(--border-strong)",
             boxShadow: taken
-              ? "0 2px 6px rgba(74, 82, 48, 0.3)"
+              ? "0 2px 6px var(--accent-glow)"
               : undefined,
           }}
           aria-label={taken ? "Mark as not taken" : "Mark as taken"}

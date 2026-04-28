@@ -81,7 +81,7 @@ export default function MagicMomentPrompt() {
           background:
             "linear-gradient(135deg, var(--olive) 0%, var(--olive-deep) 100%)",
           color: "#FBFAF6",
-          boxShadow: "0 8px 24px rgba(74, 82, 48, 0.18)",
+          boxShadow: "0 8px 24px var(--accent-glow)",
         }}
         onClick={() => {
           try {

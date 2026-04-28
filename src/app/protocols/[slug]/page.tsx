@@ -173,8 +173,8 @@ export default function ProtocolDetailPage() {
                 <span
                   className="text-[11px] px-1.5 py-0.5 rounded-full"
                   style={{
-                    background: "rgba(107, 91, 205, 0.12)",
-                    color: "var(--purple, #6B5BCD)",
+                    background: "var(--pro-tint)",
+                    color: "var(--pro)",
                     fontWeight: 600,
                   }}
                 >
@@ -252,7 +252,7 @@ export default function ProtocolDetailPage() {
             className="rounded-2xl p-5 flex items-center justify-between gap-3"
             style={{
               background: "var(--olive-tint)",
-              border: "1px solid rgba(123, 139, 90, 0.35)",
+              border: "1px solid var(--accent-glow)",
             }}
           >
             <div>
@@ -313,7 +313,7 @@ export default function ProtocolDetailPage() {
               color: "#FBFAF6",
               fontWeight: 500,
               opacity: enrolling ? 0.6 : 1,
-              boxShadow: "0 4px 14px rgba(74, 82, 48, 0.25)",
+              boxShadow: "0 4px 14px var(--accent-glow)",
             }}
           >
             {enrolling

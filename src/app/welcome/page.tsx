@@ -155,7 +155,7 @@ export default function WelcomePage() {
               background: "var(--olive)",
               color: "#FBFAF6",
               fontWeight: 500,
-              boxShadow: "0 4px 14px rgba(74, 82, 48, 0.25)",
+              boxShadow: "0 4px 14px var(--accent-glow)",
             }}
           >
             Refine my stack →

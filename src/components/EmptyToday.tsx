@@ -78,7 +78,7 @@ export default function EmptyToday({
           className="rounded-2xl p-4"
           style={{
             background: "var(--olive-tint)",
-            border: "1px solid rgba(123, 139, 90, 0.25)",
+            border: "1px solid var(--accent-glow)",
           }}
         >
           <ul
@@ -134,7 +134,7 @@ function PathCard({
           : "1px solid var(--border)",
         color: primary ? "#FBFAF6" : "var(--foreground)",
         boxShadow: primary
-          ? "0 8px 24px rgba(74, 82, 48, 0.22)"
+          ? "0 8px 24px var(--accent-glow)"
           : undefined,
       }}
     >

@@ -437,7 +437,7 @@ export default function InsightsPage() {
             opacity: loading ? 0.6 : 1,
             boxShadow: limitReached
               ? undefined
-              : "0 4px 14px rgba(74, 82, 48, 0.25)",
+              : "0 4px 14px var(--accent-glow)",
           }}
         >
           {loading
@@ -454,8 +454,8 @@ export default function InsightsPage() {
             className="mt-3 rounded-2xl p-4"
             style={{
               background:
-                "linear-gradient(135deg, rgba(107, 91, 205, 0.10) 0%, rgba(107, 91, 205, 0.04) 100%)",
-              border: "1px solid rgba(107, 91, 205, 0.25)",
+                "linear-gradient(135deg, var(--pro-tint) 0%, var(--pro-tint) 100%)",
+              border: "1px solid var(--pro-tint)",
             }}
           >
             <div

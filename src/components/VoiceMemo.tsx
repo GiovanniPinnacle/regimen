@@ -197,7 +197,7 @@ export default function VoiceMemo() {
         style={{
           background: "var(--olive)",
           color: "#FBFAF6",
-          boxShadow: "0 8px 24px rgba(74, 82, 48, 0.35)",
+          boxShadow: "0 8px 24px var(--accent-glow)",
           paddingBottom: "env(safe-area-inset-bottom, 0)",
         }}
         aria-label="Voice memo"
@@ -278,7 +278,7 @@ export default function VoiceMemo() {
                   style={{
                     background: "var(--olive)",
                     color: "#FBFAF6",
-                    boxShadow: "0 8px 24px rgba(74, 82, 48, 0.35)",
+                    boxShadow: "0 8px 24px var(--accent-glow)",
                   }}
                   aria-label="Start recording"
                 >

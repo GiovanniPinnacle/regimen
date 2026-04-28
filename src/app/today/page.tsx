@@ -15,6 +15,8 @@ import IntakeTracker from "@/components/IntakeTracker";
 import ProtocolProgress from "@/components/ProtocolProgress";
 import MagicMomentPrompt from "@/components/MagicMomentPrompt";
 import EmptyToday from "@/components/EmptyToday";
+import ProBenefits from "@/components/ProBenefits";
+import StreakCounter from "@/components/StreakCounter";
 import { showToast } from "@/lib/toast";
 import {
   SkeletonLine,
@@ -452,8 +454,13 @@ export default function TodayPage() {
           className="text-[12px] uppercase tracking-wider"
           style={{ color: "var(--muted)", fontWeight: 500, letterSpacing: "0.06em" }}
         >
-          {dateLabel}
-          {dayPostOp != null && ` · Day ${dayPostOp}`}
+          <span className="inline-flex items-center gap-3">
+            <span>
+              {dateLabel}
+              {dayPostOp != null && ` · Day ${dayPostOp}`}
+            </span>
+            <StreakCounter />
+          </span>
         </div>
         <div className="flex items-baseline justify-between gap-2 mt-1">
           <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
@@ -533,6 +540,7 @@ export default function TodayPage() {
       <OnboardingBanner />
       <AuditPrompt />
       <ProtocolProgress />
+      <ProBenefits />
       <MagicMomentPrompt />
       <InsightsBanner />
       <PatternCard />

@@ -257,7 +257,7 @@ export default function ItemForm({ initial, onSaved }: Props) {
         className="rounded-2xl p-3.5 -my-1"
         style={{
           background: "var(--olive-tint)",
-          border: "1px solid rgba(123, 139, 90, 0.25)",
+          border: "1px solid var(--accent-glow)",
         }}
       >
         <div className="flex items-center justify-between gap-3">

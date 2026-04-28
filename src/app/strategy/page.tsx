@@ -476,7 +476,7 @@ export default function StrategyPage() {
           className="rounded-2xl p-4 mb-8"
           style={{
             background: "var(--olive-tint)",
-            border: "1px solid rgba(123, 139, 90, 0.25)",
+            border: "1px solid var(--accent-glow)",
           }}
         >
           <div
@@ -619,7 +619,7 @@ export default function StrategyPage() {
           className="rounded-2xl p-5 mb-4"
           style={{
             background: "var(--olive-tint)",
-            border: "1px solid rgba(123, 139, 90, 0.25)",
+            border: "1px solid var(--accent-glow)",
           }}
         >
           <div

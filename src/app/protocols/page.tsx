@@ -171,7 +171,7 @@ export default function ProtocolsBrowsePage() {
         className="mt-8 rounded-2xl p-5"
         style={{
           background: "var(--olive-tint)",
-          border: "1px solid rgba(123, 139, 90, 0.25)",
+          border: "1px solid var(--accent-glow)",
         }}
       >
         <SectionHeader title="How protocols work" />
@@ -255,7 +255,7 @@ function HeroEnrolledCard({
         background:
           "linear-gradient(135deg, var(--olive) 0%, var(--olive-deep) 100%)",
         color: "#FBFAF6",
-        boxShadow: "0 12px 36px rgba(74, 82, 48, 0.22)",
+        boxShadow: "0 12px 36px var(--accent-glow)",
       }}
     >
       <div className="flex items-start gap-3 mb-4 relative">
@@ -369,7 +369,7 @@ function DiscoverCard({ protocol }: { protocol: Protocol }) {
             <span
               className="text-[11px] px-1.5 py-0.5 rounded-full"
               style={{
-                background: "rgba(107, 91, 205, 0.12)",
+                background: "var(--pro-tint)",
                 color: "var(--purple)",
                 fontWeight: 600,
               }}

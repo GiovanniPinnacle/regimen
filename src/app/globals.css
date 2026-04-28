@@ -1,81 +1,119 @@
 @import "tailwindcss";
 
+/* =====================================================================
+   Regimen palette — dark-first, dopamine-friendly.
+   - Bg: warm near-black with a faint emerald tint (low-fatigue)
+   - Accent: emerald (progress, growth — the dopamine signal)
+   - Premium: warm amber (affiliate moments, "unlock", merchandise)
+   - Pro: violet (paid tier, exclusivity)
+   - Warn / error / success kept distinct so feedback colors don't clash
+   ===================================================================== */
+
 :root {
-  /* Backgrounds — warm whites + creams */
-  --background: #FAF8F2;
-  --surface: #FFFFFF;
-  --surface-alt: #F2EEE2;
-  --surface-glass: rgba(255, 255, 255, 0.55);
-  --surface-glass-strong: rgba(255, 255, 255, 0.75);
-  --surface-glass-tint: rgba(168, 146, 224, 0.06);
+  /* Surfaces — start with dark, even in default scheme. Light mode is
+     applied only when the user explicitly prefers it. */
+  --background: #0B100E;
+  --surface: #131A18;
+  --surface-alt: #1B2421;
+  --surface-glass: rgba(27, 36, 33, 0.62);
+  --surface-glass-strong: rgba(27, 36, 33, 0.82);
+  --surface-glass-tint: rgba(34, 197, 94, 0.05);
 
-  /* Inks */
-  --foreground: #1F1A14;
-  --foreground-soft: #3D3A2F;
-  --muted: #807666;
+  /* Inks — warm off-white over warm dark */
+  --foreground: #F4F1E8;
+  --foreground-soft: #C7C5BB;
+  --muted: #8A958E;
 
-  /* Olive — primary (matches Building Blocks logo in forest) */
-  --olive: #4A5230;
-  --olive-deep: #2E3A1F;
-  --olive-light: #7B8B5A;
-  --olive-tint: #E8EDDF;
+  /* Accent — emerald. The progress / "you did it" / dopamine green.
+     Kept consistent with --olive var name on existing components for
+     minimal sweep cost; the CSS value is just emerald now. */
+  --olive: #22C55E;
+  --olive-deep: #16A34A;
+  --olive-light: #4ADE80;
+  --olive-tint: rgba(34, 197, 94, 0.12);
+  --accent: #22C55E;
+  --accent-deep: #16A34A;
+  --accent-tint: rgba(34, 197, 94, 0.12);
+  --accent-glow: rgba(34, 197, 94, 0.30);
 
-  /* Tan — warm secondary surfaces */
-  --tan: #D4C9B0;
-  --tan-light: #E8E2D5;
-  --tan-deep: #B8A881;
+  /* Premium — warm amber. Use for affiliate "Get this" buttons,
+     unlocks, merchandise CTAs, "cha-ching" moments. */
+  --premium: #F59E0B;
+  --premium-deep: #D97706;
+  --premium-tint: rgba(245, 158, 11, 0.12);
+  --premium-glow: rgba(245, 158, 11, 0.30);
 
-  /* Purple — energy / accent */
-  --purple: #6B5BCD;
-  --purple-soft: #A892E0;
-  --purple-deep: #3D2D7A;
-  --purple-tint: #EFEAFB;
+  /* Pro tier — vibrant violet. Use ONLY for Pro paywall, Pro-only
+     features, and the "you're already Pro" reinforcement widgets. */
+  --pro: #A855F7;
+  --pro-soft: #C084FC;
+  --pro-deep: #7C3AED;
+  --pro-tint: rgba(168, 85, 247, 0.12);
+
+  /* Legacy names kept so old components still resolve until swept */
+  --tan: #2A3431;
+  --tan-light: #1F2826;
+  --tan-deep: #3D4945;
+  --purple: var(--pro);
+  --purple-soft: var(--pro-soft);
+  --purple-deep: var(--pro-deep);
+  --purple-tint: var(--pro-tint);
 
   /* Borders + shadows */
-  --border: rgba(31, 26, 20, 0.08);
-  --border-strong: rgba(31, 26, 20, 0.15);
-  --shadow-glass: 0 8px 32px rgba(31, 26, 20, 0.06);
-  --shadow-card: 0 2px 8px rgba(31, 26, 20, 0.04);
-  --shadow-lift: 0 12px 40px rgba(61, 45, 122, 0.08);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.32);
+  --shadow-lift: 0 14px 40px rgba(0, 0, 0, 0.55);
 
   /* Semantic */
-  --success: #4A8B5C;
-  --warn: #C29142;
-  --error: #B0413E;
+  --success: #22C55E;
+  --warn: #F59E0B;
+  --error: #EF4444;
 }
 
-@media (prefers-color-scheme: dark) {
+/* Light scheme — keep available for users who explicitly prefer light.
+   Inverts dark to warm-white. Most users get dark by default. */
+@media (prefers-color-scheme: light) {
   :root {
-    --background: #0A0A08;
-    --surface: #15140F;
-    --surface-alt: #1F1D17;
-    --surface-glass: rgba(31, 29, 23, 0.55);
-    --surface-glass-strong: rgba(31, 29, 23, 0.78);
-    --surface-glass-tint: rgba(168, 146, 224, 0.07);
+    --background: #F8F6EE;
+    --surface: #FFFFFF;
+    --surface-alt: #EFEBDF;
+    --surface-glass: rgba(255, 255, 255, 0.62);
+    --surface-glass-strong: rgba(255, 255, 255, 0.82);
+    --surface-glass-tint: rgba(34, 197, 94, 0.04);
 
-    --foreground: #FBFAF6;
-    --foreground-soft: #D4CFC0;
-    --muted: #948B78;
+    --foreground: #14181A;
+    --foreground-soft: #3A3D40;
+    --muted: #6A7380;
 
-    --olive: #9CAB7E;
-    --olive-deep: #5A6A3A;
-    --olive-light: #BDC9A2;
-    --olive-tint: #2A3020;
+    --olive: #16A34A;
+    --olive-deep: #15803D;
+    --olive-light: #22C55E;
+    --olive-tint: rgba(34, 197, 94, 0.10);
+    --accent: #16A34A;
+    --accent-deep: #15803D;
+    --accent-tint: rgba(34, 197, 94, 0.10);
+    --accent-glow: rgba(34, 197, 94, 0.18);
 
-    --tan: #B8A881;
-    --tan-light: #3D372A;
-    --tan-deep: #D4C9B0;
+    --premium: #B45309;
+    --premium-deep: #92400E;
+    --premium-tint: rgba(180, 83, 9, 0.10);
 
-    --purple: #A892E0;
-    --purple-soft: #8B7FE8;
-    --purple-deep: #6B5BCD;
-    --purple-tint: #2A2540;
+    --pro: #7C3AED;
+    --pro-soft: #A855F7;
+    --pro-deep: #6D28D9;
+    --pro-tint: rgba(124, 58, 237, 0.10);
 
-    --border: rgba(251, 250, 246, 0.08);
-    --border-strong: rgba(251, 250, 246, 0.15);
-    --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4);
-    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
-    --shadow-lift: 0 12px 40px rgba(168, 146, 224, 0.15);
+    --tan: #ECE7DA;
+    --tan-light: #F8F4E9;
+    --tan-deep: #D1CABA;
+
+    --border: rgba(20, 24, 26, 0.08);
+    --border-strong: rgba(20, 24, 26, 0.18);
+    --shadow-glass: 0 8px 32px rgba(20, 24, 26, 0.06);
+    --shadow-card: 0 2px 8px rgba(20, 24, 26, 0.04);
+    --shadow-lift: 0 14px 40px rgba(20, 24, 26, 0.10);
   }
 }
 
@@ -87,6 +125,9 @@
   --color-border-strong: var(--border-strong);
   --color-surface-alt: var(--surface-alt);
   --color-olive: var(--olive);
+  --color-accent: var(--accent);
+  --color-premium: var(--premium);
+  --color-pro: var(--pro);
   --color-purple: var(--purple);
   --color-tan: var(--tan);
   --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text",
@@ -104,47 +145,41 @@ body {
   letter-spacing: -0.005em;
 }
 
-/* Soft ambient gradients on the body — gives the whole app a vibrancy
-   layer without screaming. The blurry purple + olive pools shift faintly
-   behind glass cards. */
+/* Ambient glow — emerald + violet pools deep in the bg. Subtle but
+   creates a "this app feels alive" layer. Brighter in dark mode. */
 body {
   background:
     radial-gradient(
       ellipse at 18% 8%,
-      rgba(168, 146, 224, 0.10) 0%,
-      transparent 45%
+      rgba(168, 85, 247, 0.08) 0%,
+      transparent 50%
     ),
     radial-gradient(
       ellipse at 85% 92%,
-      rgba(123, 139, 90, 0.10) 0%,
-      transparent 45%
+      rgba(34, 197, 94, 0.10) 0%,
+      transparent 50%
     ),
     radial-gradient(
-      ellipse at 90% 15%,
-      rgba(212, 201, 176, 0.12) 0%,
-      transparent 40%
+      ellipse at 92% 12%,
+      rgba(245, 158, 11, 0.06) 0%,
+      transparent 45%
     ),
     var(--background);
   min-height: 100dvh;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   body {
     background:
       radial-gradient(
         ellipse at 18% 8%,
-        rgba(168, 146, 224, 0.12) 0%,
-        transparent 45%
+        rgba(168, 85, 247, 0.05) 0%,
+        transparent 50%
       ),
       radial-gradient(
         ellipse at 85% 92%,
-        rgba(123, 139, 90, 0.10) 0%,
-        transparent 45%
-      ),
-      radial-gradient(
-        ellipse at 90% 15%,
-        rgba(184, 168, 129, 0.06) 0%,
-        transparent 40%
+        rgba(34, 197, 94, 0.06) 0%,
+        transparent 50%
       ),
       var(--background);
   }
@@ -281,32 +316,32 @@ a:active {
 .glass-tint-purple {
   background: linear-gradient(
     135deg,
-    rgba(168, 146, 224, 0.15) 0%,
-    rgba(168, 146, 224, 0.05) 100%
+    var(--pro-tint) 0%,
+    rgba(168, 85, 247, 0.04) 100%
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(168, 146, 224, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.22);
 }
 .glass-tint-olive {
   background: linear-gradient(
     135deg,
-    rgba(123, 139, 90, 0.15) 0%,
-    rgba(123, 139, 90, 0.05) 100%
+    var(--accent-tint) 0%,
+    rgba(34, 197, 94, 0.04) 100%
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(123, 139, 90, 0.18);
+  border: 1px solid rgba(34, 197, 94, 0.22);
 }
 .glass-tint-tan {
   background: linear-gradient(
     135deg,
-    rgba(212, 201, 176, 0.4) 0%,
-    rgba(212, 201, 176, 0.15) 100%
+    var(--premium-tint) 0%,
+    rgba(245, 158, 11, 0.04) 100%
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(184, 168, 129, 0.25);
+  border: 1px solid rgba(245, 158, 11, 0.22);
 }
 
 /* ============== Card variants ============== */
@@ -383,8 +418,8 @@ a:active {
 }
 .chip-olive {
   background: var(--olive-tint);
-  color: var(--olive-deep);
-  border-color: rgba(123, 139, 90, 0.25);
+  color: var(--olive);
+  border-color: rgba(34, 197, 94, 0.28);
 }
 
 /* ============== Accent text ============== */

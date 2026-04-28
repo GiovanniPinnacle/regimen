@@ -474,7 +474,7 @@ function PhaseStrip({
                 border: isActive
                   ? "1px solid var(--olive)"
                   : done
-                    ? "1px solid rgba(123, 139, 90, 0.35)"
+                    ? "1px solid var(--accent-glow)"
                     : "1px solid var(--border)",
                 backdropFilter: isActive
                   ? undefined
@@ -484,9 +484,9 @@ function PhaseStrip({
                   : "blur(12px) saturate(180%)",
                 boxShadow:
                   s.current && !isActive
-                    ? "0 0 0 2px rgba(123, 139, 90, 0.35), 0 2px 8px rgba(74, 82, 48, 0.12)"
+                    ? "0 0 0 2px var(--accent-glow), 0 2px 8px var(--accent-glow)"
                     : isActive
-                      ? "0 4px 14px rgba(74, 82, 48, 0.25)"
+                      ? "0 4px 14px var(--accent-glow)"
                       : undefined,
                 minWidth: "82px",
                 opacity: empty && !isActive ? 0.6 : 1,
@@ -539,7 +539,7 @@ function FitCard({
       style={{
         background: done ? "var(--olive-tint)" : "var(--surface)",
         border: done
-          ? "1px solid rgba(123, 139, 90, 0.25)"
+          ? "1px solid var(--accent-glow)"
           : "1px solid var(--border)",
         opacity: done ? 0.85 : 1,
       }}
@@ -618,7 +618,7 @@ function FitCard({
           <div
             className="mt-3 pt-3 text-[12px] leading-relaxed"
             style={{
-              borderTop: "1px solid rgba(123, 139, 90, 0.25)",
+              borderTop: "1px solid var(--accent-glow)",
               color: "var(--olive)",
               fontStyle: "italic",
             }}

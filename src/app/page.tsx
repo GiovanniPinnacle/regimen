@@ -8,44 +8,50 @@ import { createClient } from "@/lib/supabase/server";
 
 const PRIMARY_GOALS = [
   {
-    title: "Hair regrowth & FUE recovery",
-    body: "Day-gated post-op protocols, scalp photo analysis, minoxidil + microneedling timing.",
+    title: "Hair, recovery, post-op",
+    body: "Day-gated protocols. Photo your scalp, Claude reads it. Items unlock as your healing window opens.",
     badge: "Recovery",
   },
   {
-    title: "Sleep restoration",
-    body: "Light, temperature, caffeine, supps. Track your Oura/Apple sleep score against the protocol.",
+    title: "Sleep that actually moves the needle",
+    body: "Light, temperature, caffeine, supps. Auto-syncs to your Oura/Apple score so the protocol learns.",
     badge: "Sleep",
   },
   {
-    title: "Strength training",
-    body: "Beginner & intermediate mesocycles. RPE-tagged, deload-aware, refines per session.",
+    title: "Strength + periodization",
+    body: "Beginner to intermediate mesocycles. RPE-tagged, deload-aware. Drops bicep curls when your rows already cover it.",
     badge: "Fitness",
   },
   {
-    title: "Longevity stack",
-    body: "Bryan-Johnson-style biohacker stacks, refined by Claude — drop what's not earning its spot.",
+    title: "Longevity, refined",
+    body: "Biohacker stacks like Bryan Johnson — without the bloat. Claude tells you which 3 of 18 supps actually work for you.",
     badge: "Longevity",
   },
 ];
 
 const PRINCIPLES = [
   {
-    title: "Refinement-first",
-    body: "Every other app's loop is add → log → keep adding. Ours is add → challenge → drop. Permission to take less is the biggest feature.",
+    title: "Take less. Feel more.",
+    body: "Every other tracker pushes you to add. Regimen finds the 3 things in your stack that aren't earning their spot — and tells you so.",
   },
   {
-    title: "Claude reads your data",
-    body: "Logs, skips, photos, voice memos, biomarkers, post-op day, about-me. Real reasoning — not lookup tables.",
+    title: "Talk to it like a human.",
+    body: "Voice memo at 2am: \"Tongkat made me feel weird.\" By morning it's flagged on your dashboard. By Friday it's gone from your stack.",
   },
   {
-    title: "One-tap everything",
-    body: "Voice memos auto-link to items. Photos auto-extract macros. Skip-with-reason auto-flags re-orders.",
+    title: "Snap a photo. Done.",
+    body: "Photograph your meal — calories, protein, triggers extracted. Photograph a label — dose and ingredients pulled. Less typing, more living.",
   },
   {
-    title: "Cycle-aware",
-    body: "Day counters, deload weeks, stage-gated milestones. Items unlock when their day arrives.",
+    title: "Your data, your patterns.",
+    body: "After 7 days, drop candidates surface automatically. After 30 days, your refinements compound. After 90 days, your stack is bulletproof.",
   },
+];
+
+const SOCIAL_PROOF = [
+  { stat: "30+", label: "items in the avg stack — most can drop 12" },
+  { stat: "5×", label: "more reasoning than any rules-based tracker" },
+  { stat: "$0", label: "to start. No card. No commitment." },
 ];
 
 export default async function Home() {
@@ -82,19 +88,30 @@ export default async function Home() {
           Regimen
         </div>
         <h1
-          className="text-[40px] sm:text-[52px] leading-tight mb-5"
-          style={{ fontWeight: 600, letterSpacing: "-0.025em" }}
+          className="text-[44px] sm:text-[58px] leading-[1.05] mb-5"
+          style={{ fontWeight: 700, letterSpacing: "-0.03em" }}
         >
-          Your regimen,
+          Take less.
           <br />
-          <span style={{ color: "var(--olive)" }}>refined</span>.
+          <span
+            style={{
+              background:
+                "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            Feel more.
+          </span>
         </h1>
         <p
-          className="text-[16px] leading-relaxed mb-8 max-w-md mx-auto"
-          style={{ color: "var(--muted)" }}
+          className="text-[17px] leading-relaxed mb-8 max-w-md mx-auto"
+          style={{ color: "var(--foreground-soft)" }}
         >
-          The AI co-pilot for any goal-driven protocol — supplements, training,
-          recovery, sleep. Helps you take less, not more.
+          The AI co-pilot that reads your full health context and drops
+          what isn&apos;t earning its spot. Supplements, training, recovery,
+          sleep — refined.
         </p>
         <div className="flex justify-center gap-2">
           <Link
@@ -104,7 +121,7 @@ export default async function Home() {
               background: "var(--olive)",
               color: "#FBFAF6",
               fontWeight: 500,
-              boxShadow: "0 8px 24px rgba(74, 82, 48, 0.25)",
+              boxShadow: "0 8px 24px var(--accent-glow)",
             }}
           >
             Get started — free
@@ -123,6 +140,29 @@ export default async function Home() {
         >
           Free tier · 30 items · no card required
         </div>
+
+        <div className="mt-10 grid grid-cols-3 gap-4 max-w-md mx-auto">
+          {SOCIAL_PROOF.map((s) => (
+            <div key={s.label}>
+              <div
+                className="text-[28px] tabular-nums leading-none"
+                style={{
+                  color: "var(--accent)",
+                  fontWeight: 700,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                {s.stat}
+              </div>
+              <div
+                className="text-[10px] mt-1.5 leading-snug"
+                style={{ color: "var(--muted)" }}
+              >
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* The category */}
@@ -131,7 +171,7 @@ export default async function Home() {
           className="rounded-3xl p-6 text-left"
           style={{
             background: "var(--olive-tint)",
-            border: "1px solid rgba(123, 139, 90, 0.25)",
+            border: "1px solid var(--accent-glow)",
           }}
         >
           <div
@@ -272,7 +312,7 @@ export default async function Home() {
             background: "var(--olive)",
             color: "#FBFAF6",
             fontWeight: 500,
-            boxShadow: "0 8px 24px rgba(74, 82, 48, 0.25)",
+            boxShadow: "0 8px 24px var(--accent-glow)",
           }}
         >
           Get started →

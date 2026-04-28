@@ -144,7 +144,7 @@ export default function AskClaude() {
             "linear-gradient(135deg, var(--purple) 0%, var(--purple-deep) 100%)",
           color: "#FBFAF6",
           boxShadow:
-            "0 12px 32px rgba(107, 91, 205, 0.4), 0 4px 12px rgba(61, 45, 122, 0.3)",
+            "0 12px 32px var(--pro-tint), 0 4px 12px rgba(61, 45, 122, 0.3)",
           paddingBottom: "env(safe-area-inset-bottom, 0)",
         }}
       >
