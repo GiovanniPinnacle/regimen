@@ -55,18 +55,6 @@ const SECTIONS: Section[] = [
         desc: "Things you're considering — no commitment",
         icon: "star",
       },
-      {
-        href: "/queued",
-        label: "Queued",
-        desc: "Items waiting on a trigger (e.g., Day 14+)",
-        icon: "clock",
-      },
-      {
-        href: "/backburner",
-        label: "Parked",
-        desc: "Items parked with revisit conditions",
-        icon: "bookmark",
-      },
     ],
   },
   {

@@ -113,6 +113,40 @@ export default function ItemForm({ initial, onSaved }: Props) {
   );
   const [candidateParents, setCandidateParents] = useState<Item[]>([]);
   const [saving, setSaving] = useState(false);
+  const [classifying, setClassifying] = useState(false);
+  const [classifyHint, setClassifyHint] = useState<string | null>(null);
+  const [classifyErr, setClassifyErr] = useState<string | null>(null);
+
+  async function autoClassify() {
+    if (!name.trim()) return;
+    setClassifying(true);
+    setClassifyErr(null);
+    setClassifyHint(null);
+    try {
+      const res = await fetch("/api/items/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          brand: brand.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Classify failed");
+      const c = data.classification;
+      if (c.item_type) setItemType(c.item_type);
+      if (c.timing_slot) setTimingSlot(c.timing_slot);
+      if (c.category) setCategory(c.category);
+      if (Array.isArray(c.goals) && c.goals.length > 0) setGoals(c.goals);
+      if (c.frequency) setFrequency(c.frequency);
+      if (c.dose_default && !dose.trim()) setDose(c.dose_default);
+      setClassifyHint(c.reasoning ?? "Auto-filled — adjust below.");
+    } catch (e) {
+      setClassifyErr((e as Error).message);
+    } finally {
+      setClassifying(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -217,6 +251,63 @@ export default function ItemForm({ initial, onSaved }: Props) {
           style={{ background: "var(--background)", color: "var(--foreground)" }}
         />
       </Field>
+
+      {/* Auto-classify — Claude pre-fills everything below */}
+      <div
+        className="rounded-2xl p-3.5 -my-1"
+        style={{
+          background: "var(--olive-tint)",
+          border: "1px solid rgba(123, 139, 90, 0.25)",
+        }}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-[13px]"
+              style={{ fontWeight: 500 }}
+            >
+              ✨ Let Claude classify this
+            </div>
+            <div
+              className="text-[11px] mt-0.5 leading-snug"
+              style={{ color: "var(--muted)" }}
+            >
+              Auto-fills type, timing, category, goals, schedule, default dose.
+              You can still adjust below.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={autoClassify}
+            disabled={!name.trim() || classifying}
+            className="text-[12px] px-3 py-2 rounded-lg shrink-0"
+            style={{
+              background: "var(--olive)",
+              color: "#FBFAF6",
+              fontWeight: 500,
+              opacity: !name.trim() || classifying ? 0.5 : 1,
+            }}
+          >
+            {classifying ? "Classifying…" : "Auto-fill"}
+          </button>
+        </div>
+        {classifyHint && (
+          <div
+            className="text-[11px] mt-2 leading-relaxed italic"
+            style={{ color: "var(--olive)" }}
+          >
+            ↓ {classifyHint}
+          </div>
+        )}
+        {classifyErr && (
+          <div
+            className="text-[11px] mt-2"
+            style={{ color: "var(--error)" }}
+          >
+            {classifyErr}
+          </div>
+        )}
+      </div>
 
       <Field label="Dose / amount (optional)">
         <input

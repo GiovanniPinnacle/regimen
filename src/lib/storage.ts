@@ -143,8 +143,36 @@ export async function logSwap(
   await logSkip(date, itemId, `Swapped: ${whatYouAte}`);
 }
 
+// Phrases in skip reasons that mean "out of supply" — when matched, we
+// automatically flag the item for re-order so it shows up on /purchases
+// without the user having to manually update.
+const OUT_OF_SUPPLY_PHRASES = [
+  "ran out",
+  "out of",
+  "depleted",
+  "no more",
+  "all gone",
+  "all out",
+  "empty",
+  "need to order",
+  "need to buy",
+  "need to reorder",
+  "running low",
+  "running out",
+  "finished it",
+];
+
+function detectOutOfSupply(reason: string): boolean {
+  const r = reason.toLowerCase();
+  return OUT_OF_SUPPLY_PHRASES.some((p) => r.includes(p));
+}
+
 // Mark an item as explicitly skipped today, with a reason.
 // Different semantics from "untaken" — captures *why* and surfaces patterns.
+//
+// Auto-supply detection: if the skip reason mentions out-of-stock language,
+// we also flip the item's purchase_state to 'needed' so it surfaces on the
+// shopping list — no manual step required.
 export async function logSkip(
   date: string,
   itemId: string,
@@ -180,6 +208,19 @@ export async function logSkip(
   } else {
     const { error } = await client.from("stack_log").insert(row);
     if (error) console.error("logSkip insert", error);
+  }
+
+  // Auto-supply detection: bump item's purchase_state to 'needed' when
+  // skip reason mentions out-of-stock language.
+  if (detectOutOfSupply(reason)) {
+    const { error: itemErr } = await client
+      .from("items")
+      .update({ purchase_state: "needed", owned: false })
+      .eq("id", itemId)
+      .neq("purchase_state", "ordered") // don't bump if already on the way
+      .neq("purchase_state", "shipped")
+      .neq("purchase_state", "arrived");
+    if (itemErr) console.error("auto-supply update", itemErr);
   }
 }
 

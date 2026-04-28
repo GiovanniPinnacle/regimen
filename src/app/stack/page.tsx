@@ -41,6 +41,7 @@ const TYPE_FILTERS: Array<{ value: "all" | ItemType; label: string }> = [
 ];
 
 type SortMode = "default" | "name" | "adherence_low" | "supply_low" | "recent";
+type StatusTab = "active" | "queued" | "backburner";
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: "default", label: "Default" },
@@ -48,6 +49,16 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: "adherence_low", label: "Adherence: low → high" },
   { value: "supply_low", label: "Supply running out first" },
   { value: "recent", label: "Recently added" },
+];
+
+const STATUS_TABS: { value: StatusTab; label: string; subtitle: string }[] = [
+  { value: "active", label: "Active", subtitle: "On Today" },
+  {
+    value: "queued",
+    label: "Queued",
+    subtitle: "Waiting for trigger",
+  },
+  { value: "backburner", label: "Parked", subtitle: "Revisit later" },
 ];
 
 function calcSupplyLeft(item: Item): number | null {
@@ -67,46 +78,94 @@ export default function StackPage() {
   const [categoryFilter, setCategoryFilter] = useState<"all" | Category>("all");
   const [goalFilter, setGoalFilter] = useState<"all" | Goal>("all");
   const [sortMode, setSortMode] = useState<SortMode>("default");
+  const [statusTab, setStatusTab] = useState<StatusTab>("active");
+  const [statusCounts, setStatusCounts] = useState<Record<StatusTab, number>>({
+    active: 0,
+    queued: 0,
+    backburner: 0,
+  });
   const [groupByType, setGroupByType] = useState(true);
   const [loading, setLoading] = useState(true);
 
+  // Fetch counts for all tabs once
   useEffect(() => {
     (async () => {
-      const all = await getItemsByStatus("active");
-      setItems(all);
-      // Compute adherence in parallel — non-blocking for first paint
-      const ids = all.map((i) => i.id);
-      const adh = await getAdherenceMap(ids, 14);
-      setAdherenceMap(adh);
-      setLoading(false);
+      const [a, q, b] = await Promise.all([
+        getItemsByStatus("active"),
+        getItemsByStatus("queued"),
+        getItemsByStatus("backburner"),
+      ]);
+      setStatusCounts({
+        active: a.filter((i) => !i.companion_of).length,
+        queued: q.length,
+        backburner: b.length,
+      });
     })();
   }, []);
 
+  // Refetch on status tab change
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const all = await getItemsByStatus(statusTab);
+      setItems(all);
+      // Compute adherence only for active tab
+      if (statusTab === "active") {
+        const ids = all.map((i) => i.id);
+        const adh = await getAdherenceMap(ids, 14);
+        setAdherenceMap(adh);
+      } else {
+        setAdherenceMap({});
+      }
+      setLoading(false);
+    })();
+  }, [statusTab]);
+
+  // Nest companions under their parents — fixes the duplicate-display bug
+  // where a child + parent both appeared as separate cards on /stack.
+  const parentItems = useMemo(() => {
+    const companionsByParent: Record<string, Item[]> = {};
+    for (const i of items) {
+      if (i.companion_of) {
+        if (!companionsByParent[i.companion_of]) {
+          companionsByParent[i.companion_of] = [];
+        }
+        companionsByParent[i.companion_of].push(i);
+      }
+    }
+    return items
+      .filter((i) => !i.companion_of)
+      .map((p) => ({
+        ...p,
+        __companions: companionsByParent[p.id] ?? [],
+      })) as Item[];
+  }, [items]);
+
   const allGoals: Goal[] = useMemo(() => {
     const set = new Set<Goal>();
-    items.forEach((i) => i.goals.forEach((g) => set.add(g)));
+    parentItems.forEach((i) => i.goals.forEach((g) => set.add(g)));
     return Array.from(set);
-  }, [items]);
+  }, [parentItems]);
 
   // Compute supply left per item
   const supplyMap = useMemo(() => {
     const m: Record<string, number | null> = {};
-    for (const i of items) m[i.id] = calcSupplyLeft(i);
+    for (const i of parentItems) m[i.id] = calcSupplyLeft(i);
     return m;
-  }, [items]);
+  }, [parentItems]);
 
   // Supply alerts — items running out
   const supplyAlerts = useMemo(() => {
-    return items
+    return parentItems
       .map((i) => ({ item: i, days: supplyMap[i.id] }))
       .filter((x) => x.days != null && (x.days as number) < 14)
       .sort((a, b) => (a.days as number) - (b.days as number));
-  }, [items, supplyMap]);
+  }, [parentItems, supplyMap]);
 
   // Filter
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return items.filter((i) => {
+    return parentItems.filter((i) => {
       if (typeFilter !== "all" && i.item_type !== typeFilter) return false;
       if (categoryFilter !== "all" && i.category !== categoryFilter)
         return false;
@@ -118,7 +177,7 @@ export default function StackPage() {
       }
       return true;
     });
-  }, [items, typeFilter, categoryFilter, goalFilter, search]);
+  }, [parentItems, typeFilter, categoryFilter, goalFilter, search]);
 
   // Sort
   const sorted = useMemo(() => {
@@ -205,14 +264,15 @@ export default function StackPage() {
     <div className="pb-28">
       <header className="mb-4 flex items-start justify-between">
         <div>
-          <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+          <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
             Stack
           </h1>
           <div
             className="text-[12px] mt-1"
             style={{ color: "var(--muted)" }}
           >
-            {sorted.length} of {items.length} active
+            {sorted.length} of {parentItems.length}{" "}
+            {STATUS_TABS.find((t) => t.value === statusTab)?.label.toLowerCase()}
           </div>
         </div>
         <Link
@@ -227,6 +287,57 @@ export default function StackPage() {
           + Add
         </Link>
       </header>
+
+      {/* Status tabs — Active / Queued / Parked */}
+      <div
+        className="grid grid-cols-3 gap-1 p-1 rounded-2xl mb-4"
+        style={{
+          background: "var(--surface-alt)",
+        }}
+        role="tablist"
+      >
+        {STATUS_TABS.map((tab) => {
+          const active = statusTab === tab.value;
+          return (
+            <button
+              key={tab.value}
+              onClick={() => setStatusTab(tab.value)}
+              role="tab"
+              aria-selected={active}
+              className="rounded-xl py-2 px-2 transition-all"
+              style={{
+                background: active ? "var(--surface)" : "transparent",
+                color: active ? "var(--foreground)" : "var(--muted)",
+                boxShadow: active
+                  ? "0 1px 4px rgba(31, 26, 20, 0.08)"
+                  : undefined,
+                fontWeight: active ? 600 : 500,
+              }}
+            >
+              <div className="text-[13px] flex items-baseline justify-center gap-1.5">
+                <span>{tab.label}</span>
+                {statusCounts[tab.value] > 0 && (
+                  <span
+                    className="text-[10px] tabular-nums"
+                    style={{
+                      color: active ? "var(--olive)" : "var(--muted)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {statusCounts[tab.value]}
+                  </span>
+                )}
+              </div>
+              <div
+                className="text-[10px] mt-0.5"
+                style={{ color: "var(--muted)", opacity: 0.7 }}
+              >
+                {tab.subtitle}
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       {/* Supply alerts banner */}
       {supplyAlerts.length > 0 && (
