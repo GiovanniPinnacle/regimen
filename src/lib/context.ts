@@ -48,6 +48,23 @@ export type ProtocolContext = {
     context_tag: string | null;
     created_at: string;
   }[];
+  /** Today's intake totals (meals + water) for the day-of-week trend. */
+  todayIntake: {
+    calories: number;
+    protein_g: number;
+    fat_g: number;
+    carbs_g: number;
+    water_oz: number;
+    meal_count: number;
+  } | null;
+  /** Last 3 days of meal entries — verbatim content for pattern reading. */
+  recentMeals: {
+    date: string;
+    kind: string;
+    content: string;
+    calories: number | null;
+    protein_g: number | null;
+  }[];
   hardNos: string[];
   macros: MacroTargets | null;
   profile: {
@@ -100,6 +117,7 @@ export async function buildContextForUser(
     skipsRes,
     reactionsRes,
     voiceMemosRes,
+    intakeRes,
   ] = await Promise.all([
       admin.from("items").select("*").eq("user_id", userId),
       admin
@@ -164,6 +182,17 @@ export async function buildContextForUser(
         )
         .order("created_at", { ascending: false })
         .limit(15),
+      admin
+        .from("intake_log")
+        .select(
+          "date, kind, content, calories, protein_g, fat_g, carbs_g, water_oz",
+        )
+        .eq("user_id", userId)
+        .gte(
+          "date",
+          new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10),
+        )
+        .order("logged_at", { ascending: false }),
     ]);
 
   const allItems = (itemsRes.data ?? []) as Item[];
@@ -284,6 +313,47 @@ export async function buildContextForUser(
       context_tag: v.context_tag,
       created_at: v.created_at,
     })),
+    todayIntake: (() => {
+      const today = new Date().toISOString().slice(0, 10);
+      const rows = (intakeRes.data ?? []) as {
+        date: string;
+        kind: string;
+        calories: number | null;
+        protein_g: string | number | null;
+        fat_g: string | number | null;
+        carbs_g: string | number | null;
+        water_oz: string | number | null;
+      }[];
+      const todays = rows.filter((r) => r.date === today);
+      if (todays.length === 0) return null;
+      return {
+        calories: todays.reduce((s, r) => s + (r.calories ?? 0), 0),
+        protein_g: todays.reduce(
+          (s, r) => s + Number(r.protein_g ?? 0),
+          0,
+        ),
+        fat_g: todays.reduce((s, r) => s + Number(r.fat_g ?? 0), 0),
+        carbs_g: todays.reduce((s, r) => s + Number(r.carbs_g ?? 0), 0),
+        water_oz: todays.reduce((s, r) => s + Number(r.water_oz ?? 0), 0),
+        meal_count: todays.filter((r) => r.kind === "meal").length,
+      };
+    })(),
+    recentMeals: ((intakeRes.data ?? []) as {
+      date: string;
+      kind: string;
+      content: string;
+      calories: number | null;
+      protein_g: string | number | null;
+    }[])
+      .filter((r) => r.kind === "meal" || r.kind === "snack")
+      .map((r) => ({
+        date: r.date,
+        kind: r.kind,
+        content: r.content,
+        calories: r.calories,
+        protein_g: r.protein_g != null ? Number(r.protein_g) : null,
+      }))
+      .slice(0, 20),
     hardNos: HARD_NOS.map((h) => `${h.name}${h.reason ? ` (${h.reason})` : ""}`),
     macros,
     profile: profile
@@ -423,6 +493,38 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     lines.push(`# RECENT SKIPS (last 7 days, with reasons)`);
     for (const s of ctx.recentSkips) {
       lines.push(`- ${s.date}: ${s.item_name} → "${s.skipped_reason}"`);
+    }
+    lines.push(``);
+  }
+  if (ctx.todayIntake) {
+    lines.push(`# TODAY'S INTAKE (running totals)`);
+    lines.push(
+      `- Calories: ${ctx.todayIntake.calories} · Protein: ${Math.round(ctx.todayIntake.protein_g)}g · Fat: ${Math.round(ctx.todayIntake.fat_g)}g · Carbs: ${Math.round(ctx.todayIntake.carbs_g)}g`,
+    );
+    lines.push(
+      `- Water: ${Math.round(ctx.todayIntake.water_oz)}oz · Meals logged: ${ctx.todayIntake.meal_count}`,
+    );
+    if (ctx.macros) {
+      const protPct = Math.round(
+        (ctx.todayIntake.protein_g / ctx.macros.protein_g) * 100,
+      );
+      const calPct = Math.round(
+        (ctx.todayIntake.calories / ctx.macros.calories) * 100,
+      );
+      lines.push(
+        `- vs target: ${calPct}% calories · ${protPct}% protein`,
+      );
+    }
+    lines.push(``);
+  }
+  if (ctx.recentMeals.length > 0) {
+    lines.push(`# RECENT MEALS (last 3 days, verbatim)`);
+    for (const m of ctx.recentMeals.slice(0, 12)) {
+      const macroStr =
+        m.calories || m.protein_g
+          ? ` [${m.calories ?? "?"} kcal, ${m.protein_g != null ? Math.round(m.protein_g) + "g P" : "?"}]`
+          : "";
+      lines.push(`- ${m.date} (${m.kind}): ${m.content}${macroStr}`);
     }
     lines.push(``);
   }

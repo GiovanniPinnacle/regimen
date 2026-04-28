@@ -24,11 +24,13 @@ const PROMPTS: Record<AnalyzeType, string> = {
    - INSULIN switch (sugar, dates, dried fruit, honey, juice, high-GI foods)
    - HISTAMINE switch (aged cheese, cured meats, dark chocolate, coconut water, fermented foods with biogenic amines)
    - HARD NO list (see system prompt)
-3. Overall verdict: "safe" | "caution" | "avoid"
-4. Brief reasoning (2-3 sentences)
+3. Estimate the macros (calories, protein, fat, carbs in grams) for the WHOLE plate as visible. Be honest about uncertainty — these are visual estimates.
+4. Estimate serving description ("approx 1 large plate", "1 bowl", "small snack", etc.)
+5. Overall verdict: "safe" | "caution" | "avoid"
+6. Brief reasoning (2-3 sentences) — include any protein/macro notes for hitting daily targets
 
 Return ONLY valid JSON in this exact shape:
-{"ingredients": [{"name": "...", "flags": ["insulin"|"histamine"|"hard_no"]}], "verdict": "safe"|"caution"|"avoid", "reasoning": "..."}`,
+{"ingredients": [{"name": "...", "flags": ["insulin"|"histamine"|"hard_no"]}], "estimated_macros": {"calories": <int>, "protein_g": <num>, "fat_g": <num>, "carbs_g": <num>}, "serving": "...", "verdict": "safe"|"caution"|"avoid", "reasoning": "..."}`,
 
   supplement: `Analyze this supplement label. Extract:
 
@@ -58,6 +60,13 @@ Return ONLY valid JSON:
 
 type FoodResult = {
   ingredients: { name: string; flags: string[] }[];
+  estimated_macros?: {
+    calories: number;
+    protein_g: number;
+    fat_g: number;
+    carbs_g: number;
+  };
+  serving?: string;
   verdict: string;
   reasoning: string;
 };
@@ -181,6 +190,26 @@ export async function POST(request: NextRequest) {
         photo_url: body.path,
         claude_analysis_json: parsed,
         trigger_flags: flags,
+        notes: body.note ?? null,
+      });
+
+      // Also write to unified intake_log so daily totals roll up correctly.
+      const m = r.estimated_macros;
+      const ingredientList =
+        r.ingredients?.map((i) => i.name).filter(Boolean).join(", ") ??
+        "(meal)";
+      await supabase.from("intake_log").insert({
+        user_id: user.id,
+        date: today,
+        kind: "meal",
+        content: ingredientList,
+        photo_url: body.path,
+        serving: r.serving ?? null,
+        calories: m?.calories ?? null,
+        protein_g: m?.protein_g ?? null,
+        fat_g: m?.fat_g ?? null,
+        carbs_g: m?.carbs_g ?? null,
+        analyzed_by: "claude_vision",
         notes: body.note ?? null,
       });
     } else if (body.type === "scalp") {

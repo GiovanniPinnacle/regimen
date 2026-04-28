@@ -11,6 +11,7 @@ import QuickCheckin from "@/components/QuickCheckin";
 import DayStrip, { type SlotStat } from "@/components/DayStrip";
 import PatternCard from "@/components/PatternCard";
 import VoiceMemo from "@/components/VoiceMemo";
+import IntakeTracker from "@/components/IntakeTracker";
 import {
   SkeletonLine,
   SkeletonItemList,
@@ -476,6 +477,18 @@ export default function TodayPage() {
       <AuditPrompt />
       <InsightsBanner />
       <PatternCard />
+
+      <IntakeTracker
+        targets={
+          macros
+            ? {
+                calories: macros.calories,
+                protein_g: macros.protein_g,
+                water_oz: 84,
+              }
+            : { water_oz: 84 }
+        }
+      />
 
       {(() => {
         const hour = new Date().getHours();

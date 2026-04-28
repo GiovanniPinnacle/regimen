@@ -43,6 +43,23 @@ export default function SwapSheet({
     setBusy(true);
     setStage("saving");
     await logSwap(date, item.id, value.trim());
+
+    // Also write to intake_log so the swap counts toward today's macro
+    // totals. Photo-flow already wrote via /api/analyze (analyzed != null),
+    // so we only fire here for text-only swaps.
+    if (!analyzed) {
+      fetch("/api/intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "meal",
+          content: value.trim(),
+          analyze: true,
+          notes: `Swap from ${item.name}`,
+        }),
+      }).catch(() => null);
+    }
+
     setBusy(false);
     setStage("idle");
     setText("");
