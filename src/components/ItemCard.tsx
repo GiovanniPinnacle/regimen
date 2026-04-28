@@ -5,6 +5,8 @@ import Link from "next/link";
 import type { Item } from "@/lib/types";
 import CategoryBadge from "./CategoryBadge";
 import ReactionRow, { shouldShowReaction } from "./ReactionRow";
+import ItemQuickActions from "./ItemQuickActions";
+import Icon from "./Icon";
 import { GOAL_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
 
 type Props = {
@@ -45,6 +47,7 @@ export default function ItemCard({
   const skipped = !taken && !!skipReason;
   const swapped = skipped && skipReason?.startsWith("Swapped:");
   const [expanded, setExpanded] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const isFood = item.item_type === "food";
 
   const hasInlineMore =
@@ -54,6 +57,7 @@ export default function ItemCard({
     (showGoals && item.goals.length > 0);
 
   return (
+    <>
     <div
       className={`rounded-xl p-3 flex items-start gap-3 transition-all ${taken ? "" : skipped ? "" : "card-glass"}`}
       style={{
@@ -124,7 +128,7 @@ export default function ItemCard({
               {[item.dose, item.brand].filter(Boolean).join(" · ") || "—"}
             </div>
           </div>
-          <div className="shrink-0 flex items-center gap-1.5">
+          <div className="shrink-0 flex items-center gap-1">
             {compact && item.__companions && item.__companions.length > 0 && (
               <span
                 className="text-[10px] px-1.5 py-[1px] rounded-full chip-olive"
@@ -140,7 +144,7 @@ export default function ItemCard({
                   e.stopPropagation();
                   setExpanded((v) => !v);
                 }}
-                className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center"
+                className="shrink-0 h-7 w-7 rounded-full flex items-center justify-center"
                 style={{ color: "var(--muted)" }}
                 aria-label={expanded ? "Collapse" : "Expand"}
               >
@@ -162,6 +166,30 @@ export default function ItemCard({
                 </svg>
               </button>
             )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActionsOpen(true);
+              }}
+              className="shrink-0 h-7 w-7 rounded-full flex items-center justify-center"
+              style={{ color: "var(--muted)" }}
+              aria-label="More actions"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="5" r="1.5" />
+                <circle cx="12" cy="12" r="1.5" />
+                <circle cx="12" cy="19" r="1.5" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -425,5 +453,13 @@ export default function ItemCard({
         )}
       </div>
     </div>
+    <ItemQuickActions
+      item={item}
+      open={actionsOpen}
+      onClose={() => setActionsOpen(false)}
+      onSkip={onSkip}
+      onSwap={onSwap}
+    />
+    </>
   );
 }

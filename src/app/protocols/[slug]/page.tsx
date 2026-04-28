@@ -33,6 +33,7 @@ export default function ProtocolDetailPage() {
   const [enrolling, setEnrolling] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [unenrolling, setUnenrolling] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -85,6 +86,35 @@ export default function ProtocolDetailPage() {
       setErr((e as Error).message);
     } finally {
       setEnrolling(false);
+    }
+  }
+
+  async function unenroll(removeItems: boolean) {
+    if (!protocol) return;
+    const confirm = window.confirm(
+      removeItems
+        ? `Cancel enrollment and retire all ${protocol.items.length} linked items?\n\nYour reaction history and logs are preserved — items just won't appear on Today anymore.`
+        : `Cancel enrollment but keep items active?\n\nItems stay on Today; you'll just no longer be tracked as enrolled in this protocol.`,
+    );
+    if (!confirm) return;
+    setUnenrolling(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/protocols/unenroll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug: protocol.slug,
+          remove_items: removeItems,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      setEnrollment(null);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setUnenrolling(false);
     }
   }
 
@@ -217,6 +247,7 @@ export default function ProtocolDetailPage() {
             </div>
           </div>
         ) : enrollment && enrollment.status === "active" ? (
+          <>
           <div
             className="rounded-2xl p-5 flex items-center justify-between gap-3"
             style={{
@@ -229,7 +260,7 @@ export default function ProtocolDetailPage() {
                 className="text-[14px]"
                 style={{ fontWeight: 600, color: "var(--olive)" }}
               >
-                ✓ Enrolled — Day {dayN}
+                Enrolled — Day {dayN}
               </div>
               <div
                 className="text-[12px] mt-0.5"
@@ -252,6 +283,26 @@ export default function ProtocolDetailPage() {
               Today →
             </Link>
           </div>
+          {/* Cancel-enrollment row — subtle, below the success card */}
+          <div className="flex items-center justify-end gap-3 mt-2 px-1">
+            <button
+              onClick={() => unenroll(false)}
+              disabled={unenrolling}
+              className="text-[11px]"
+              style={{ color: "var(--muted)", textDecoration: "underline" }}
+            >
+              Cancel (keep items)
+            </button>
+            <button
+              onClick={() => unenroll(true)}
+              disabled={unenrolling}
+              className="text-[11px]"
+              style={{ color: "var(--error)", textDecoration: "underline" }}
+            >
+              {unenrolling ? "Cancelling…" : "Cancel + retire items"}
+            </button>
+          </div>
+          </>
         ) : enrollable ? (
           <button
             onClick={enroll}

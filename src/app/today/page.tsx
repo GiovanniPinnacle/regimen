@@ -761,7 +761,11 @@ export default function TodayPage() {
                     <div className="flex items-baseline gap-3">
                       <div
                         className="text-[11px] uppercase tracking-wider"
-                        style={{ color: "var(--muted)", fontWeight: 500 }}
+                        style={{
+                          color: "var(--muted)",
+                          fontWeight: 600,
+                          letterSpacing: "0.06em",
+                        }}
                       >
                         {TIMING_LABELS[activeSlot]}
                       </div>
@@ -779,12 +783,50 @@ export default function TodayPage() {
                             : `${slotTaken} / ${list.length}`}
                       </div>
                     </div>
-                    <div
-                      className="text-[10px]"
-                      style={{ color: "var(--muted)", opacity: 0.6 }}
-                    >
-                      ← swipe →
-                    </div>
+                    {isCheckoff && todo.length > 1 && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const ids = todo.map((i) => i.id);
+                          // Optimistic
+                          setTakenState((prev) => {
+                            const next = { ...prev };
+                            for (const id of ids) next[id] = true;
+                            return next;
+                          });
+                          // Fire all toggles in parallel
+                          await Promise.all(
+                            ids.map((id) => toggleTaken(today, id)),
+                          );
+                          showToast(
+                            `${ids.length} ${TIMING_LABELS[activeSlot].toLowerCase()} items ✓`,
+                            {
+                              tone: "success",
+                              undo: async () => {
+                                setTakenState((prev) => {
+                                  const next = { ...prev };
+                                  for (const id of ids) next[id] = false;
+                                  return next;
+                                });
+                                await Promise.all(
+                                  ids.map((id) =>
+                                    toggleTaken(today, id),
+                                  ),
+                                );
+                              },
+                            },
+                          );
+                        }}
+                        className="text-[12px] px-3 py-1.5 rounded-full"
+                        style={{
+                          background: "var(--olive)",
+                          color: "#FBFAF6",
+                          fontWeight: 500,
+                        }}
+                      >
+                        Mark all {todo.length}
+                      </button>
+                    )}
                   </div>
                   <div className="px-3 pb-3 pt-3 flex flex-col gap-2">
                     {(isCheckoff ? todo : list).map((item) => (
