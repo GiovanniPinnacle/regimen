@@ -38,6 +38,28 @@ export default function ItemQuickActions({
   if (!open || !item) return null;
   const isFood = item.item_type === "food";
 
+  function snooze(minutes: number) {
+    if (!item) return;
+    const until = Date.now() + minutes * 60 * 1000;
+    try {
+      localStorage.setItem(`regimen.snooze.${item.id}`, String(until));
+    } catch {}
+    onClose();
+    const time = new Date(until).toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    showToast(`${item.name} snoozed until ${time}`, {
+      undo: () => {
+        try {
+          localStorage.removeItem(`regimen.snooze.${item!.id}`);
+        } catch {}
+        onChanged?.();
+      },
+    });
+    onChanged?.();
+  }
+
   async function markDepleted() {
     if (!item) return;
     setBusy(true);
@@ -161,6 +183,14 @@ export default function ItemQuickActions({
               disabled={busy}
             />
           )}
+
+          <ActionRow
+            icon="clock"
+            label="Snooze 1 hour"
+            detail="Hides from Today, returns at +60 min"
+            onClick={() => snooze(60)}
+            disabled={busy}
+          />
 
           <ActionRow
             icon="shopping-bag"

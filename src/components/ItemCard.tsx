@@ -15,6 +15,8 @@ type Props = {
   onToggle?: (id: string) => void;
   onSkip?: (item: Item) => void;
   onSwap?: (item: Item) => void;
+  /** Called after a quick-action mutation so parent can refresh state. */
+  onChanged?: () => void;
   skipReason?: string | null;
   showGoals?: boolean;
   showTrigger?: boolean;
@@ -34,6 +36,7 @@ export default function ItemCard({
   onToggle,
   onSkip,
   onSwap,
+  onChanged,
   skipReason,
   showGoals = true,
   showTrigger = false,
@@ -459,6 +462,7 @@ export default function ItemCard({
       onClose={() => setActionsOpen(false)}
       onSkip={onSkip}
       onSwap={onSwap}
+      onChanged={onChanged}
     />
     </>
   );

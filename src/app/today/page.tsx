@@ -271,6 +271,37 @@ export default function TodayPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, grouped, today]);
 
+  // Snoozed items — localStorage keyed by item id, value is timestamp.
+  // We re-evaluate on each render against Date.now(); items past their
+  // expiry simply re-appear (no need to clean up entries).
+  const [snoozedTick, setSnoozedTick] = useState(0);
+  useEffect(() => {
+    // Re-render every minute so snoozed items can come back in view as
+    // their snooze period elapses without requiring a manual reload.
+    const t = setInterval(() => setSnoozedTick((n) => n + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const snoozedIds = useMemo(() => {
+    if (typeof window === "undefined") return new Set<string>();
+    const ids = new Set<string>();
+    for (const id of items.map((i) => i.id)) {
+      try {
+        const raw = localStorage.getItem(`regimen.snooze.${id}`);
+        if (!raw) continue;
+        const t = parseInt(raw, 10);
+        if (Number.isFinite(t) && t > Date.now()) {
+          ids.add(id);
+        } else {
+          // Past snooze — clean up
+          localStorage.removeItem(`regimen.snooze.${id}`);
+        }
+      } catch {}
+    }
+    return ids;
+    // snoozedTick included to force re-eval each minute
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, snoozedTick]);
+
   // Build slot stats for the DayStrip — only include slots that have items.
   const slotStats: SlotStat[] = useMemo(() => {
     const hour = new Date().getHours();
@@ -667,7 +698,10 @@ export default function TodayPage() {
 
                   {!collapsed && (() => {
                     const todo = list.filter(
-                      (i) => !taken[i.id] && !skipReasons[i.id],
+                      (i) =>
+                        !taken[i.id] &&
+                        !skipReasons[i.id] &&
+                        !snoozedIds.has(i.id),
                     );
                     const done = list.filter(
                       (i) => taken[i.id] || skipReasons[i.id],
@@ -747,12 +781,16 @@ export default function TodayPage() {
               }
               const isCheckoff = !NON_CHECKOFF_SLOTS.includes(activeSlot);
               const todo = list.filter(
-                (i) => !taken[i.id] && !skipReasons[i.id],
+                (i) =>
+                  !taken[i.id] &&
+                  !skipReasons[i.id] &&
+                  !snoozedIds.has(i.id),
               );
               const done = list.filter(
                 (i) => taken[i.id] || skipReasons[i.id],
               );
               const slotTaken = list.filter((i) => taken[i.id]).length;
+              const slotSnoozed = list.filter((i) => snoozedIds.has(i.id)).length;
               const allDone = isCheckoff && slotTaken === list.length;
               return (
                 <section className="rounded-2xl card-glass overflow-hidden">
@@ -784,6 +822,14 @@ export default function TodayPage() {
                             ? "✓ All done"
                             : `${slotTaken} / ${list.length}`}
                       </div>
+                      {slotSnoozed > 0 && (
+                        <div
+                          className="text-[11px]"
+                          style={{ color: "var(--muted)", opacity: 0.7 }}
+                        >
+                          · {slotSnoozed} snoozed
+                        </div>
+                      )}
                     </div>
                     {isCheckoff && todo.length > 1 && (
                       <button
@@ -840,6 +886,7 @@ export default function TodayPage() {
                         onToggle={isCheckoff ? handleToggle : undefined}
                         onSkip={isCheckoff ? handleSkip : undefined}
                         onSwap={isCheckoff ? handleSwap : undefined}
+                        onChanged={() => setSnoozedTick((n) => n + 1)}
                         showGoals={false}
                         showTypeIcon={false}
                         compact

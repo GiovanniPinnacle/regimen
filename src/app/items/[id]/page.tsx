@@ -51,6 +51,71 @@ export default async function ItemDetailPage({
     related = (relatedData ?? []) as Item[];
   }
 
+  // Personal history with this item — last 30d reactions, last 14d memos,
+  // last 14d skips. The "what's MY relationship with this item" view.
+  const since30 = new Date(Date.now() - 30 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const since14 = new Date(Date.now() - 14 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const since14Iso = new Date(Date.now() - 14 * 86400000).toISOString();
+
+  const [reactionsHistRes, memosHistRes, skipsHistRes] = await Promise.all([
+    supabase
+      .from("item_reactions")
+      .select("reaction, reacted_on, notes")
+      .eq("item_id", id)
+      .gte("reacted_on", since30)
+      .order("reacted_on", { ascending: false }),
+    supabase
+      .from("voice_memos")
+      .select("id, transcript, context_tag, created_at")
+      .eq("item_id", id)
+      .gte("created_at", since14Iso)
+      .order("created_at", { ascending: false })
+      .limit(8),
+    supabase
+      .from("stack_log")
+      .select("date, skipped_reason")
+      .eq("item_id", id)
+      .eq("taken", false)
+      .not("skipped_reason", "is", null)
+      .gte("date", since14)
+      .order("date", { ascending: false })
+      .limit(10),
+  ]);
+
+  const reactions = (reactionsHistRes.data ?? []) as {
+    reaction: string;
+    reacted_on: string;
+    notes: string | null;
+  }[];
+  const memos = (memosHistRes.data ?? []) as {
+    id: string;
+    transcript: string;
+    context_tag: string | null;
+    created_at: string;
+  }[];
+  const skips = (skipsHistRes.data ?? []) as {
+    date: string;
+    skipped_reason: string;
+  }[];
+
+  const reactionCounts = {
+    helped: reactions.filter((r) => r.reaction === "helped").length,
+    no_change: reactions.filter((r) => r.reaction === "no_change").length,
+    worse: reactions.filter((r) => r.reaction === "worse").length,
+    forgot: reactions.filter((r) => r.reaction === "forgot").length,
+  };
+  const reactionTotal =
+    reactionCounts.helped +
+    reactionCounts.no_change +
+    reactionCounts.worse +
+    reactionCounts.forgot;
+  const hasHistory =
+    reactionTotal > 0 || memos.length > 0 || skips.length > 0;
+
   return (
     <div className="pb-24">
       <div className="mb-4">
@@ -223,6 +288,181 @@ export default async function ItemDetailPage({
           </div>
         )}
       </Section>
+
+      {hasHistory && (
+        <Section title="Your history">
+          <div className="rounded-2xl card-glass overflow-hidden">
+            {reactionTotal > 0 && (
+              <div
+                className="px-4 py-3"
+                style={{ borderBottom: "1px solid var(--border)" }}
+              >
+                <div className="flex items-baseline justify-between mb-2">
+                  <div
+                    className="text-[12px]"
+                    style={{ color: "var(--muted)", fontWeight: 500 }}
+                  >
+                    Reactions · last 30 days
+                  </div>
+                  <div className="text-[12px] tabular-nums">
+                    <span
+                      style={{ color: "var(--foreground)", fontWeight: 600 }}
+                    >
+                      {reactionTotal}
+                    </span>
+                    <span style={{ color: "var(--muted)" }}> total</span>
+                  </div>
+                </div>
+                <div className="flex h-2 rounded-full overflow-hidden mb-1.5">
+                  {reactionCounts.helped > 0 && (
+                    <div
+                      style={{
+                        width: `${(reactionCounts.helped / reactionTotal) * 100}%`,
+                        background: "var(--olive)",
+                      }}
+                    />
+                  )}
+                  {reactionCounts.no_change > 0 && (
+                    <div
+                      style={{
+                        width: `${(reactionCounts.no_change / reactionTotal) * 100}%`,
+                        background: "var(--warn)",
+                      }}
+                    />
+                  )}
+                  {reactionCounts.worse > 0 && (
+                    <div
+                      style={{
+                        width: `${(reactionCounts.worse / reactionTotal) * 100}%`,
+                        background: "var(--error)",
+                      }}
+                    />
+                  )}
+                  {reactionCounts.forgot > 0 && (
+                    <div
+                      style={{
+                        width: `${(reactionCounts.forgot / reactionTotal) * 100}%`,
+                        background: "var(--border-strong)",
+                      }}
+                    />
+                  )}
+                </div>
+                <div
+                  className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]"
+                  style={{ color: "var(--muted)" }}
+                >
+                  {reactionCounts.helped > 0 && (
+                    <span>👍 {reactionCounts.helped} helped</span>
+                  )}
+                  {reactionCounts.no_change > 0 && (
+                    <span>✋ {reactionCounts.no_change} no change</span>
+                  )}
+                  {reactionCounts.worse > 0 && (
+                    <span style={{ color: "var(--error)" }}>
+                      👎 {reactionCounts.worse} worse
+                    </span>
+                  )}
+                  {reactionCounts.forgot > 0 && (
+                    <span>❓ {reactionCounts.forgot} forgot</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {memos.length > 0 && (
+              <div
+                className="px-4 py-3"
+                style={{
+                  borderBottom:
+                    skips.length > 0 ? "1px solid var(--border)" : undefined,
+                }}
+              >
+                <div
+                  className="text-[12px] mb-2"
+                  style={{ color: "var(--muted)", fontWeight: 500 }}
+                >
+                  Voice memos · last 14 days
+                </div>
+                <div className="flex flex-col gap-2">
+                  {memos.map((m) => (
+                    <div
+                      key={m.id}
+                      className="rounded-lg p-2.5"
+                      style={{
+                        background: "var(--surface-alt)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      <div
+                        className="flex items-center gap-2 mb-1"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {m.context_tag && (
+                          <span
+                            className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                            style={{
+                              background: "var(--olive-tint)",
+                              color: "var(--olive)",
+                              fontWeight: 600,
+                              letterSpacing: "0.06em",
+                            }}
+                          >
+                            {m.context_tag}
+                          </span>
+                        )}
+                        <span className="text-[10px]">
+                          {new Date(m.created_at).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+                      <div
+                        className="text-[12px] leading-relaxed"
+                        style={{ color: "var(--foreground)", opacity: 0.9 }}
+                      >
+                        {m.transcript}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {skips.length > 0 && (
+              <div className="px-4 py-3">
+                <div
+                  className="text-[12px] mb-2"
+                  style={{ color: "var(--muted)", fontWeight: 500 }}
+                >
+                  Recent skips · last 14 days
+                </div>
+                <div className="flex flex-col gap-1">
+                  {skips.map((s, i) => (
+                    <div
+                      key={i}
+                      className="text-[12px] flex gap-3"
+                    >
+                      <span
+                        className="tabular-nums shrink-0"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {s.date.slice(5)}
+                      </span>
+                      <span
+                        className="leading-snug"
+                        style={{ color: "var(--foreground)", opacity: 0.85 }}
+                      >
+                        {s.skipped_reason}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
 
       {info ? (
         <>

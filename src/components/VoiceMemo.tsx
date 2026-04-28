@@ -48,6 +48,7 @@ export default function VoiceMemo() {
   const [err, setErr] = useState<string | null>(null);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [linkedToName, setLinkedToName] = useState<string | null>(null);
+  const [loggedAsMeal, setLoggedAsMeal] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const startedAtRef = useRef<number>(0);
 
@@ -160,6 +161,7 @@ export default function VoiceMemo() {
           // ignore
         }
       }
+      if (data.logged_as_meal) setLoggedAsMeal(true);
       setStage("saved");
       setTimeout(() => {
         setOpen(false);
@@ -167,7 +169,8 @@ export default function VoiceMemo() {
         setTranscript("");
         setInterim("");
         setLinkedToName(null);
-      }, 1500);
+        setLoggedAsMeal(false);
+      }, 1800);
     } catch (e) {
       setErr((e as Error).message);
       setStage("review");
@@ -459,25 +462,34 @@ export default function VoiceMemo() {
                 >
                   Saved
                 </div>
-                {linkedToName ? (
-                  <div
-                    className="text-[12px] leading-relaxed"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    Linked to{" "}
-                    <span style={{ color: "var(--olive)", fontWeight: 600 }}>
-                      {linkedToName}
-                    </span>
-                    . Claude reads recent memos on next refine.
-                  </div>
-                ) : (
-                  <div
-                    className="text-[12px]"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    Claude reads recent memos on next refine.
-                  </div>
-                )}
+                <div
+                  className="text-[12px] leading-relaxed flex flex-col gap-1"
+                  style={{ color: "var(--muted)" }}
+                >
+                  {linkedToName && (
+                    <div>
+                      Linked to{" "}
+                      <span
+                        style={{
+                          color: "var(--olive)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {linkedToName}
+                      </span>
+                    </div>
+                  )}
+                  {loggedAsMeal && (
+                    <div>
+                      Also logged as a meal — macros estimated.
+                    </div>
+                  )}
+                  {!linkedToName && !loggedAsMeal && (
+                    <div>
+                      Claude reads recent memos on next refine.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
