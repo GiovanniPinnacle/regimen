@@ -59,8 +59,20 @@ const SECTIONS: Section[] = [
   },
   {
     title: "Insights & data",
-    blurb: "Logs, trends, biomarkers",
+    blurb: "Logs, trends, biomarkers, wins",
     links: [
+      {
+        href: "/recap",
+        label: "Weekly recap",
+        desc: "Last 7 days at a glance — adherence, reactions, wins",
+        icon: "graph",
+      },
+      {
+        href: "/achievements",
+        label: "Achievements",
+        desc: "Badges you've unlocked + what's left to earn",
+        icon: "award",
+      },
       {
         href: "/tests",
         label: "Bloodwork & tests",

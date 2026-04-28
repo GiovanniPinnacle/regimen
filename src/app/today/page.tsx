@@ -19,6 +19,7 @@ import ProBenefits from "@/components/ProBenefits";
 import StreakCounter from "@/components/StreakCounter";
 import DailyScore from "@/components/DailyScore";
 import AchievementsChecker from "@/components/AchievementsChecker";
+import StreakAtRiskBanner from "@/components/StreakAtRiskBanner";
 import { showToast } from "@/lib/toast";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -574,6 +575,11 @@ export default function TodayPage() {
       <AchievementsChecker />
 
       <DailyScore
+        takenCount={takenCount}
+        totalActive={totalActive}
+      />
+
+      <StreakAtRiskBanner
         takenCount={takenCount}
         totalActive={totalActive}
       />
