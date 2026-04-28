@@ -62,36 +62,36 @@ type Field = {
 };
 
 const ESSENTIALS: Field[] = [
-  { key: "top_goals", label: "Top 3 goals (your words)", placeholder: "1. Save my hair\n2. Look + feel my best\n3. Sustain 6-8 hr daily focus", rows: 3 },
+  { key: "top_goals", label: "Top 3 goals (your words)", placeholder: "1. What you most want to fix\n2. What you most want to feel\n3. What you most want to do", rows: 3 },
   { key: "why_doing_this", label: "Why?", placeholder: "What's driving this — story, motivation, fear, mission", rows: 2 },
-  { key: "family_history", label: "Family history", placeholder: "Hair loss side, heart, diabetes, cancer, longevity, autoimmune", rows: 2 },
-  { key: "past_diagnoses", label: "Past diagnoses", placeholder: "AGA, seb derm, anything else" },
+  { key: "family_history", label: "Family history", placeholder: "Heart, diabetes, cancer, autoimmune, longevity, anything genetic", rows: 2 },
+  { key: "past_diagnoses", label: "Past diagnoses", placeholder: "Anything a doctor labeled" },
   { key: "current_medications", label: "Current medications", placeholder: "Any Rx" },
   { key: "allergies_sensitivities", label: "Allergies / sensitivities", placeholder: "Food, environmental, drugs" },
-  { key: "communication_style", label: "How should Claude talk to you?", placeholder: "Tight/terse. Bullet points. No fluff." },
+  { key: "communication_style", label: "How should Claude talk to you?", placeholder: "Tight + terse, or detailed and explanatory. Pick a vibe." },
 ];
 
 const LIFESTYLE: Field[] = [
   { key: "current_stressors", label: "Current stressors", placeholder: "What's actually weighing on you right now", rows: 2 },
   { key: "chronic_issues", label: "Chronic issues", placeholder: "Recurring symptoms, gut, joints, sleep", rows: 2 },
-  { key: "past_surgeries", label: "Past surgeries / procedures", placeholder: "FUE 2026-04-17 6,500 grafts. Prior?" },
+  { key: "past_surgeries", label: "Past surgeries / procedures", placeholder: "Date + brief description of any surgery or procedure" },
   { key: "typical_wake", label: "Typical wake time", placeholder: "6:30 AM" },
   { key: "typical_bed", label: "Typical bed time", placeholder: "10:30 PM" },
-  { key: "work_type", label: "Work + intensity", placeholder: "Agency principal, 6-8h deep work" },
+  { key: "work_type", label: "Work + intensity", placeholder: "What you do + how heavy the day is" },
 ];
 
 const BODY_EXTRA: Field[] = [
-  { key: "resting_heart_rate", label: "Resting heart rate (Oura)", placeholder: "55 bpm" },
-  { key: "hrv_baseline", label: "HRV baseline (Oura)", placeholder: "60 ms" },
+  { key: "resting_heart_rate", label: "Resting heart rate", placeholder: "55 bpm" },
+  { key: "hrv_baseline", label: "HRV baseline", placeholder: "60 ms" },
   { key: "bp_baseline", label: "Blood pressure", placeholder: "118/76" },
   { key: "body_fat_estimate", label: "Body fat estimate", placeholder: "~15%" },
 ];
 
 const PREFERENCES: Field[] = [
-  { key: "hard_food_dislikes", label: "Won't eat", placeholder: "Brazil nuts, prunes, pumpkin seeds" },
-  { key: "cuisine_preferences", label: "Cuisine you actually eat", placeholder: "Mediterranean, Italian, BBQ" },
-  { key: "cooking_ability", label: "Cooking ability + frequency", placeholder: "Comfortable, cook 5×/wk" },
-  { key: "exercise_preferences", label: "Exercise preferences", placeholder: "Lift > run, mornings, dance" },
+  { key: "hard_food_dislikes", label: "Won't eat", placeholder: "Foods you hard-pass on" },
+  { key: "cuisine_preferences", label: "Cuisine you actually eat", placeholder: "Mediterranean, Italian, BBQ, Asian, anything" },
+  { key: "cooking_ability", label: "Cooking ability + frequency", placeholder: "Comfortable, cook 5×/wk — or order out most days" },
+  { key: "exercise_preferences", label: "Exercise preferences", placeholder: "Lift > run, mornings, classes, whatever" },
 ];
 
 const VISION: Field[] = [

@@ -11,10 +11,17 @@ const PRIORITY_LABEL: Record<WishlistPriority, string> = {
   medium: "Medium",
   low: "Low",
 };
+// Priority chip colors map to the new palette: high = error tint
+// (urgent), medium = premium gold (warm), low = neutral surface.
 const PRIORITY_COLOR: Record<WishlistPriority, string> = {
-  high: "#FBEAF0",
-  medium: "#FAEEDA",
+  high: "rgba(239, 68, 68, 0.12)",
+  medium: "var(--premium-tint)",
   low: "var(--surface-alt)",
+};
+const PRIORITY_TEXT: Record<WishlistPriority, string> = {
+  high: "var(--error)",
+  medium: "var(--premium)",
+  low: "var(--muted)",
 };
 
 export default function WishlistPage() {

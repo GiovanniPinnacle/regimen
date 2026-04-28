@@ -96,14 +96,21 @@ export default function WelcomePage() {
             Welcome to Regimen
           </div>
           <h1
-            className="text-[34px] leading-tight mb-4"
-            style={{ fontWeight: 500 }}
+            className="text-[36px] leading-tight mb-4"
+            style={{ fontWeight: 700, letterSpacing: "-0.025em" }}
           >
-            We're not a tracker.
+            We&apos;re not a tracker.
           </h1>
           <h2
             className="text-[22px] leading-tight mb-6"
-            style={{ color: "var(--olive)", fontWeight: 500 }}
+            style={{
+              background:
+                "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              fontWeight: 600,
+            }}
           >
             We help you take less, not more.
           </h2>
