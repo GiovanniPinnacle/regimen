@@ -3,6 +3,7 @@ import "./globals.css";
 import TabNav from "@/components/TabNav";
 import AskClaude from "@/components/AskClaude";
 import SessionKeeper from "@/components/SessionKeeper";
+import ToastHost from "@/components/ToastHost";
 
 export const metadata: Metadata = {
   title: "Regimen",
@@ -49,6 +50,7 @@ export default function RootLayout({
           {children}
         </main>
         <AskClaude />
+        <ToastHost />
         <TabNav />
       </body>
     </html>

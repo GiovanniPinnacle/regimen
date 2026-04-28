@@ -8,13 +8,14 @@
 // Today's reaction is highlighted. Multiple reactions over time become the
 // signal Claude uses for refinement: "no_change ×5 in 30 days → drop candidate."
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getReactionForToday, setReaction } from "@/lib/storage";
 import {
   REACTION_EMOJI,
   REACTION_LABELS,
   type ReactionType,
 } from "@/lib/types";
+import { showToast } from "@/lib/toast";
 
 const REACTIONS: ReactionType[] = ["helped", "no_change", "worse", "forgot"];
 
@@ -27,6 +28,11 @@ type Props = {
 export default function ReactionRow({ itemId, compact = true }: Props) {
   const [current, setCurrent] = useState<ReactionType | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [notePromptFor, setNotePromptFor] = useState<ReactionType | null>(
+    null,
+  );
+  const [noteText, setNoteText] = useState("");
+  const noteInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -41,6 +47,13 @@ export default function ReactionRow({ itemId, compact = true }: Props) {
     };
   }, [itemId]);
 
+  useEffect(() => {
+    if (notePromptFor) {
+      // Small delay so the row renders before focus
+      setTimeout(() => noteInputRef.current?.focus(), 50);
+    }
+  }, [notePromptFor]);
+
   async function pick(r: ReactionType, e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
@@ -49,49 +62,124 @@ export default function ReactionRow({ itemId, compact = true }: Props) {
     setCurrent(newVal);
     if (newVal) {
       await setReaction(itemId, newVal);
+      // For "worse", surface an inline note prompt so the user can capture
+      // why — that's the highest-value signal for refinement.
+      if (newVal === "worse") {
+        setNotePromptFor("worse");
+      } else {
+        setNotePromptFor(null);
+      }
+    } else {
+      setNotePromptFor(null);
     }
-    // No delete path for v1 — pick a different reaction to overwrite.
+  }
+
+  async function saveNote() {
+    if (!notePromptFor || !noteText.trim()) {
+      setNotePromptFor(null);
+      return;
+    }
+    await setReaction(itemId, notePromptFor, noteText.trim());
+    setNotePromptFor(null);
+    setNoteText("");
+    showToast("Note saved", { tone: "success", duration: 2000 });
   }
 
   if (!loaded) return null;
 
   return (
-    <div className="flex items-center gap-1.5 mt-2">
-      <span
-        className="text-[10px] uppercase tracking-wider"
-        style={{ color: "var(--muted)", fontWeight: 500 }}
-      >
-        Today:
-      </span>
-      {REACTIONS.map((r) => {
-        const active = current === r;
-        return (
-          <button
-            key={r}
-            onClick={(e) => pick(r, e)}
-            className="px-2 py-1 rounded-full transition-all flex items-center gap-1"
-            style={{
-              background: active ? "var(--olive)" : "transparent",
-              border: active
-                ? "1px solid var(--olive)"
-                : "1px solid var(--border)",
-              color: active ? "#FBFAF6" : "var(--muted)",
-              fontSize: compact ? "13px" : "14px",
-              minHeight: "26px",
+    <div className="mt-2">
+      <div className="flex items-center gap-1.5">
+        <span
+          className="text-[10px] uppercase tracking-wider"
+          style={{ color: "var(--muted)", fontWeight: 500 }}
+        >
+          Today:
+        </span>
+        {REACTIONS.map((r) => {
+          const active = current === r;
+          return (
+            <button
+              key={r}
+              onClick={(e) => pick(r, e)}
+              className="px-2 py-1 rounded-full transition-all flex items-center gap-1"
+              style={{
+                background: active ? "var(--olive)" : "transparent",
+                border: active
+                  ? "1px solid var(--olive)"
+                  : "1px solid var(--border)",
+                color: active ? "#FBFAF6" : "var(--muted)",
+                fontSize: compact ? "13px" : "14px",
+                minHeight: "26px",
+              }}
+              title={REACTION_LABELS[r]}
+              aria-label={REACTION_LABELS[r]}
+              aria-pressed={active}
+            >
+              <span className="leading-none">{REACTION_EMOJI[r]}</span>
+              {!compact && (
+                <span className="text-[11px]" style={{ fontWeight: 500 }}>
+                  {REACTION_LABELS[r]}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {notePromptFor === "worse" && (
+        <div
+          className="mt-2 flex gap-1.5 items-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            ref={noteInputRef}
+            type="text"
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void saveNote();
+              } else if (e.key === "Escape") {
+                setNotePromptFor(null);
+                setNoteText("");
+              }
             }}
-            title={REACTION_LABELS[r]}
-            aria-label={REACTION_LABELS[r]}
-            aria-pressed={active}
+            placeholder="What's worse? (e.g. headache, nausea, mood)"
+            className="flex-1 text-[12px] px-3 py-1.5 rounded-lg"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              color: "var(--foreground)",
+            }}
+          />
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              void saveNote();
+            }}
+            className="text-[12px] px-3 py-1.5 rounded-lg"
+            style={{
+              background: "var(--olive)",
+              color: "#FBFAF6",
+              fontWeight: 500,
+            }}
           >
-            <span className="leading-none">{REACTION_EMOJI[r]}</span>
-            {!compact && (
-              <span className="text-[11px]" style={{ fontWeight: 500 }}>
-                {REACTION_LABELS[r]}
-              </span>
-            )}
+            Save
           </button>
-        );
-      })}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setNotePromptFor(null);
+              setNoteText("");
+            }}
+            className="text-[12px] px-2"
+            style={{ color: "var(--muted)" }}
+          >
+            Skip
+          </button>
+        </div>
+      )}
     </div>
   );
 }

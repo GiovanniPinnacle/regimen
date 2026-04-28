@@ -395,111 +395,132 @@ export default function ItemForm({ initial, onSaved }: Props) {
         </div>
       </Field>
 
-      <Field label="Notes (optional)">
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={3}
-          className="w-full border-hair rounded-lg p-3 text-[14px] resize-none focus:outline-none focus:border-hair-strong"
-          style={{ background: "var(--background)", color: "var(--foreground)" }}
-        />
-      </Field>
-
-      <Field label="Purchase URL (optional)">
-        <input
-          type="url"
-          value={purchaseUrl}
-          onChange={(e) => setPurchaseUrl(e.target.value)}
-          placeholder="https://"
-          className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-          style={{ background: "var(--background)", color: "var(--foreground)" }}
-        />
-      </Field>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Days supply / unit">
-          <input
-            type="number"
-            min="1"
-            value={daysSupply}
-            onChange={(e) => setDaysSupply(e.target.value)}
-            placeholder="60"
-            className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-            style={{ background: "var(--background)", color: "var(--foreground)" }}
-          />
-        </Field>
-        <Field label="Unit cost ($)">
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={unitCost}
-            onChange={(e) => setUnitCost(e.target.value)}
-            placeholder="29.95"
-            className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-            style={{ background: "var(--background)", color: "var(--foreground)" }}
-          />
-        </Field>
-      </div>
-      {daysSupply && unitCost && (
-        <div className="text-[11px] -mt-3" style={{ color: "var(--muted)" }}>
-          ≈ ${((parseFloat(unitCost) / parseInt(daysSupply, 10)) * 30).toFixed(2)}/mo
-        </div>
-      )}
-
-      <Field label="Sort order within slot (lower = earlier; default 100)">
-        <input
-          type="number"
-          value={sortOrder}
-          onChange={(e) => setSortOrder(e.target.value)}
-          placeholder="e.g. 10 = first, 50 = middle, 100 = end"
-          className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-          style={{ background: "var(--background)", color: "var(--foreground)" }}
-        />
-      </Field>
-
-      <Field label="Companion of (optional — nest this item under a parent on Today)">
-        <select
-          value={companionOf ?? ""}
-          onChange={(e) => setCompanionOf(e.target.value || null)}
-          className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-          style={{ background: "var(--background)", color: "var(--foreground)" }}
+      {/* Advanced — collapsed by default. Most users won't need any of this. */}
+      <details className="rounded-2xl">
+        <summary
+          className="cursor-pointer list-none flex items-center justify-between py-2"
+          style={{ color: "var(--muted)" }}
         >
-          <option value="">— Not a companion —</option>
-          {candidateParents.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-              {p.brand ? ` (${p.brand})` : ""} — {TIMING_LABELS[p.timing_slot]}
-            </option>
-          ))}
-        </select>
-      </Field>
+          <span
+            className="text-[11px] uppercase tracking-wider"
+            style={{ fontWeight: 600, letterSpacing: "0.06em" }}
+          >
+            Advanced
+          </span>
+          <span className="text-[12px]">⌄</span>
+        </summary>
+        <div className="flex flex-col gap-5 pt-3">
+          <Field label="Notes (optional)">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="w-full border-hair rounded-lg p-3 text-[14px] resize-none focus:outline-none focus:border-hair-strong"
+              style={{ background: "var(--background)", color: "var(--foreground)" }}
+            />
+          </Field>
 
-      {companionOf && (
-        <Field label="Companion instruction (optional)">
-          <input
-            type="text"
-            value={companionInstruction}
-            onChange={(e) => setCompanionInstruction(e.target.value)}
-            placeholder="e.g. stir into coffee"
-            className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-            style={{ background: "var(--background)", color: "var(--foreground)" }}
-          />
-        </Field>
-      )}
+          <Field label="Purchase URL (optional)">
+            <input
+              type="url"
+              value={purchaseUrl}
+              onChange={(e) => setPurchaseUrl(e.target.value)}
+              placeholder="https://"
+              className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+              style={{ background: "var(--background)", color: "var(--foreground)" }}
+            />
+          </Field>
 
-      {status === "queued" || status === "backburner" ? (
-        <Field label="Review trigger (when to activate/revisit)">
-          <input
-            type="text"
-            value={reviewTrigger}
-            onChange={(e) => setReviewTrigger(e.target.value)}
-            placeholder="e.g. Day 14+, Month 3, after bloodwork"
-            className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-            style={{ background: "var(--background)", color: "var(--foreground)" }}
-          />
-        </Field>
-      ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Days supply">
+              <input
+                type="number"
+                min="1"
+                value={daysSupply}
+                onChange={(e) => setDaysSupply(e.target.value)}
+                placeholder="60"
+                className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+                style={{ background: "var(--background)", color: "var(--foreground)" }}
+              />
+            </Field>
+            <Field label="Unit cost ($)">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={unitCost}
+                onChange={(e) => setUnitCost(e.target.value)}
+                placeholder="29.95"
+                className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+                style={{ background: "var(--background)", color: "var(--foreground)" }}
+              />
+            </Field>
+          </div>
+          {daysSupply && unitCost && (
+            <div
+              className="text-[11px] -mt-3"
+              style={{ color: "var(--muted)" }}
+            >
+              ≈ ${((parseFloat(unitCost) / parseInt(daysSupply, 10)) * 30).toFixed(2)}/mo
+            </div>
+          )}
+
+          <Field label="Sort order (lower = earlier in slot; default 100)">
+            <input
+              type="number"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              placeholder="e.g. 10 = first, 50 = middle, 100 = end"
+              className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+              style={{ background: "var(--background)", color: "var(--foreground)" }}
+            />
+          </Field>
+
+          <Field label="Companion of (nest under a parent item on Today)">
+            <select
+              value={companionOf ?? ""}
+              onChange={(e) => setCompanionOf(e.target.value || null)}
+              className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+              style={{ background: "var(--background)", color: "var(--foreground)" }}
+            >
+              <option value="">— Not a companion —</option>
+              {candidateParents.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.brand ? ` (${p.brand})` : ""} —{" "}
+                  {TIMING_LABELS[p.timing_slot]}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          {companionOf && (
+            <Field label="Companion instruction">
+              <input
+                type="text"
+                value={companionInstruction}
+                onChange={(e) => setCompanionInstruction(e.target.value)}
+                placeholder="e.g. stir into coffee"
+                className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+                style={{ background: "var(--background)", color: "var(--foreground)" }}
+              />
+            </Field>
+          )}
+
+          {(status === "queued" || status === "backburner") && (
+            <Field label="Review trigger (when to activate/revisit)">
+              <input
+                type="text"
+                value={reviewTrigger}
+                onChange={(e) => setReviewTrigger(e.target.value)}
+                placeholder="e.g. Day 14+, Month 3, after bloodwork"
+                className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+                style={{ background: "var(--background)", color: "var(--foreground)" }}
+              />
+            </Field>
+          )}
+        </div>
+      </details>
 
       <button
         type="submit"

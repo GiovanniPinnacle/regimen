@@ -12,6 +12,8 @@ import DayStrip, { type SlotStat } from "@/components/DayStrip";
 import PatternCard from "@/components/PatternCard";
 import VoiceMemo from "@/components/VoiceMemo";
 import IntakeTracker from "@/components/IntakeTracker";
+import ProtocolProgress from "@/components/ProtocolProgress";
+import { showToast } from "@/lib/toast";
 import {
   SkeletonLine,
   SkeletonItemList,
@@ -307,6 +309,15 @@ export default function TodayPage() {
         return next;
       });
     }
+    const item = items.find((i) => i.id === id);
+    const itemName = item?.name ?? "Item";
+    showToast(newVal ? `${itemName} ✓` : `${itemName} marked not taken`, {
+      undo: async () => {
+        const reverted = await toggleTaken(today, id);
+        setTakenState((prev) => ({ ...prev, [id]: reverted }));
+      },
+      tone: newVal ? "success" : "default",
+    });
   }
 
   function handleSkip(item: Item) {
@@ -471,6 +482,7 @@ export default function TodayPage() {
 
       <OnboardingBanner />
       <AuditPrompt />
+      <ProtocolProgress />
       <InsightsBanner />
       <PatternCard />
 
