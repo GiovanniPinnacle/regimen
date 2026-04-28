@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Icon from "@/components/Icon";
 
 export default function AuditPrompt() {
   const [unauditedCount, setUnauditedCount] = useState<number | null>(null);
@@ -44,41 +45,37 @@ export default function AuditPrompt() {
   if (unauditedCount === 0) return null;
 
   return (
-    <div
-      className="border-hair rounded-xl p-4 mb-4 flex items-start gap-3"
-      style={{ background: "var(--surface-alt)" }}
-    >
+    <section className="rounded-2xl card-glass mb-6 px-4 py-3.5 flex items-start gap-3">
+      <span className="shrink-0 mt-0.5" style={{ color: "var(--olive)" }}>
+        <Icon name="shopping-bag" size={16} strokeWidth={1.7} />
+      </span>
       <div className="flex-1 min-w-0">
         <div className="text-[14px]" style={{ fontWeight: 500 }}>
-          🛒 {unauditedCount} items unaudited
+          {unauditedCount} items unaudited
         </div>
         <div
-          className="text-[13px] mt-1"
+          className="text-[12px] mt-1 leading-relaxed"
           style={{ color: "var(--muted)" }}
         >
-          Quick one-tap audit — mark what you have vs what to order so your
-          regimen + shopping list are accurate.
+          One-tap audit — mark what you have vs need to order.
         </div>
         <Link
           href="/audit"
-          className="inline-block mt-3 px-4 py-2 rounded-lg text-[13px]"
-          style={{
-            background: "var(--foreground)",
-            color: "var(--background)",
-            fontWeight: 500,
-          }}
+          className="inline-flex items-center gap-1 mt-2 text-[12px]"
+          style={{ color: "var(--olive)", fontWeight: 600 }}
         >
-          Start audit →
+          Start audit
+          <Icon name="chevron-right" size={11} strokeWidth={2} />
         </Link>
       </div>
       <button
         onClick={dismiss}
-        className="shrink-0 text-[18px] leading-none"
+        className="shrink-0 leading-none px-1 -mr-1"
         style={{ color: "var(--muted)" }}
         aria-label="Dismiss"
       >
-        ×
+        <Icon name="plus" size={14} className="rotate-45" />
       </button>
-    </div>
+    </section>
   );
 }

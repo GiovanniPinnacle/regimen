@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { subscribeToPush } from "@/lib/push";
+import Icon from "@/components/Icon";
 
 type Env = "loading" | "desktop" | "ios_browser" | "ios_pwa" | "android";
 type PushState = "unknown" | "unsupported" | "default" | "granted" | "denied";
@@ -70,7 +71,7 @@ export default function OnboardingBanner() {
   let action: React.ReactNode = null;
 
   if (env === "ios_browser") {
-    title = "📲 Install to your home screen";
+    title = "Install to your home screen";
     body = (
       <>
         To get push notifications on iPhone, install Regimen first:
@@ -88,7 +89,7 @@ export default function OnboardingBanner() {
       </>
     );
   } else if (env === "ios_pwa" && pushState === "default") {
-    title = "🔔 Enable notifications";
+    title = "Enable notifications";
     body = (
       <>
         Get your daily morning check-in + biotin alerts + cycle flip reminders
@@ -110,7 +111,7 @@ export default function OnboardingBanner() {
       </button>
     );
   } else if (env === "ios_pwa" && pushState === "denied") {
-    title = "🔔 Notifications are blocked";
+    title = "Notifications are blocked";
     body = (
       <>
         To turn them on: <strong>iPhone Settings → Notifications → Regimen →
@@ -118,7 +119,7 @@ export default function OnboardingBanner() {
       </>
     );
   } else if (pushState === "default") {
-    title = "🔔 Enable notifications";
+    title = "Enable notifications";
     body = <>Daily morning check-ins + biotin/cycle/milestone alerts.</>;
     action = (
       <button
@@ -135,7 +136,7 @@ export default function OnboardingBanner() {
       </button>
     );
   } else if (pushState === "denied") {
-    title = "🔔 Notifications blocked";
+    title = "Notifications blocked";
     body = (
       <>Re-enable in your browser settings → site permissions → Regimen → Allow.</>
     );
@@ -144,17 +145,17 @@ export default function OnboardingBanner() {
   }
 
   return (
-    <div
-      className="border-hair rounded-xl p-4 mb-4 flex items-start gap-3"
-      style={{ background: "var(--surface-alt)" }}
-    >
+    <section className="rounded-2xl card-glass mb-6 px-4 py-3.5 flex items-start gap-3">
+      <span className="shrink-0 mt-0.5" style={{ color: "var(--olive)" }}>
+        <Icon name="zap" size={16} strokeWidth={1.7} />
+      </span>
       <div className="flex-1 min-w-0">
         <div className="text-[14px] leading-snug" style={{ fontWeight: 500 }}>
           {title}
         </div>
         <div
-          className="text-[13px] mt-1"
-          style={{ color: "var(--muted)", lineHeight: 1.5 }}
+          className="text-[12px] mt-1.5 leading-relaxed"
+          style={{ color: "var(--muted)" }}
         >
           {body}
         </div>
@@ -170,12 +171,12 @@ export default function OnboardingBanner() {
       </div>
       <button
         onClick={handleDismiss}
-        className="shrink-0 text-[18px] leading-none"
+        className="shrink-0 leading-none px-1 -mr-1"
         style={{ color: "var(--muted)" }}
         aria-label="Dismiss"
       >
-        ×
+        <Icon name="plus" size={14} className="rotate-45" />
       </button>
-    </div>
+    </section>
   );
 }

@@ -293,52 +293,46 @@ export default function ItemCard({
         {!compact && (
           <>
             {(adherence != null || daysSupplyLeft != null) && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
+              <div
+                className="flex items-center gap-x-3 gap-y-1 mt-2 text-[11px] tabular-nums"
+                style={{ color: "var(--muted)" }}
+              >
                 {adherence != null && (
                   <span
-                    className="text-[10px] px-2 py-0.5 rounded-full"
                     style={{
-                      background:
-                        adherence >= 0.8
-                          ? "var(--olive-tint)"
-                          : adherence >= 0.5
-                            ? "rgba(194, 145, 66, 0.15)"
-                            : "rgba(176, 0, 32, 0.10)",
                       color:
                         adherence >= 0.8
                           ? "var(--olive)"
                           : adherence >= 0.5
-                            ? "#C29142"
-                            : "#b00020",
+                            ? "var(--warn)"
+                            : "var(--error)",
                       fontWeight: 600,
                     }}
                   >
-                    {Math.round(adherence * 100)}% (14d)
+                    {Math.round(adherence * 100)}%
+                    <span
+                      style={{ color: "var(--muted)", fontWeight: 400 }}
+                    >
+                      {" "}adherence
+                    </span>
                   </span>
                 )}
                 {daysSupplyLeft != null && daysSupplyLeft < 14 && (
                   <span
-                    className="text-[10px] px-2 py-0.5 rounded-full"
                     style={{
-                      background:
-                        daysSupplyLeft < 0
-                          ? "rgba(176, 0, 32, 0.10)"
-                          : daysSupplyLeft < 7
-                            ? "rgba(194, 145, 66, 0.15)"
-                            : "var(--surface-alt)",
                       color:
                         daysSupplyLeft < 0
-                          ? "#b00020"
+                          ? "var(--error)"
                           : daysSupplyLeft < 7
-                            ? "#C29142"
+                            ? "var(--warn)"
                             : "var(--muted)",
-                      fontWeight: 600,
+                      fontWeight: daysSupplyLeft < 7 ? 600 : 500,
                     }}
                   >
                     {daysSupplyLeft < 0
-                      ? "⚠ depleted"
+                      ? "Depleted"
                       : daysSupplyLeft === 0
-                        ? "out today"
+                        ? "Out today"
                         : `${daysSupplyLeft}d left`}
                   </span>
                 )}

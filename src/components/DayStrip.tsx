@@ -61,10 +61,10 @@ export default function DayStrip({
   const allDone = totalAll > 0 && totalTaken === totalAll;
 
   return (
-    <div className="-mx-4 mb-4">
+    <div className="-mx-4 mb-5">
       <div
         ref={containerRef}
-        className="flex gap-2 px-4 overflow-x-auto pb-1"
+        className="flex gap-1.5 px-4 overflow-x-auto pb-2"
         style={{
           scrollbarWidth: "none",
           msOverflowStyle: "none",
@@ -127,17 +127,16 @@ function Pill({
   dim?: boolean;
   onClick: () => void;
 }) {
+  // Cleaner palette — no double border-on-shadow, simpler active state.
   const bg = active
     ? "var(--olive)"
     : done
       ? "var(--olive-tint)"
-      : dim
-        ? "var(--surface-alt)"
-        : "var(--surface)";
+      : "transparent";
   const border = active
     ? "1px solid var(--olive)"
     : done
-      ? "1px solid rgba(123, 139, 90, 0.35)"
+      ? "1px solid transparent"
       : "1px solid var(--border)";
   const subColor = active
     ? "#FBFAF6"
@@ -151,57 +150,55 @@ function Pill({
     <button
       data-active={active ? "true" : "false"}
       onClick={onClick}
-      className="shrink-0 px-3.5 py-2 rounded-2xl transition-all relative"
+      className="shrink-0 px-3 py-1.5 rounded-2xl transition-all relative"
       style={{
         background: bg,
         border,
-        backdropFilter: active ? undefined : "blur(12px) saturate(180%)",
-        WebkitBackdropFilter: active ? undefined : "blur(12px) saturate(180%)",
-        boxShadow:
-          now && !active
-            ? "0 0 0 2px rgba(123, 139, 90, 0.35), 0 2px 8px rgba(74, 82, 48, 0.12)"
-            : active
-              ? "0 4px 14px rgba(74, 82, 48, 0.25)"
-              : undefined,
-        minWidth: "76px",
-        opacity: dim && !active ? 0.6 : 1,
+        boxShadow: active
+          ? "0 4px 14px rgba(74, 82, 48, 0.18)"
+          : undefined,
+        minWidth: "70px",
+        opacity: dim && !active ? 0.55 : 1,
       }}
       aria-pressed={active}
     >
       <div
         className="text-[10px] uppercase tracking-wider"
         style={{
-          color: active ? "rgba(251, 250, 246, 0.78)" : "var(--muted)",
-          fontWeight: 500,
+          color: active
+            ? "rgba(251, 250, 246, 0.78)"
+            : now
+              ? "var(--olive)"
+              : "var(--muted)",
+          fontWeight: now && !active ? 600 : 500,
+          letterSpacing: "0.06em",
         }}
       >
         {label}
       </div>
       <div
-        className="text-[14px] mt-0.5 leading-none"
+        className="text-[14px] mt-0.5 leading-none tabular-nums"
         style={{ color: subColor, fontWeight: 600 }}
       >
         {sub}
       </div>
       {past && !active && (
         <span
-          className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
-          style={{ background: "#C29142" }}
+          className="absolute top-1.5 right-1.5 h-1 w-1 rounded-full"
+          style={{ background: "var(--warn)" }}
           aria-label="overdue"
         />
       )}
       {now && !active && (
         <span
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] uppercase tracking-wider px-1.5 py-[1px] rounded-full"
+          aria-hidden
+          className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 rounded-full"
           style={{
+            width: "20px",
+            height: "2px",
             background: "var(--olive)",
-            color: "#FBFAF6",
-            fontWeight: 600,
-            letterSpacing: "0.06em",
           }}
-        >
-          now
-        </span>
+        />
       )}
     </button>
   );
