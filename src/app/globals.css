@@ -284,6 +284,44 @@ a:active {
   border-radius: 16px;
 }
 
+/* ============== Confetti micro-celebration ==============
+   Lightweight CSS-only confetti — when a slot completes 100% or
+   an achievement unlocks. Triggered by adding .confetti-burst to
+   any container. ~30 colored squares spread + fall + fade. */
+
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--tx, 0), var(--ty, 200px))
+      rotate(var(--rot, 540deg));
+    opacity: 0;
+  }
+}
+
+.confetti-burst {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.confetti-burst .piece {
+  position: absolute;
+  top: 35%;
+  left: 50%;
+  width: 8px;
+  height: 12px;
+  border-radius: 1px;
+  animation: confetti-fall 1100ms cubic-bezier(0.2, 0.6, 0.4, 1) forwards;
+  will-change: transform, opacity;
+}
+
 /* ============== Borders + hairlines ============== */
 .border-hair {
   border: 1px solid var(--border);

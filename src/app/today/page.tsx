@@ -17,7 +17,10 @@ import MagicMomentPrompt from "@/components/MagicMomentPrompt";
 import EmptyToday from "@/components/EmptyToday";
 import ProBenefits from "@/components/ProBenefits";
 import StreakCounter from "@/components/StreakCounter";
+import DailyScore from "@/components/DailyScore";
+import AchievementsChecker from "@/components/AchievementsChecker";
 import { showToast } from "@/lib/toast";
+import { fireConfetti } from "@/lib/confetti";
 import {
   SkeletonLine,
   SkeletonItemList,
@@ -111,6 +114,9 @@ export default function TodayPage() {
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(
     null,
   );
+  // Tracks which slots were ALREADY complete on previous render — used to
+  // fire confetti only when a slot newly transitions to 100%.
+  const prevCompleteSlotsRef = useRef<Set<TimingSlot> | null>(null);
   const [oura, setOura] = useState<
     | {
         wake_time?: string | null;
@@ -316,6 +322,34 @@ export default function TodayPage() {
     // snoozedTick included to force re-eval each minute
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, snoozedTick]);
+
+  // Fire confetti when a slot newly transitions to 100% complete. Compares
+  // current complete-slot set vs the ref from the previous render. The ref
+  // is null on first mount so initial state never fires (no fake party
+  // on page load when stuff was already done before).
+  useEffect(() => {
+    if (loading) return;
+    const nowComplete = new Set<TimingSlot>();
+    for (const slot of TIMING_ORDER) {
+      const list = grouped[slot] ?? [];
+      if (NON_CHECKOFF_SLOTS.includes(slot)) continue;
+      if (list.length === 0) continue;
+      if (list.every((i) => taken[i.id])) {
+        nowComplete.add(slot);
+      }
+    }
+    if (prevCompleteSlotsRef.current !== null) {
+      const newlyComplete = [...nowComplete].filter(
+        (s) => !prevCompleteSlotsRef.current!.has(s),
+      );
+      if (newlyComplete.length > 0) {
+        const isAllDone =
+          totalActive > 0 && takenCount === totalActive;
+        fireConfetti({ count: isAllDone ? 60 : 28 });
+      }
+    }
+    prevCompleteSlotsRef.current = nowComplete;
+  }, [taken, grouped, loading, totalActive, takenCount]);
 
   // Build slot stats for the DayStrip — only include slots that have items.
   const slotStats: SlotStat[] = useMemo(() => {
@@ -536,6 +570,13 @@ export default function TodayPage() {
       ) : (
         <>
       <QuickCheckin date={today} />
+
+      <AchievementsChecker />
+
+      <DailyScore
+        takenCount={takenCount}
+        totalActive={totalActive}
+      />
 
       <OnboardingBanner />
       <AuditPrompt />
