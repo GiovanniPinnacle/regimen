@@ -48,6 +48,10 @@ export type ProtocolContext = {
     context_tag: string | null;
     created_at: string;
   }[];
+  /** User's display name (from profiles.display_name) — null when unset. */
+  displayName: string | null;
+  /** Days since user's optional postop_date — null when not configured. */
+  daysSincePostOp: number | null;
   /** Today's intake totals (meals + water) for the day-of-week trend. */
   todayIntake: {
     calories: number;
@@ -76,15 +80,13 @@ export type ProtocolContext = {
   aboutMe: Record<string, string> | null;
 };
 
-const GOALS_IN_ORDER = [
-  "Protect grafts + preserve native hair",
-  "Control seborrheic dermatitis",
-  "High vitality + strong erections",
-  "Deeper sleep",
-  "Low systemic inflammation",
-  "Sustained thermogenic energy",
-  "Sustained cognition + focus (6-8 hrs daily agency work)",
-  "Long-term longevity",
+// Default goals shown to brand-new users who haven't set any. The user's
+// own goals (from profile.about_me.top_goals or future profile.goals
+// column) override these per-account.
+const DEFAULT_GOALS = [
+  "Manage personal health protocol",
+  "Hit daily intake + sleep targets",
+  "Refine the stack — drop what isn't working",
 ];
 
 /**
@@ -137,7 +139,7 @@ export async function buildContextForUser(
       admin
         .from("profiles")
         .select(
-          "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, about_me",
+          "display_name, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, about_me",
         )
         .eq("id", userId)
         .maybeSingle(),
@@ -296,7 +298,14 @@ export async function buildContextForUser(
   return {
     userId,
     dayPostOp: daysSincePostOp(),
-    goals: GOALS_IN_ORDER,
+    goals:
+      profile && (profile.about_me as Record<string, string> | null)?.top_goals
+        ? ((profile.about_me as Record<string, string>).top_goals
+            .split(/\n|;/)
+            .map((g) => g.trim())
+            .filter(Boolean)
+            .slice(0, 8) as string[])
+        : DEFAULT_GOALS,
     activeItems,
     queuedItems,
     recentSymptoms: (symptomsRes.data ?? []) as SymptomLog[],
@@ -355,6 +364,16 @@ export async function buildContextForUser(
       }))
       .slice(0, 20),
     hardNos: HARD_NOS.map((h) => `${h.name}${h.reason ? ` (${h.reason})` : ""}`),
+    displayName: (profile?.display_name as string | null) ?? null,
+    daysSincePostOp: profile?.postop_date
+      ? Math.max(
+          0,
+          Math.floor(
+            (Date.now() - new Date(profile.postop_date).getTime()) /
+              86400000,
+          ),
+        )
+      : null,
     macros,
     profile: profile
       ? {
@@ -380,24 +399,37 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   }
 
   const lines: string[] = [];
-  lines.push(`You are Claude, the AI partner inside Giovanni's personal health app "Regimen".`);
+  const userTag = ctx.displayName ?? "the user";
+  lines.push(
+    `You are Claude, the AI partner inside ${ctx.displayName ? `${ctx.displayName}'s` : "the user's"} personal health app "Regimen".`,
+  );
+  lines.push(
+    `Refer to the user as "${userTag}" — and never as "Giovanni" or any other hardcoded identity.`,
+  );
   lines.push(``);
-  lines.push(`# ABOUT GIOVANNI`);
-  lines.push(`- 20-something male, runs Pinnacle SEO LLC in Florida`);
-  lines.push(`- Day ${ctx.dayPostOp} post-op from 6,500-graft FUE hair transplant at Cosmedica Turkey (Dr. Levent Acar), surgery date 2026-04-17`);
-  lines.push(`- Pre-op diagnosis: AGA Norwood V-Va + comorbid seborrheic dermatitis`);
-  lines.push(``);
+  if (ctx.daysSincePostOp != null) {
+    lines.push(`# RECOVERY CONTEXT`);
+    lines.push(
+      `- ${userTag} is Day ${ctx.daysSincePostOp} post-op from a procedure they tracked. Defer to their surgeon's instructions for anything specific to that recovery.`,
+    );
+    lines.push(``);
+  }
   lines.push(`# GOALS (priority order)`);
   ctx.goals.forEach((g, i) => lines.push(`${i + 1}. ${g}`));
   lines.push(``);
-  lines.push(`# HARD NOs — never recommend, always flag if detected in a photo or food log:`);
-  for (const n of ctx.hardNos) lines.push(`- ${n}`);
-  lines.push(``);
+  if (ctx.hardNos.length > 0) {
+    lines.push(
+      `# HARD NOs — never recommend, always flag if detected in a photo or food log:`,
+    );
+    for (const n of ctx.hardNos) lines.push(`- ${n}`);
+    lines.push(``);
+  }
   if (ctx.aboutMe && Object.keys(ctx.aboutMe).length > 0) {
-    lines.push(`# ABOUT GIOVANNI — RICH CONTEXT (use this; it's filled by him)`);
+    lines.push(`# RICH CONTEXT (filled by ${userTag})`);
     const am = ctx.aboutMe;
-    if (am.top_goals) lines.push(`## Top goals (his words):\n${am.top_goals}`);
-    if (am.why_doing_this) lines.push(`## Why he's doing this:\n${am.why_doing_this}`);
+    if (am.top_goals) lines.push(`## Top goals (their words):\n${am.top_goals}`);
+    if (am.why_doing_this)
+      lines.push(`## Why they're doing this:\n${am.why_doing_this}`);
     if (am.goal_3mo) lines.push(`## 3-month vision: ${am.goal_3mo}`);
     if (am.goal_6mo) lines.push(`## 6-month vision: ${am.goal_6mo}`);
     if (am.goal_12mo) lines.push(`## 12-month vision: ${am.goal_12mo}`);
@@ -422,7 +454,8 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     if (am.cuisine_preferences) lines.push(`## Cuisine prefs: ${am.cuisine_preferences}`);
     if (am.hard_food_dislikes) lines.push(`## Won't eat: ${am.hard_food_dislikes}`);
     if (am.exercise_preferences) lines.push(`## Exercise prefs: ${am.exercise_preferences}`);
-    if (am.communication_style) lines.push(`## How to talk to him: ${am.communication_style}`);
+    if (am.communication_style)
+      lines.push(`## Communication style: ${am.communication_style}`);
     if (am.values) lines.push(`## Values: ${am.values}`);
     if (am.what_success_looks_like) lines.push(`## Success looks like:\n${am.what_success_looks_like}`);
     if (am.current_wins) lines.push(`## Current wins: ${am.current_wins}`);
@@ -530,7 +563,7 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   }
   if (ctx.recentVoiceMemos.length > 0) {
     lines.push(`# VOICE MEMOS (last 14 days — verbatim from user)`);
-    lines.push(`# These are direct from his mouth. Treat as primary source. Read carefully — may contain side-effect reports, frustrations, requests, or context that's not in any other field.`);
+    lines.push(`# These are direct from the user. Treat as primary source. Read carefully — may contain side-effect reports, frustrations, requests, or context that's not in any other field.`);
     for (const m of ctx.recentVoiceMemos) {
       const date = m.created_at.slice(0, 10);
       const tag = m.context_tag ? ` [${m.context_tag}]` : "";
@@ -560,7 +593,7 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
       `- 5+ "no_change" reactions and minimal "helped" → strong drop candidate`,
     );
     lines.push(
-      `- 2+ "worse" reactions → URGENT review — flag for him to drop or troubleshoot`,
+      `- 2+ "worse" reactions → URGENT review — flag for the user to drop or troubleshoot`,
     );
     lines.push(
       `- 5+ "forgot" reactions → adherence problem, not efficacy — suggest moving slot or pairing with existing habit, not dropping`,
@@ -574,15 +607,15 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   lines.push(``);
   lines.push(`## CORE PHILOSOPHY (overrides everything below)`);
   lines.push(`A. REFINEMENT > ADDITION. Default move is to subtract, swap, simplify, or tighten dosing — NOT add new items. The stack is already comprehensive. New additions need exceptional evidence + a specific gap they fill.`);
-  lines.push(`B. CONTEXT BEFORE SUGGESTIONS. Do NOT propose changes to dose, portions, supplements, or protocol without sufficient context. If you're missing info on: how long he's been on something, recent side effects, sleep/energy/mood trend, adherence rate, or actual symptoms — ASK FIRST. End every advice response with at least one specific question that would sharpen your next answer.`);
+  lines.push(`B. CONTEXT BEFORE SUGGESTIONS. Do NOT propose changes to dose, portions, supplements, or protocol without sufficient context. If you're missing info on: how long the user has been on something, recent side effects, sleep/energy/mood trend, adherence rate, or actual symptoms — ASK FIRST. End every advice response with at least one specific question that would sharpen your next answer.`);
   lines.push(`C. DATA-HUNGRY BY DEFAULT. Constantly seek info: what he ate, did he train, why he skipped, energy/mood/sleep, stool, libido, scalp condition, photo updates. Surface gaps in the log. If he asks something and you don't have a recent meal/symptom log to reference, name the gap and ask for it.`);
   lines.push(`D. TRACK CONSISTENCY + PROGRESS. Reference adherence percentages, streaks, and trend deltas in your responses ("you've been at 86% adherence the last 14 days vs 71% the 14 before — what changed?"). Use the recent symptom + adherence data above before answering.`);
   lines.push(`E. FOOD-FIRST. Always. Suggest food before supplement. Suggest practice before product. Suggest dropping > suggest adding.`);
   lines.push(``);
   lines.push(`## HARD CONSTRAINTS`);
-  lines.push(`1. POST-OP SAFETY: if he's in Day 0-14, flag anything antiplatelet (high-dose omega-3, curcumin, vitamin E >400 IU, NSAIDs, garlic, ginkgo) as "wait Day 14+".`);
+  lines.push(`1. POST-OP SAFETY: if a recovery context is set above and the user is in Day 0-14, flag anything antiplatelet (high-dose omega-3, curcumin, vitamin E >400 IU, NSAIDs, garlic, ginkgo) as "wait Day 14+".`);
   lines.push(`2. TRIGGER AWARENESS: seb derm flares on (a) insulin spikes (sugar/dates/dried fruit/honey/juice) and (b) histamine (aged cheese/cured meats/dark chocolate/coconut water). Dairy hits BOTH. Flag any food/recipe that hits these.`);
-  lines.push(`3. NEVER recommend HARD NOs above. Never re-suggest items he's retired (Hairpower biotin, ashwagandha standalone, Cosmedica post-op shampoo, etc.) unless he explicitly asks.`);
+  lines.push(`3. NEVER recommend HARD NOs listed above. Never re-suggest items the user has explicitly retired unless they ask again.`);
   lines.push(`4. BLOODWORK INTERFERENCE: biotin >5000 mcg pauses 72h before any draw; Tongkat Ali pauses 7-14d before to avoid T-result confounding.`);
   lines.push(``);
   lines.push(`## STYLE`);
@@ -595,7 +628,7 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   lines.push(`   [optional:] dose, brand, timing_slot, category, item_type, goals (comma-sep), frequency, notes, companion_of, companion_instruction`);
   lines.push(`   PROPOSAL>>>`);
   lines.push(`7. COMPANION ITEMS: nest small daily items (cinnamon, MCT oil, electrolytes) under a parent action via companion_of so Today renders them as a single bundled card.`);
-  lines.push(`8. MEAL PORTIONS: when suggesting food, size to his per-meal macro target in grams or standard units (e.g. "3 eggs (21g P) + 150g beef (30g) = 51g protein"). Honor his food-first preference + his confirmed flare foods.`);
+  lines.push(`8. MEAL PORTIONS: when suggesting food, size to the user's per-meal macro target in grams or standard units (e.g. "3 eggs (21g P) + 150g beef (30g) = 51g protein"). Honor food-first preference + any confirmed flare foods.`);
   lines.push(`9. SKIP-REASON LEARNING: if recent stack_log shows skip patterns, name them. ("You've skipped X 4× this week with reason 'forgot' — should we move it to a different slot or pair it with an existing habit?")`);
   lines.push(``);
   lines.push(`## REFINEMENT TRIGGERS (proactively raise these)`);

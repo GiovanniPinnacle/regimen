@@ -14,6 +14,7 @@ import VoiceMemo from "@/components/VoiceMemo";
 import IntakeTracker from "@/components/IntakeTracker";
 import ProtocolProgress from "@/components/ProtocolProgress";
 import MagicMomentPrompt from "@/components/MagicMomentPrompt";
+import EmptyToday from "@/components/EmptyToday";
 import { showToast } from "@/lib/toast";
 import {
   SkeletonLine,
@@ -119,8 +120,18 @@ export default function TodayPage() {
     | null
   >(null);
   const [macros, setMacros] = useState<MacroTargets | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [postopDate, setPostopDate] = useState<string | null>(null);
   const today = todayISO();
-  const dayPostOp = daysSincePostOp();
+  // Day-counter only renders when user has explicitly set a postop_date
+  const dayPostOp = postopDate
+    ? Math.max(
+        0,
+        Math.floor(
+          (Date.now() - new Date(postopDate).getTime()) / 86400000,
+        ),
+      )
+    : null;
 
   async function refreshLogs() {
     const detailed = await getStackLogDetailed(today);
@@ -149,9 +160,11 @@ export default function TodayPage() {
       const { data: profile } = await client
         .from("profiles")
         .select(
-          "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date",
+          "display_name, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date",
         )
         .maybeSingle();
+      setDisplayName(profile?.display_name ?? null);
+      setPostopDate(profile?.postop_date ?? null);
       if (
         profile?.weight_kg &&
         profile.height_cm &&
@@ -439,7 +452,8 @@ export default function TodayPage() {
           className="text-[12px] uppercase tracking-wider"
           style={{ color: "var(--muted)", fontWeight: 500, letterSpacing: "0.06em" }}
         >
-          {dateLabel} · Day {dayPostOp}
+          {dateLabel}
+          {dayPostOp != null && ` · Day ${dayPostOp}`}
         </div>
         <div className="flex items-baseline justify-between gap-2 mt-1">
           <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
@@ -510,6 +524,10 @@ export default function TodayPage() {
         )}
       </header>
 
+      {items.length === 0 ? (
+        <EmptyToday displayName={displayName} />
+      ) : (
+        <>
       <QuickCheckin date={today} />
 
       <OnboardingBanner />
@@ -931,6 +949,8 @@ export default function TodayPage() {
               );
             })()}
       </div>
+        </>
+      )}
 
       <SkipReasonSheet
         item={skipTarget}

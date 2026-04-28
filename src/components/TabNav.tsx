@@ -81,10 +81,12 @@ const TABS: Tab[] = [
 
 export default function TabNav() {
   const pathname = usePathname();
-  // Hide on auth pages
+  // Hide on auth + public landing pages
   if (
+    pathname === "/" ||
     pathname?.startsWith("/signin") ||
-    pathname?.startsWith("/auth/")
+    pathname?.startsWith("/auth/") ||
+    pathname?.startsWith("/onboard")
   ) {
     return null;
   }
