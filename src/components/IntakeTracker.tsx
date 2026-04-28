@@ -107,54 +107,34 @@ export default function IntakeTracker({ targets }: Props) {
 
   return (
     <>
-      <section
-        className="rounded-2xl card-glass mb-4 overflow-hidden"
-      >
-        {/* Header bar */}
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="w-full px-4 py-3 flex items-center justify-between text-left"
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className="text-[16px] leading-none"
-              aria-hidden
-            >
-              🍽
-            </span>
-            <span
-              className="text-[11px] uppercase tracking-wider"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-              }}
-            >
-              Today's intake
-            </span>
-            {totals.meal_count > 0 && (
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded-full"
-                style={{
-                  background: "var(--olive-tint)",
-                  color: "var(--olive)",
-                  fontWeight: 600,
-                }}
-              >
-                {totals.meal_count}{" "}
-                {totals.meal_count === 1 ? "meal" : "meals"}
-              </span>
-            )}
-          </div>
-          <Icon
-            name="chevron-down"
-            size={16}
-            className="transition-transform"
-          />
-        </button>
+      <section className="mb-6">
+        <div className="flex items-baseline justify-between mb-3">
+          <h2
+            className="text-[11px] uppercase tracking-wider"
+            style={{
+              color: "var(--muted)",
+              fontWeight: 600,
+              letterSpacing: "0.06em",
+            }}
+          >
+            Intake
+          </h2>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="text-[11px] flex items-center gap-1"
+            style={{ color: "var(--muted)" }}
+          >
+            {totals.meal_count > 0 ? `${totals.meal_count} logged` : "—"}
+            <Icon
+              name="chevron-down"
+              size={12}
+              className="transition-transform"
+            />
+          </button>
+        </div>
 
-        {/* Progress bars — always visible */}
-        <div className="px-4 pb-3 flex flex-col gap-2">
+        {/* Progress rows — clean, no card chrome */}
+        <div className="flex flex-col gap-3 mb-4">
           <ProgressRow
             label="Water"
             value={totals.water_oz}
@@ -177,41 +157,43 @@ export default function IntakeTracker({ targets }: Props) {
               value={totals.calories}
               target={calTarget}
               unit=""
-              color="var(--warn)"
+              color="var(--foreground-soft)"
             />
           )}
         </div>
 
-        {/* Quick add — always visible */}
-        <div
-          className="px-3 pb-3 flex flex-wrap gap-1.5"
-          style={{
-            borderTop: "1px solid var(--border)",
-            paddingTop: "10px",
-          }}
-        >
+        {/* Quick add — minimal pill row */}
+        <div className="flex gap-1.5 flex-wrap">
           {WATER_TAPS.map((t) => (
             <button
               key={t.oz}
               onClick={() => addWater(t.oz)}
-              className="text-[12px] px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all"
+              className="text-[12px] px-3 py-2 rounded-full flex items-center gap-1.5 transition-all"
               style={{
                 background: "var(--surface)",
                 border: "1px solid var(--border)",
-                color: "var(--purple)",
+                color: "var(--foreground)",
                 fontWeight: 500,
+                minHeight: "32px",
               }}
             >
-              💧 {t.label}
+              <Icon
+                name="droplet"
+                size={12}
+                strokeWidth={1.8}
+                className="opacity-70"
+              />
+              {t.label}
             </button>
           ))}
           <button
             onClick={() => setLogSheet("meal")}
-            className="text-[12px] px-3 py-1.5 rounded-full flex items-center gap-1.5"
+            className="text-[12px] px-3 py-2 rounded-full flex items-center gap-1.5 transition-all"
             style={{
               background: "var(--olive)",
               color: "#FBFAF6",
               fontWeight: 500,
+              minHeight: "32px",
             }}
           >
             <Icon name="plus" size={12} strokeWidth={2.4} />
@@ -219,18 +201,12 @@ export default function IntakeTracker({ targets }: Props) {
           </button>
         </div>
 
-        {/* Recent entries — expandable */}
+        {/* Recent entries — expandable, hairline list */}
         {expanded && (
           <div
-            className="px-3 pb-3 flex flex-col gap-1.5"
+            className="mt-4 pt-3"
             style={{ borderTop: "1px solid var(--border)" }}
           >
-            <div
-              className="text-[10px] uppercase tracking-wider mt-2 mb-1"
-              style={{ color: "var(--muted)", fontWeight: 600, letterSpacing: "0.06em" }}
-            >
-              Recent
-            </div>
             {loading ? (
               <div
                 className="text-[12px]"
@@ -240,15 +216,22 @@ export default function IntakeTracker({ targets }: Props) {
               </div>
             ) : entries.length === 0 ? (
               <div
-                className="text-[12px] py-2"
+                className="text-[12px] py-1"
                 style={{ color: "var(--muted)" }}
               >
                 Nothing logged yet today.
               </div>
             ) : (
-              entries.slice(0, 10).map((e) => (
-                <IntakeRow key={e.id} entry={e} onDelete={load} />
-              ))
+              <div className="flex flex-col">
+                {entries.slice(0, 10).map((e, i) => (
+                  <IntakeRow
+                    key={e.id}
+                    entry={e}
+                    onDelete={load}
+                    isFirst={i === 0}
+                  />
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -281,33 +264,30 @@ function ProgressRow({
   color: string;
 }) {
   const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
-  const over = value > target;
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-2 mb-1">
+      <div className="flex items-baseline justify-between gap-2 mb-1.5">
         <span
-          className="text-[12px]"
-          style={{ color: "var(--muted)" }}
+          className="text-[13px]"
+          style={{ color: "var(--foreground)", fontWeight: 500 }}
         >
           {label}
         </span>
-        <span
-          className="text-[12px] tabular-nums"
-          style={{
-            color: over ? "var(--warn)" : "var(--foreground)",
-            fontWeight: 500,
-          }}
-        >
-          <span style={{ fontWeight: 600 }}>{Math.round(value)}</span>
+        <span className="text-[13px] tabular-nums">
+          <span
+            style={{ fontWeight: 600, color: "var(--foreground)" }}
+          >
+            {Math.round(value)}
+          </span>
           <span style={{ color: "var(--muted)" }}>
-            {" "}
-            / {target}
+            {" / "}
+            {target}
             {unit && ` ${unit}`}
           </span>
         </span>
       </div>
       <div
-        className="h-1.5 rounded-full overflow-hidden"
+        className="h-1 rounded-full overflow-hidden"
         style={{ background: "var(--surface-alt)" }}
       >
         <div
@@ -325,9 +305,11 @@ function ProgressRow({
 function IntakeRow({
   entry,
   onDelete,
+  isFirst,
 }: {
   entry: IntakeEntry;
   onDelete: () => void;
+  isFirst?: boolean;
 }) {
   const [deleting, setDeleting] = useState(false);
   const time = new Date(entry.logged_at).toLocaleTimeString(undefined, {
@@ -345,36 +327,40 @@ function IntakeRow({
     }
   }
 
-  const kindIcon =
-    entry.kind === "water"
-      ? "💧"
-      : entry.kind === "beverage"
-        ? "☕"
-        : entry.kind === "snack"
-          ? "🥨"
-          : "🍽";
+  const iconName: "droplet" | "utensils" =
+    entry.kind === "water" || entry.kind === "beverage"
+      ? "droplet"
+      : "utensils";
 
   return (
     <div
-      className="flex items-start gap-2 py-1.5"
-      style={{ opacity: deleting ? 0.4 : 1 }}
+      className="flex items-center gap-3 py-2.5"
+      style={{
+        opacity: deleting ? 0.4 : 1,
+        borderTop: isFirst ? undefined : "1px solid var(--border)",
+      }}
     >
-      <span className="text-[14px] leading-none mt-0.5 shrink-0">
-        {kindIcon}
+      <Icon
+        name={iconName}
+        size={14}
+        className="shrink-0 opacity-50"
+      />
+      <span
+        className="text-[11px] tabular-nums shrink-0"
+        style={{ color: "var(--muted)", minWidth: "44px" }}
+      >
+        {time}
       </span>
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2">
-          <span
-            className="text-[10px] tabular-nums shrink-0"
-            style={{ color: "var(--muted)" }}
-          >
-            {time}
-          </span>
-          <span className="text-[12px] truncate">{entry.content}</span>
+        <div
+          className="text-[13px] truncate"
+          style={{ color: "var(--foreground)" }}
+        >
+          {entry.content}
         </div>
         {entry.kind !== "water" && (entry.calories || entry.protein_g) && (
           <div
-            className="text-[10px] flex gap-2"
+            className="text-[11px] flex gap-2 mt-0.5"
             style={{ color: "var(--muted)" }}
           >
             {entry.calories != null && <span>{entry.calories} kcal</span>}
@@ -386,12 +372,12 @@ function IntakeRow({
       </div>
       <button
         onClick={remove}
-        className="text-[10px] px-1.5 py-0.5 shrink-0"
+        className="px-1 shrink-0"
         style={{ color: "var(--muted)" }}
         aria-label="Delete entry"
         disabled={deleting}
       >
-        <Icon name="trash" size={12} />
+        <Icon name="trash" size={13} />
       </button>
     </div>
   );

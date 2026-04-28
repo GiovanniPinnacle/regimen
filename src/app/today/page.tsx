@@ -376,16 +376,15 @@ export default function TodayPage() {
       })
     : null;
 
-  // Collect compact stat pills — only render those that exist
+  // Compact stat pills — Oura/sleep metrics only. Macros now live in
+  // the IntakeTracker section below where they get progress bars.
   const stats: { label: string; value: string }[] = [];
   if (wakeStr) stats.push({ label: "Wake", value: wakeStr });
-  if (oura?.sleep_score != null) stats.push({ label: "Sleep", value: String(oura.sleep_score) });
-  if (oura?.readiness != null) stats.push({ label: "Ready", value: String(oura.readiness) });
+  if (oura?.sleep_score != null)
+    stats.push({ label: "Sleep", value: String(oura.sleep_score) });
+  if (oura?.readiness != null)
+    stats.push({ label: "Ready", value: String(oura.readiness) });
   if (oura?.hrv != null) stats.push({ label: "HRV", value: String(oura.hrv) });
-  if (macros) {
-    stats.push({ label: "kcal", value: String(macros.calories) });
-    stats.push({ label: "P", value: `${macros.protein_g}g` });
-  }
 
   const progressPct =
     totalActive > 0 ? Math.round((takenCount / totalActive) * 100) : 0;
@@ -447,26 +446,23 @@ export default function TodayPage() {
           </div>
         )}
         {stats.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-4">
+          <div
+            className="flex flex-wrap gap-x-5 gap-y-2 mt-4"
+            style={{ color: "var(--muted)" }}
+          >
             {stats.map((s) => (
-              <div
-                key={s.label}
-                className="text-[11px] px-2.5 py-1 rounded-full glass"
-              >
-                <span style={{ color: "var(--muted)" }}>{s.label} </span>
-                <span style={{ fontWeight: 600, color: "var(--olive)" }}>
+              <div key={s.label} className="text-[12px] tabular-nums">
+                <span style={{ opacity: 0.7 }}>{s.label} </span>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    color: "var(--foreground)",
+                  }}
+                >
                   {s.value}
                 </span>
               </div>
             ))}
-          </div>
-        )}
-        {macros && (
-          <div
-            className="text-[11px] mt-2"
-            style={{ color: "var(--muted)" }}
-          >
-            Per meal: {macros.per_meal.calories} kcal · {macros.per_meal.protein_g}g P · {macros.per_meal.fat_g}g F · {macros.per_meal.carbs_g}g C
           </div>
         )}
       </header>
@@ -507,31 +503,32 @@ export default function TodayPage() {
         const total = overdue.reduce((s, o) => s + o.count, 0);
         return (
           <div
-            className="rounded-2xl p-3 mb-5 flex items-start gap-3"
+            className="rounded-2xl p-3.5 mb-5 flex items-start gap-3"
             style={{
-              background:
-                "linear-gradient(135deg, rgba(194, 145, 66, 0.18) 0%, rgba(194, 145, 66, 0.08) 100%)",
-              backdropFilter: "blur(20px) saturate(180%)",
-              WebkitBackdropFilter: "blur(20px) saturate(180%)",
-              border: "1px solid rgba(194, 145, 66, 0.25)",
+              background: "rgba(194, 145, 66, 0.06)",
+              border: "1px solid rgba(194, 145, 66, 0.22)",
             }}
           >
-            <div className="text-[16px] leading-none mt-0.5">⏰</div>
+            <span
+              className="shrink-0 mt-0.5"
+              style={{ color: "var(--warn)" }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+            </span>
             <div className="flex-1">
               <div className="text-[13px]" style={{ fontWeight: 500 }}>
-                {total} item{total === 1 ? "" : "s"} pending from earlier today
+                {total} pending from earlier
               </div>
               <div
-                className="text-[12px] mt-0.5"
+                className="text-[12px] mt-0.5 leading-relaxed"
                 style={{ color: "var(--muted)" }}
               >
                 {overdue
-                  .map(
-                    (o) =>
-                      `${TIMING_LABELS[o.slot]} (${o.count})`,
-                  )
+                  .map((o) => `${TIMING_LABELS[o.slot]} (${o.count})`)
                   .join(" · ")}
-                {" "}— take or tap "Skip with reason" so we can learn the pattern.
               </div>
             </div>
           </div>

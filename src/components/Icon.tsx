@@ -33,7 +33,13 @@ type IconName =
   | "refresh"
   | "trash"
   | "shield"
-  | "zap";
+  | "zap"
+  | "droplet"
+  | "utensils"
+  | "alert"
+  | "trend-down"
+  | "trend-up"
+  | "award";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
@@ -185,6 +191,38 @@ const PATHS: Record<IconName, React.ReactNode> = {
   ),
   shield: <path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z" />,
   zap: <path d="M13 2L4 14h7l-1 8 9-12h-7z" />,
+  droplet: <path d="M12 3c-3.5 4-6 7-6 10.5a6 6 0 0 0 12 0c0-3.5-2.5-6.5-6-10.5z" />,
+  utensils: (
+    <>
+      <path d="M3 2v7a3 3 0 0 0 6 0V2" />
+      <path d="M6 9v13" />
+      <path d="M16 22V12c-2-1-3-3-3-5V2c4 0 5 2 5 5v8" />
+    </>
+  ),
+  alert: (
+    <>
+      <path d="M12 3l10 17H2z" />
+      <path d="M12 10v4M12 17v0.01" />
+    </>
+  ),
+  "trend-down": (
+    <>
+      <path d="M3 7l7 7 4-4 7 7" />
+      <path d="M21 17v-4h-4" />
+    </>
+  ),
+  "trend-up": (
+    <>
+      <path d="M3 17l7-7 4 4 7-7" />
+      <path d="M21 7v4h-4" />
+    </>
+  ),
+  award: (
+    <>
+      <circle cx="12" cy="9" r="6" />
+      <path d="M9 14l-2 7 5-3 5 3-2-7" />
+    </>
+  ),
 };
 
 export default function Icon({

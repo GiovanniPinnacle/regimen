@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Icon from "@/components/Icon";
 
 type Pattern = {
   kind: "worse" | "drop_candidate" | "adherence" | "repeat_skip" | "streak_win";
@@ -18,30 +19,30 @@ type Pattern = {
 
 const SEVERITY_STYLES: Record<
   Pattern["severity"],
-  { bg: string; border: string; emoji: string; label: string }
+  {
+    accent: string;
+    icon: "alert" | "trend-down" | "graph" | "award";
+    label: string;
+  }
 > = {
   urgent: {
-    bg: "rgba(176, 0, 32, 0.06)",
-    border: "1px solid rgba(176, 0, 32, 0.25)",
-    emoji: "⚠️",
+    accent: "var(--error)",
+    icon: "alert",
     label: "Urgent",
   },
   high: {
-    bg: "rgba(194, 145, 66, 0.08)",
-    border: "1px solid rgba(194, 145, 66, 0.25)",
-    emoji: "↓",
+    accent: "var(--warn)",
+    icon: "trend-down",
     label: "Drop signal",
   },
   medium: {
-    bg: "var(--surface-alt)",
-    border: "1px solid var(--border)",
-    emoji: "•",
+    accent: "var(--muted)",
+    icon: "graph",
     label: "Pattern",
   },
   low: {
-    bg: "var(--olive-tint)",
-    border: "1px solid rgba(123, 139, 90, 0.25)",
-    emoji: "✓",
+    accent: "var(--olive)",
+    icon: "award",
     label: "Working",
   },
 };
@@ -86,26 +87,25 @@ export default function PatternCard() {
   const topStyle = SEVERITY_STYLES[top.severity];
 
   return (
-    <section
-      className="rounded-2xl mb-4 overflow-hidden"
-      style={{ background: topStyle.bg, border: topStyle.border }}
-    >
+    <section className="rounded-2xl card-glass mb-6 overflow-hidden">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="w-full p-4 text-left flex items-start gap-3"
+        className="w-full px-4 py-3.5 text-left flex items-start gap-3"
       >
-        <div className="text-[18px] leading-none mt-0.5">
-          {topStyle.emoji}
-        </div>
+        <span
+          className="shrink-0 mt-0.5"
+          style={{ color: topStyle.accent }}
+        >
+          <Icon name={topStyle.icon} size={18} strokeWidth={1.7} />
+        </span>
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
+          <div className="flex items-baseline gap-2 mb-1">
             <span
-              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+              className="text-[10px] uppercase tracking-wider"
               style={{
-                background: "rgba(0,0,0,0.05)",
-                color: "var(--muted)",
+                color: topStyle.accent,
                 fontWeight: 600,
-                letterSpacing: "0.06em",
+                letterSpacing: "0.08em",
               }}
             >
               {topStyle.label}
@@ -115,7 +115,7 @@ export default function PatternCard() {
                 className="text-[11px]"
                 style={{ color: "var(--muted)" }}
               >
-                + {patterns.length - 1} more
+                +{patterns.length - 1} more
               </span>
             )}
           </div>
@@ -133,47 +133,38 @@ export default function PatternCard() {
           </div>
         </div>
         {patterns.length > 1 && (
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              color: "var(--muted)",
-              transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-              transition: "transform 0.15s ease",
-              flexShrink: 0,
-              marginTop: "2px",
-            }}
-          >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
+          <Icon
+            name="chevron-down"
+            size={16}
+            className="shrink-0 mt-1 transition-transform"
+          />
         )}
       </button>
 
       {expanded && rest.length > 0 && (
-        <div className="px-4 pb-4 flex flex-col gap-2">
+        <div
+          className="px-4 pb-3 flex flex-col"
+          style={{ borderTop: "1px solid var(--border)" }}
+        >
           {rest.map((p, i) => {
             const s = SEVERITY_STYLES[p.severity];
             return (
               <Link
                 key={`${p.item_id}-${p.kind}-${i}`}
                 href={`/items/${p.item_id}`}
-                className="rounded-xl p-3 flex items-start gap-2"
+                className="py-3 flex items-start gap-3"
                 style={{
-                  background: "rgba(255,255,255,0.4)",
-                  border: "1px solid var(--border)",
+                  borderBottom:
+                    i < rest.length - 1
+                      ? "1px solid var(--border)"
+                      : undefined,
                 }}
               >
                 <span
-                  className="text-[14px] leading-none mt-0.5"
-                  style={{ color: "var(--muted)" }}
+                  className="shrink-0 mt-0.5"
+                  style={{ color: s.accent }}
                 >
-                  {s.emoji}
+                  <Icon name={s.icon} size={14} strokeWidth={1.7} />
                 </span>
                 <div className="flex-1 min-w-0">
                   <div
@@ -189,21 +180,25 @@ export default function PatternCard() {
                     {p.detail}
                   </div>
                 </div>
+                <Icon
+                  name="chevron-right"
+                  size={14}
+                  className="shrink-0 opacity-40 mt-1"
+                />
               </Link>
             );
           })}
 
           <Link
             href="/refine"
-            className="text-[12px] text-center mt-1 px-3 py-2 rounded-xl"
+            className="text-[12px] text-center mt-2 mb-1 py-2 flex items-center justify-center gap-1.5"
             style={{
               color: "var(--olive)",
-              background: "rgba(255,255,255,0.4)",
               fontWeight: 500,
-              textDecoration: "underline",
             }}
           >
-            Run full refinement with Claude →
+            Run full Claude audit
+            <Icon name="chevron-right" size={12} strokeWidth={2} />
           </Link>
         </div>
       )}
