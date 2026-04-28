@@ -33,16 +33,49 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const transcript = body.transcript.trim();
+
+  // Auto-link to a mentioned item if user didn't pre-pick one. Pulls active
+  // items, fuzzy-matches by name/brand against the transcript. Captures
+  // signal Claude can use ("voice memo about Tongkat" surfaced on item card).
+  let linkedItemId = body.item_id ?? null;
+  if (!linkedItemId) {
+    const { data: items } = await supabase
+      .from("items")
+      .select("id, name, brand")
+      .eq("user_id", user.id)
+      .eq("status", "active");
+    if (items && items.length > 0) {
+      const lower = transcript.toLowerCase();
+      // Score each item by longest matching token. Brands count too.
+      let bestId: string | null = null;
+      let bestScore = 0;
+      for (const it of items as { id: string; name: string; brand?: string | null }[]) {
+        const candidates = [it.name, it.brand].filter(
+          (s): s is string => typeof s === "string" && s.length >= 3,
+        );
+        for (const c of candidates) {
+          const cl = c.toLowerCase();
+          if (lower.includes(cl) && cl.length > bestScore) {
+            bestId = it.id;
+            bestScore = cl.length;
+          }
+        }
+      }
+      if (bestId) linkedItemId = bestId;
+    }
+  }
+
   const { data, error } = await supabase
     .from("voice_memos")
     .insert({
       user_id: user.id,
-      transcript: body.transcript.trim(),
-      item_id: body.item_id ?? null,
+      transcript,
+      item_id: linkedItemId,
       context_tag: body.context_tag ?? null,
       duration_seconds: body.duration_seconds ?? null,
     })
-    .select("id, created_at")
+    .select("id, created_at, item_id")
     .single();
 
   if (error) {
@@ -50,7 +83,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, id: data.id, created_at: data.created_at });
+  return NextResponse.json({
+    ok: true,
+    id: data.id,
+    created_at: data.created_at,
+    linked_item_id: data.item_id,
+  });
 }
 
 export async function GET() {

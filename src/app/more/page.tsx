@@ -125,8 +125,14 @@ const SECTIONS: Section[] = [
   },
   {
     title: "Tools",
-    blurb: "Camera, recipes",
+    blurb: "Search, camera, recipes",
     links: [
+      {
+        href: "/search",
+        label: "Search",
+        desc: "Find any item, protocol, voice memo, recipe",
+        icon: "search",
+      },
       {
         href: "/scan",
         label: "Scan",

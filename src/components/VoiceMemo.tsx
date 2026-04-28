@@ -47,6 +47,7 @@ export default function VoiceMemo() {
   const [tag, setTag] = useState<string>("note");
   const [err, setErr] = useState<string | null>(null);
   const [supported, setSupported] = useState<boolean | null>(null);
+  const [linkedToName, setLinkedToName] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const startedAtRef = useRef<number>(0);
 
@@ -123,6 +124,7 @@ export default function VoiceMemo() {
   async function save() {
     setStage("saving");
     setErr(null);
+    setLinkedToName(null);
     try {
       const duration = Math.max(
         1,
@@ -141,13 +143,31 @@ export default function VoiceMemo() {
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? `Error ${res.status}`);
       }
+      const data = await res.json();
+      // If server linked it to an item, fetch that item's name to show
+      // a quick confirmation. Best-effort — non-blocking on failure.
+      if (data.linked_item_id) {
+        try {
+          const { createClient } = await import("@/lib/supabase/client");
+          const c = createClient();
+          const { data: item } = await c
+            .from("items")
+            .select("name")
+            .eq("id", data.linked_item_id)
+            .maybeSingle();
+          if (item?.name) setLinkedToName(item.name as string);
+        } catch {
+          // ignore
+        }
+      }
       setStage("saved");
       setTimeout(() => {
         setOpen(false);
         setStage("idle");
         setTranscript("");
         setInterim("");
-      }, 1200);
+        setLinkedToName(null);
+      }, 1500);
     } catch (e) {
       setErr((e as Error).message);
       setStage("review");
@@ -437,14 +457,27 @@ export default function VoiceMemo() {
                   className="text-[20px] mb-1"
                   style={{ fontWeight: 500, color: "var(--olive)" }}
                 >
-                  ✓ Saved
+                  Saved
                 </div>
-                <div
-                  className="text-[12px]"
-                  style={{ color: "var(--muted)" }}
-                >
-                  Claude reads recent memos on next refine.
-                </div>
+                {linkedToName ? (
+                  <div
+                    className="text-[12px] leading-relaxed"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    Linked to{" "}
+                    <span style={{ color: "var(--olive)", fontWeight: 600 }}>
+                      {linkedToName}
+                    </span>
+                    . Claude reads recent memos on next refine.
+                  </div>
+                ) : (
+                  <div
+                    className="text-[12px]"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    Claude reads recent memos on next refine.
+                  </div>
+                )}
               </div>
             )}
           </div>

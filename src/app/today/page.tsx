@@ -13,6 +13,7 @@ import PatternCard from "@/components/PatternCard";
 import VoiceMemo from "@/components/VoiceMemo";
 import IntakeTracker from "@/components/IntakeTracker";
 import ProtocolProgress from "@/components/ProtocolProgress";
+import MagicMomentPrompt from "@/components/MagicMomentPrompt";
 import { showToast } from "@/lib/toast";
 import {
   SkeletonLine,
@@ -483,6 +484,7 @@ export default function TodayPage() {
       <OnboardingBanner />
       <AuditPrompt />
       <ProtocolProgress />
+      <MagicMomentPrompt />
       <InsightsBanner />
       <PatternCard />
 
