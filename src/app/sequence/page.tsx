@@ -33,7 +33,7 @@ export default async function SequencePage() {
   return (
     <div className="pb-24">
       <header className="mb-6">
-        <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+        <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
           Optimal sequence
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>

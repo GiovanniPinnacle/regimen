@@ -28,29 +28,44 @@ export default function DataPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+      <header className="mb-7">
+        <h1
+          className="text-[32px] leading-tight"
+          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+        >
           Data imports
         </h1>
-        <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          Upload Oura CSV exports. Bloodwork + Stelo coming next.
-        </div>
+        <p
+          className="text-[13px] mt-1 leading-relaxed"
+          style={{ color: "var(--muted)" }}
+        >
+          Bring in your Oura, bloodwork, and CGM data so Claude has the full
+          picture when it refines your stack.
+        </p>
       </header>
 
-      <section className="mb-8">
+      <section className="mb-7">
         <h2
           className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
+          style={{
+            color: "var(--muted)",
+            fontWeight: 600,
+            letterSpacing: "0.06em",
+          }}
         >
           Oura CSV
         </h2>
-        <div className="border-hair rounded-xl p-4 flex flex-col gap-3">
+        <div className="rounded-2xl card-glass p-4 flex flex-col gap-3">
           <div className="text-[13px]" style={{ color: "var(--muted)" }}>
-            In Oura app: Home → ••• → Export Data → CSV. We parse date, readiness,
-            HRV, RHR, deep/REM/total sleep, temp deviation.
+            In the Oura app: Home → ••• → Export Data → CSV. We parse date,
+            readiness, HRV, RHR, deep/REM/total sleep, temp deviation.
           </div>
-          <label className="border-hair rounded-lg p-3 cursor-pointer text-[13px] block text-center"
-            style={{ borderStyle: "dashed" }}
+          <label
+            className="rounded-lg p-3 cursor-pointer text-[13px] block text-center"
+            style={{
+              border: "1px dashed var(--border-strong)",
+              color: "var(--foreground)",
+            }}
           >
             <input
               type="file"
@@ -65,8 +80,8 @@ export default function DataPage() {
             disabled={!file || uploading}
             className="px-4 py-2.5 rounded-lg text-[14px]"
             style={{
-              background: "var(--foreground)",
-              color: "var(--background)",
+              background: "var(--accent)",
+              color: "#FBFAF6",
               fontWeight: 500,
               opacity: !file || uploading ? 0.5 : 1,
             }}
@@ -81,36 +96,70 @@ export default function DataPage() {
         </div>
       </section>
 
-      <section className="mb-8">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          Bloodwork PDF
-        </h2>
+      <section className="mb-7">
+        <div className="flex items-baseline justify-between mb-3">
+          <h2
+            className="text-[11px] uppercase tracking-wider"
+            style={{
+              color: "var(--muted)",
+              fontWeight: 600,
+              letterSpacing: "0.06em",
+            }}
+          >
+            Bloodwork PDF
+          </h2>
+          <span
+            className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+            style={{
+              background: "var(--pro-tint)",
+              color: "var(--pro)",
+              fontWeight: 600,
+              letterSpacing: "0.06em",
+            }}
+          >
+            Pro · soon
+          </span>
+        </div>
         <div
-          className="border-hair rounded-xl p-4 text-[13px]"
+          className="rounded-2xl card-glass p-4 text-[13px]"
           style={{ color: "var(--muted)" }}
         >
-          Coming next sprint — upload Function Health PDF, Claude vision extracts
-          every biomarker, stores in bloodwork_results for trending. Not needed
-          until Week 8-10 (Jun 18 panel).
+          Upload any bloodwork PDF (Function Health, InsideTracker, Marek,
+          LabCorp, Quest) and Claude vision extracts every biomarker into a
+          trendable timeline. $5/scan or unlimited with Pro.
         </div>
       </section>
 
       <section>
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          Stelo CGM
-        </h2>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2
+            className="text-[11px] uppercase tracking-wider"
+            style={{
+              color: "var(--muted)",
+              fontWeight: 600,
+              letterSpacing: "0.06em",
+            }}
+          >
+            CGM data
+          </h2>
+          <span
+            className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+            style={{
+              background: "var(--surface-alt)",
+              color: "var(--muted)",
+              fontWeight: 600,
+              letterSpacing: "0.06em",
+            }}
+          >
+            Coming
+          </span>
+        </div>
         <div
-          className="border-hair rounded-xl p-4 text-[13px]"
+          className="rounded-2xl card-glass p-4 text-[13px]"
           style={{ color: "var(--muted)" }}
         >
-          Coming next sprint — Stelo data export to correlate glucose spikes with
-          seb derm flares and meal photos.
+          Stelo / Levels / Dexcom data export. Correlate glucose spikes with
+          meal photos, sleep, and protocol changes.
         </div>
       </section>
     </div>

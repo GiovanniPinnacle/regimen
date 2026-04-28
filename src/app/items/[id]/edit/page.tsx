@@ -33,7 +33,7 @@ export default async function EditItemPage({
       </div>
 
       <header className="mb-6">
-        <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+        <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
           Edit item
         </h1>
       </header>

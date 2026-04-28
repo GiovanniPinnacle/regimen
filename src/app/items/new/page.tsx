@@ -6,7 +6,7 @@ export default function NewItemPage() {
     <div>
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+          <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
             Add item
           </h1>
           <div

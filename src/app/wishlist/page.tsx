@@ -72,7 +72,7 @@ export default function WishlistPage() {
     <div className="pb-24">
       <header className="mb-5 flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+          <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
             Wishlist
           </h1>
           <div className="text-[12px] mt-1" style={{ color: "var(--muted)" }}>

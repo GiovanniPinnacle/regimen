@@ -102,7 +102,7 @@ export default function NewRecipePage() {
       </div>
 
       <header className="mb-6">
-        <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+        <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
           New recipe
         </h1>
       </header>

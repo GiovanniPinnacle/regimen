@@ -3,7 +3,6 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { HARD_NOS } from "@/lib/seed";
 import { daysSincePostOp } from "@/lib/constants";
 import type { Item, SymptomLog } from "@/lib/types";
 import { calcMacros, type MacroTargets } from "@/lib/macros";
@@ -139,7 +138,7 @@ export async function buildContextForUser(
       admin
         .from("profiles")
         .select(
-          "display_name, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, about_me",
+          "display_name, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, about_me, hard_nos",
         )
         .eq("id", userId)
         .maybeSingle(),
@@ -363,7 +362,11 @@ export async function buildContextForUser(
         protein_g: r.protein_g != null ? Number(r.protein_g) : null,
       }))
       .slice(0, 20),
-    hardNos: HARD_NOS.map((h) => `${h.name}${h.reason ? ` (${h.reason})` : ""}`),
+    hardNos: ((profile?.hard_nos as
+      | { name: string; reason?: string }[]
+      | null) ?? []).map(
+      (h) => `${h.name}${h.reason ? ` (${h.reason})` : ""}`,
+    ),
     displayName: (profile?.display_name as string | null) ?? null,
     daysSincePostOp: profile?.postop_date
       ? Math.max(

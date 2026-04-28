@@ -45,7 +45,7 @@ export default async function TestsPage() {
             ← More
           </Link>
         </div>
-        <h1 className="text-[26px] leading-tight" style={{ fontWeight: 500 }}>
+        <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
           Tests
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
