@@ -21,6 +21,7 @@ import DailyScore from "@/components/DailyScore";
 import AchievementsChecker from "@/components/AchievementsChecker";
 import StreakAtRiskBanner from "@/components/StreakAtRiskBanner";
 import CoachQuickActions from "@/components/CoachQuickActions";
+import NextStep from "@/components/NextStep";
 import { showToast } from "@/lib/toast";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -580,6 +581,8 @@ export default function TodayPage() {
         totalActive={totalActive}
       />
 
+      <NextStep todayTakenCount={takenCount} />
+
       <StreakAtRiskBanner
         takenCount={takenCount}
         totalActive={totalActive}
@@ -655,6 +658,7 @@ export default function TodayPage() {
         );
       })()}
 
+      <div id="today-checklist" />
       <DayStrip
         stats={slotStats}
         totalTaken={takenCount}

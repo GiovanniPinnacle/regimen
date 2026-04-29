@@ -134,19 +134,12 @@ export default function ItemForm({ initial, onSaved }: Props) {
     setPhotoErr(null);
     setClassifyHint(null);
     try {
-      // Upload to Supabase storage to get a URL we pass to /api/analyze
-      const client = createClient();
-      const {
-        data: { user },
-      } = await client.auth.getUser();
-      if (!user) throw new Error("Not signed in");
-      const path = `${user.id}/items/${Date.now()}-${file.name}`;
-      const { error: upErr } = await client.storage
-        .from("photos")
-        .upload(path, file, { contentType: file.type });
-      if (upErr) throw upErr;
-      const { data: pub } = client.storage.from("photos").getPublicUrl(path);
-      const imageUrl = pub.publicUrl;
+      // Upload to the supplement-photos bucket (private) and get a signed
+      // URL the server route can fetch. Reuses the existing helper.
+      const { uploadPhoto } = await import("@/lib/photo");
+      const upload = await uploadPhoto(file, "supplement-photos");
+      if ("error" in upload) throw new Error(upload.error);
+      const imageUrl = upload.publicUrl;
 
       const res = await fetch("/api/analyze", {
         method: "POST",

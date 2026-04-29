@@ -77,6 +77,53 @@ export type ProtocolContext = {
     meals_per_day?: number;
   } | null;
   aboutMe: Record<string, string> | null;
+  /** User journey stage — coarse "where are they in the loop" signal. */
+  userStage: UserStage;
+  /** Concrete next-step signals — drives NextStep component on /today. */
+  signals: UserSignals;
+};
+
+/**
+ * Coarse user-journey stages. Drives Coach's tone + recommendations and
+ * the NextStep component's primary CTA on /today.
+ *
+ * Progression (typical):
+ *   first_visit → stack_built → early_logging → magic_ready → refining → mastery
+ *
+ * Branches:
+ *   refining + many drops/recent edits → tuning
+ *   any stage + needs_attention signals fire override messaging
+ */
+export type UserStage =
+  | "first_visit" // 0 active items
+  | "stack_built" // items added but never logged
+  | "early_logging" // 1-2 unique log days
+  | "magic_ready" // 3-6 unique log days, hasn't run a refinement
+  | "refining" // 7-29 unique log days
+  | "mastery"; // 30+ unique log days
+
+export type UserSignals = {
+  /** Count of items with owned=null + buyable type — should run /audit. */
+  pendingAuditCount: number;
+  /** Count of items in purchase_state=needed. */
+  pendingOrderCount: number;
+  /** Count of items in purchase_state=arrived (waiting to mark using). */
+  arrivedUnmarkedCount: number;
+  /** Items with 2+ "worse" reactions in last 30d. */
+  worsenedItemCount: number;
+  /** Current streak (consecutive days with at least one taken=true entry). */
+  currentStreak: number;
+  /** Total unique log days in last 14 days. */
+  uniqueLogDays14d: number;
+  /** Whether a /refine audit has been run in the last 7 days. */
+  ranRefineRecently: boolean;
+  /** Active protocols + completion progress. */
+  activeProtocols: Array<{
+    slug: string;
+    current_day: number;
+    duration_days: number;
+    completed: boolean;
+  }>;
 };
 
 // Default goals shown to brand-new users who haven't set any. The user's
@@ -119,6 +166,9 @@ export async function buildContextForUser(
     reactionsRes,
     voiceMemosRes,
     intakeRes,
+    stackLog14Res,
+    enrollmentsRes,
+    refineRes,
   ] = await Promise.all([
       admin.from("items").select("*").eq("user_id", userId),
       admin
@@ -194,6 +244,34 @@ export async function buildContextForUser(
           new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10),
         )
         .order("logged_at", { ascending: false }),
+      // 14-day stack log — used to compute streak + unique log days
+      admin
+        .from("stack_log")
+        .select("date, taken")
+        .eq("user_id", userId)
+        .eq("taken", true)
+        .gte(
+          "date",
+          new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10),
+        )
+        .order("date", { ascending: false }),
+      // Active protocol enrollments
+      admin
+        .from("protocol_enrollments")
+        .select("protocol_slug, started_on, status, current_day, duration_days")
+        .eq("user_id", userId)
+        .in("status", ["active", "completed"]),
+      // Recent /refine runs (changelog with triggered_by=refine)
+      admin
+        .from("changelog")
+        .select("changed_at")
+        .eq("user_id", userId)
+        .eq("triggered_by", "refine")
+        .gte(
+          "changed_at",
+          new Date(Date.now() - 7 * 86400000).toISOString(),
+        )
+        .limit(1),
     ]);
 
   const allItems = (itemsRes.data ?? []) as Item[];
@@ -294,6 +372,84 @@ export async function buildContextForUser(
     (a, b) => b.total - a.total,
   );
 
+  // ----- USER-STATE SIGNALS -----
+  // Pending audit: items with owned=null in buyable types
+  const BUYABLE_TYPES = new Set([
+    "supplement",
+    "topical",
+    "device",
+    "gear",
+    "test",
+  ]);
+  const pendingAuditCount = allItems.filter(
+    (i) =>
+      i.owned == null &&
+      BUYABLE_TYPES.has(i.item_type) &&
+      (i.status === "active" || i.status === "queued"),
+  ).length;
+  const pendingOrderCount = allItems.filter(
+    (i) => i.purchase_state === "needed",
+  ).length;
+  const arrivedUnmarkedCount = allItems.filter(
+    (i) => i.purchase_state === "arrived",
+  ).length;
+  const worsenedItemCount = recentReactions.filter((r) => r.worse >= 2).length;
+
+  // Streak + unique log days (14d window)
+  const log14Rows = (stackLog14Res.data ?? []) as { date: string }[];
+  const uniqueDaysSet = new Set(log14Rows.map((r) => r.date));
+  const uniqueLogDays14d = uniqueDaysSet.size;
+
+  // Compute consecutive-day streak ending today (or yesterday)
+  let currentStreak = 0;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    if (uniqueDaysSet.has(d)) currentStreak++;
+    else if (i === 0 && d === todayStr) {
+      // Allow yesterday-only streak (today might just not be logged yet)
+      continue;
+    } else break;
+  }
+
+  const ranRefineRecently = (refineRes.data ?? []).length > 0;
+
+  type EnrollmentRow = {
+    protocol_slug: string;
+    current_day: number;
+    duration_days: number;
+    status: string;
+  };
+  const activeProtocols = ((enrollmentsRes.data ?? []) as EnrollmentRow[]).map(
+    (e) => ({
+      slug: e.protocol_slug,
+      current_day: e.current_day,
+      duration_days: e.duration_days,
+      completed:
+        e.status === "completed" || e.current_day >= e.duration_days,
+    }),
+  );
+
+  // Determine stage
+  let userStage: UserStage;
+  if (activeItems.length === 0) userStage = "first_visit";
+  else if (uniqueLogDays14d === 0) userStage = "stack_built";
+  else if (uniqueLogDays14d <= 2) userStage = "early_logging";
+  else if (uniqueLogDays14d <= 6 && !ranRefineRecently) userStage = "magic_ready";
+  else if (uniqueLogDays14d < 14) userStage = "refining";
+  else userStage = "mastery";
+
+  const signals: UserSignals = {
+    pendingAuditCount,
+    pendingOrderCount,
+    arrivedUnmarkedCount,
+    worsenedItemCount,
+    currentStreak,
+    uniqueLogDays14d,
+    ranRefineRecently,
+    activeProtocols,
+  };
+
   return {
     userId,
     dayPostOp: daysSincePostOp(),
@@ -387,6 +543,8 @@ export async function buildContextForUser(
         }
       : null,
     aboutMe: (profile?.about_me as Record<string, string> | null) ?? null,
+    userStage,
+    signals,
   };
 }
 
@@ -404,11 +562,53 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   const lines: string[] = [];
   const userTag = ctx.displayName ?? "the user";
   lines.push(
-    `You are Claude, the AI partner inside ${ctx.displayName ? `${ctx.displayName}'s` : "the user's"} personal health app "Regimen".`,
+    `You are Coach, the AI partner inside ${ctx.displayName ? `${ctx.displayName}'s` : "the user's"} personal health app "Regimen". Address the user as Coach — warm, direct, action-first. Sign off with concrete next steps, not encouragement clichés.`,
   );
   lines.push(
     `Refer to the user as "${userTag}" — and never as "Giovanni" or any other hardcoded identity.`,
   );
+  lines.push(``);
+
+  // User-stage block — drives Coach's tone + recommendations
+  const STAGE_NOTES: Record<UserStage, string> = {
+    first_visit:
+      "Brand new — has 0 active items. Help them build a starter stack. Don't audit/drop yet.",
+    stack_built:
+      "Has items but no logs. Job #1 is to get them logging today. Don't recommend new items, encourage the first check-off.",
+    early_logging:
+      "1-2 unique log days in 14. Reinforce the streak, surface easy wins. Avoid heavy refinement until 3+ days of data.",
+    magic_ready:
+      "3-6 logged days, hasn't run a refinement. THIS is the moment — proactively offer a first refinement. Ground it in the actual recent skips/reactions.",
+    refining:
+      "7-13 logged days, in active refinement loop. Look for drop candidates, dose adjustments, redundant items. Be opinionated.",
+    mastery:
+      "14+ logged days. Long-term user. Surface trend deltas, suggest cycles, talk about cost optimization.",
+  };
+  lines.push(`# USER STAGE: ${ctx.userStage}`);
+  lines.push(`${STAGE_NOTES[ctx.userStage]}`);
+  lines.push(`- Active items: ${ctx.activeItems.length}`);
+  lines.push(`- Unique log days (14d): ${ctx.signals.uniqueLogDays14d}`);
+  lines.push(`- Current streak: ${ctx.signals.currentStreak} days`);
+  if (ctx.signals.pendingAuditCount > 0)
+    lines.push(`- Items waiting on audit: ${ctx.signals.pendingAuditCount}`);
+  if (ctx.signals.pendingOrderCount > 0)
+    lines.push(`- Items needing order: ${ctx.signals.pendingOrderCount}`);
+  if (ctx.signals.arrivedUnmarkedCount > 0)
+    lines.push(
+      `- Items arrived but not yet marked "using": ${ctx.signals.arrivedUnmarkedCount}`,
+    );
+  if (ctx.signals.worsenedItemCount > 0)
+    lines.push(
+      `- Items with 2+ "worse" reactions in last 30d: ${ctx.signals.worsenedItemCount} (URGENT — flag for review)`,
+    );
+  if (ctx.signals.activeProtocols.length > 0) {
+    lines.push(`- Protocol enrollments:`);
+    for (const p of ctx.signals.activeProtocols) {
+      lines.push(
+        `    · ${p.slug}: Day ${p.current_day} of ${p.duration_days}${p.completed ? " (COMPLETED)" : ""}`,
+      );
+    }
+  }
   lines.push(``);
   if (ctx.daysSincePostOp != null) {
     lines.push(`# RECOVERY CONTEXT`);
