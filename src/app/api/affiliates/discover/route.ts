@@ -120,11 +120,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing itemId" }, { status: 400 });
   }
 
-  const { data: item } = await supabase
+  const { data: itemRaw } = await supabase
     .from("items")
-    .select("id, name, brand, item_type, affiliate_url, affiliate_network")
+    .select(
+      "id, name, brand, item_type, affiliate_url, affiliate_network, " +
+        "catalog_item_id",
+    )
     .eq("id", body.itemId)
     .maybeSingle();
+  type ItemRow = {
+    id: string;
+    name: string;
+    brand: string | null;
+    item_type: string;
+    affiliate_url: string | null;
+    affiliate_network: string | null;
+    catalog_item_id: string | null;
+  };
+  const item = itemRaw as unknown as ItemRow | null;
   if (!item) {
     return NextResponse.json({ error: "Item not found" }, { status: 404 });
   }
@@ -132,6 +145,48 @@ export async function POST(request: NextRequest) {
   // Skip if already has a real URL
   if (item.affiliate_url) {
     return NextResponse.json({ ok: true, status: "already_set" });
+  }
+
+  // CATALOG INHERITANCE — if the user item is linked to a catalog row
+  // and that row already has a default_affiliate_url (set by an earlier
+  // user's discovery run), copy it onto the user item instantly. No LLM
+  // call needed. This is how the 99th user gets the same vetted vendor
+  // the 1st user's discovery established.
+  if (item.catalog_item_id) {
+    const { data: catalogRaw } = await supabase
+      .from("catalog_items")
+      .select(
+        "default_affiliate_url, default_vendor, default_list_price_cents, " +
+          "default_affiliate_network",
+      )
+      .eq("id", item.catalog_item_id)
+      .maybeSingle();
+    type CatalogDefaultsRow = {
+      default_affiliate_url: string | null;
+      default_vendor: string | null;
+      default_list_price_cents: number | null;
+      default_affiliate_network: string | null;
+    };
+    const cat = catalogRaw as unknown as CatalogDefaultsRow | null;
+    if (cat?.default_affiliate_url) {
+      await supabase
+        .from("items")
+        .update({
+          affiliate_url: cat.default_affiliate_url,
+          affiliate_network: cat.default_affiliate_network,
+          vendor: cat.default_vendor,
+          list_price_cents: cat.default_list_price_cents,
+          affiliate_lookup_status: "found",
+          affiliate_lookup_attempted_at: new Date().toISOString(),
+        })
+        .eq("id", item.id);
+      return NextResponse.json({
+        ok: true,
+        status: "inherited_from_catalog",
+        url: cat.default_affiliate_url,
+        network: cat.default_affiliate_network,
+      });
+    }
   }
 
   // Skip non-buyable types
@@ -169,6 +224,17 @@ export async function POST(request: NextRequest) {
         affiliate_lookup_attempted_at: new Date().toISOString(),
       })
       .eq("id", item.id);
+    // Propagate to catalog row so all future users inherit
+    if (item.catalog_item_id) {
+      await supabase
+        .from("catalog_items")
+        .update({
+          default_affiliate_url: wrapped,
+          default_affiliate_network: fp.network,
+          default_vendor: fp.vendor,
+        })
+        .eq("id", item.catalog_item_id);
+    }
     return NextResponse.json({
       ok: true,
       status: "found_fast_path",
@@ -225,6 +291,17 @@ If you can't determine a good URL, return: {"network":"amazon","vendor":"Amazon"
         affiliate_lookup_attempted_at: new Date().toISOString(),
       })
       .eq("id", item.id);
+    // Propagate to catalog row so future users sharing it inherit
+    if (item.catalog_item_id) {
+      await supabase
+        .from("catalog_items")
+        .update({
+          default_affiliate_url: wrapped,
+          default_affiliate_network: network,
+          default_vendor: parsed.vendor,
+        })
+        .eq("id", item.catalog_item_id);
+    }
 
     return NextResponse.json({
       ok: true,

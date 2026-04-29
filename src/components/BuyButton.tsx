@@ -27,6 +27,12 @@ type Props = {
   vendor?: string | null;
   affiliateUrl?: string | null;
   listPriceCents?: number | null;
+  /** Catalog-row defaults — used when the user's item has no override.
+   *  Keeps the click path consistent across all users sharing a catalog
+   *  entry (and lets the FIRST user's discovery work for the 99th). */
+  catalogVendor?: string | null;
+  catalogAffiliateUrl?: string | null;
+  catalogListPriceCents?: number | null;
   /** Where this button is rendered — used for source attribution. */
   source?: string;
   /** "23 others on Regimen take this" — driven by aggregated DB query. */
@@ -48,12 +54,23 @@ export default function BuyButton({
   vendor,
   affiliateUrl,
   listPriceCents,
+  catalogVendor,
+  catalogAffiliateUrl,
+  catalogListPriceCents,
   source,
   othersCount,
   variant = "primary",
   label,
 }: Props) {
   const [busy, setBusy] = useState(false);
+
+  // Resolve effective vendor/url/price by falling back to catalog defaults.
+  // The user item's affiliate fields take priority (per-user vendor swap
+  // wins), then catalog defaults, then a fallback Amazon search via the
+  // server's /api/affiliates/click route.
+  const effectiveVendor = vendor ?? catalogVendor ?? null;
+  const effectiveUrl = affiliateUrl ?? catalogAffiliateUrl ?? null;
+  const effectivePrice = listPriceCents ?? catalogListPriceCents ?? null;
 
   async function handleClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -67,8 +84,8 @@ export default function BuyButton({
         body: JSON.stringify({
           itemId,
           itemName,
-          vendor,
-          fallbackUrl: affiliateUrl ?? undefined,
+          vendor: effectiveVendor,
+          fallbackUrl: effectiveUrl ?? undefined,
           source: source ?? "buy_button",
         }),
       });
@@ -78,15 +95,15 @@ export default function BuyButton({
       }
     } catch {
       // If the API fails, still open the raw URL so user gets value
-      if (affiliateUrl) {
-        window.open(affiliateUrl, "_blank", "noopener,noreferrer");
+      if (effectiveUrl) {
+        window.open(effectiveUrl, "_blank", "noopener,noreferrer");
       }
     } finally {
       setBusy(false);
     }
   }
 
-  const price = fmtPrice(listPriceCents);
+  const price = fmtPrice(effectivePrice);
 
   if (variant === "compact") {
     return (
@@ -110,6 +127,9 @@ export default function BuyButton({
     );
   }
 
+  // Primary variant uses effectiveVendor/Price for inline display
+  const displayVendor = effectiveVendor;
+
   return (
     <div className="flex flex-col gap-1">
       <button
@@ -129,12 +149,12 @@ export default function BuyButton({
         <span className="text-[14.5px]">
           {busy ? "Opening…" : (label ?? "Get this")}
         </span>
-        {vendor && (
+        {displayVendor && (
           <span
             className="text-[12px]"
             style={{ opacity: 0.92, fontWeight: 600 }}
           >
-            · {vendor}
+            · {displayVendor}
           </span>
         )}
         {price && (

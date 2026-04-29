@@ -58,6 +58,15 @@ export default async function ItemDetailPage({
     protein_g: number | null;
     fat_g: number | null;
     carbs_g: number | null;
+    fiber_g: number | null;
+    sugar_g: number | null;
+    micros: Record<string, number> | null;
+    active_ingredients:
+      | { name: string; amount: number; unit: string }[]
+      | null;
+    default_affiliate_url: string | null;
+    default_vendor: string | null;
+    default_list_price_cents: number | null;
   };
   let catalog: CatalogEnrichment | null = null;
   if (item.catalog_item_id) {
@@ -66,7 +75,9 @@ export default async function ItemDetailPage({
       .select(
         "coach_summary, mechanism, best_timing, pairs_well_with, " +
           "conflicts_with, cautions, brand_recommendations, evidence_grade, " +
-          "source, serving_size, calories, protein_g, fat_g, carbs_g",
+          "source, serving_size, calories, protein_g, fat_g, carbs_g, " +
+          "fiber_g, sugar_g, micros, active_ingredients, " +
+          "default_affiliate_url, default_vendor, default_list_price_cents",
       )
       .eq("id", item.catalog_item_id)
       .maybeSingle();
@@ -230,6 +241,150 @@ export default async function ItemDetailPage({
       </header>
 
       <ItemActions item={item} />
+
+      {/* Macros panel — appears when catalog has any nutritional data,
+       *   even without enrichment. Surfaces the data we always have for
+       *   USDA + Open Food Facts items. */}
+      {catalog &&
+        (catalog.calories != null ||
+          catalog.protein_g != null ||
+          catalog.fat_g != null ||
+          catalog.carbs_g != null) && (
+          <Section title="Nutrition">
+            <div
+              className="rounded-2xl card-glass p-3.5"
+            >
+              {catalog.serving_size && (
+                <div
+                  className="text-[11px] uppercase tracking-wider mb-2"
+                  style={{
+                    color: "var(--muted)",
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                  }}
+                >
+                  Per {catalog.serving_size}
+                </div>
+              )}
+              <div className="grid grid-cols-4 gap-2">
+                {catalog.calories != null && (
+                  <NutStat
+                    label="kcal"
+                    value={String(Math.round(catalog.calories))}
+                  />
+                )}
+                {catalog.protein_g != null && (
+                  <NutStat
+                    label="P"
+                    value={`${Math.round(catalog.protein_g)}g`}
+                  />
+                )}
+                {catalog.fat_g != null && (
+                  <NutStat
+                    label="F"
+                    value={`${Math.round(catalog.fat_g)}g`}
+                  />
+                )}
+                {catalog.carbs_g != null && (
+                  <NutStat
+                    label="C"
+                    value={`${Math.round(catalog.carbs_g)}g`}
+                  />
+                )}
+              </div>
+              {(catalog.fiber_g != null || catalog.sugar_g != null) && (
+                <div
+                  className="text-[11px] mt-2 flex gap-3 tabular-nums"
+                  style={{ color: "var(--muted)" }}
+                >
+                  {catalog.fiber_g != null && (
+                    <span>Fiber {Math.round(catalog.fiber_g)}g</span>
+                  )}
+                  {catalog.sugar_g != null && (
+                    <span>Sugar {Math.round(catalog.sugar_g)}g</span>
+                  )}
+                </div>
+              )}
+              {catalog.micros && Object.keys(catalog.micros).length > 0 && (
+                <details className="mt-3">
+                  <summary
+                    className="cursor-pointer list-none text-[11px] uppercase tracking-wider flex items-center gap-1"
+                    style={{
+                      color: "var(--muted)",
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    <span>Micronutrients ({Object.keys(catalog.micros).length})</span>
+                    <span className="ml-auto text-[14px]">⌄</span>
+                  </summary>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[11.5px]">
+                    {Object.entries(catalog.micros)
+                      .sort((a, b) => a[0].localeCompare(b[0]))
+                      .map(([k, v]) => (
+                        <div
+                          key={k}
+                          className="flex items-baseline justify-between gap-1"
+                        >
+                          <span style={{ color: "var(--muted)" }}>
+                            {k.replace(/_/g, " ").replace(/(mg|mcg|iu|g)$/, "")}
+                          </span>
+                          <span className="tabular-nums" style={{ fontWeight: 600 }}>
+                            {Number(v).toFixed(2)}
+                            <span
+                              className="text-[10px] ml-0.5"
+                              style={{ color: "var(--muted)" }}
+                            >
+                              {(k.match(/(mg|mcg|iu|g)$/) ?? [])[1] ?? ""}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </details>
+              )}
+              {catalog.active_ingredients &&
+                catalog.active_ingredients.length > 0 && (
+                  <details className="mt-3">
+                    <summary
+                      className="cursor-pointer list-none text-[11px] uppercase tracking-wider flex items-center gap-1"
+                      style={{
+                        color: "var(--muted)",
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      <span>
+                        Active ingredients ({catalog.active_ingredients.length})
+                      </span>
+                      <span className="ml-auto text-[14px]">⌄</span>
+                    </summary>
+                    <div className="flex flex-col gap-0.5 mt-2 text-[11.5px]">
+                      {catalog.active_ingredients.map((ai, i) => (
+                        <div
+                          key={i}
+                          className="flex items-baseline justify-between"
+                        >
+                          <span style={{ color: "var(--foreground-soft)" }}>
+                            {ai.name}
+                          </span>
+                          <span className="tabular-nums" style={{ fontWeight: 600 }}>
+                            {ai.amount}{" "}
+                            <span
+                              className="text-[10px]"
+                              style={{ color: "var(--muted)" }}
+                            >
+                              {ai.unit}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+            </div>
+          </Section>
+        )}
 
       {catalog && (catalog.coach_summary || catalog.mechanism) && (
         <Section title="What it is">
@@ -807,9 +962,16 @@ export default async function ItemDetailPage({
               vendor={item.vendor}
               affiliateUrl={item.affiliate_url ?? item.purchase_url ?? null}
               listPriceCents={item.list_price_cents}
+              catalogVendor={catalog?.default_vendor ?? null}
+              catalogAffiliateUrl={catalog?.default_affiliate_url ?? null}
+              catalogListPriceCents={catalog?.default_list_price_cents ?? null}
               source="item_detail"
               variant="primary"
-              label={item.affiliate_url ? "Get this" : "Find on Amazon"}
+              label={
+                item.affiliate_url || catalog?.default_affiliate_url
+                  ? "Get this"
+                  : "Find on Amazon"
+              }
             />
             <div
               className="text-[11px] leading-relaxed mt-3"
@@ -879,6 +1041,32 @@ function Section({
       </h2>
       {children}
     </section>
+  );
+}
+
+function NutStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      className="rounded-lg p-2 text-center"
+      style={{ background: "var(--surface-alt)" }}
+    >
+      <div
+        className="text-[14.5px] tabular-nums leading-none"
+        style={{ fontWeight: 700 }}
+      >
+        {value}
+      </div>
+      <div
+        className="text-[9.5px] mt-1 uppercase tracking-wider"
+        style={{
+          color: "var(--muted)",
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+        }}
+      >
+        {label}
+      </div>
+    </div>
   );
 }
 
