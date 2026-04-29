@@ -118,99 +118,210 @@ export default function InsightsBanner() {
   const visible = insights.filter((i) => !appliedIds.has(i.id));
   if (visible.length === 0) return null;
 
+  // If only one note, render as a single full-width card with prominent
+  // body + clear actions. Multiple notes = stacked dense list with
+  // primary action on the first one only (others tap to expand).
+  const single = visible.length === 1 ? visible[0] : null;
+
   return (
-    <section className="mb-6">
-      <div className="flex items-baseline justify-between mb-3">
+    <section className="mb-5">
+      <div className="flex items-baseline justify-between mb-2.5">
         <h2
           className="text-[11px] uppercase tracking-wider"
           style={{
             color: "var(--muted)",
-            fontWeight: 600,
-            letterSpacing: "0.06em",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
           }}
         >
-          Notes from Coach
+          Coach&apos;s notes
         </h2>
-        <span
-          className="text-[11px] tabular-nums"
-          style={{ color: "var(--muted)" }}
-        >
-          {visible.length}
-        </span>
+        {visible.length > 1 && (
+          <span
+            className="text-[11px] tabular-nums"
+            style={{ color: "var(--muted)" }}
+          >
+            {visible.length} new
+          </span>
+        )}
       </div>
 
-      <div className="rounded-2xl card-glass overflow-hidden">
-        {visible.map((i, idx) => {
-          const meta = TYPE_META[i.type] ?? DEFAULT_META;
-          return (
-            <div
-              key={i.id}
-              className="px-4 pt-3.5 pb-3"
-              style={{
-                borderTop: idx > 0 ? "1px solid var(--border)" : undefined,
-              }}
-            >
-              <div className="flex items-start gap-3">
-                <span
-                  className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
-                  style={{
-                    background: `${meta.accent}1F`,
-                    color: meta.accent,
-                  }}
-                >
-                  <Icon name={meta.icon} size={14} strokeWidth={1.8} />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div
-                    className="text-[14px] leading-snug"
-                    style={{ fontWeight: 600 }}
+      {single ? (
+        <SingleNote
+          insight={single}
+          onApply={() => applyInsight(single)}
+          onDiscuss={() => discussInsight(single)}
+          onDismiss={(e) => dismiss(e, single.id)}
+        />
+      ) : (
+        <div className="rounded-2xl card-glass overflow-hidden">
+          {visible.map((i, idx) => {
+            const meta = TYPE_META[i.type] ?? DEFAULT_META;
+            return (
+              <div
+                key={i.id}
+                className="px-3.5 pt-3 pb-3"
+                style={{
+                  borderTop: idx > 0 ? "1px solid var(--border)" : undefined,
+                }}
+              >
+                <div className="flex items-start gap-2.5">
+                  <span
+                    className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
+                    style={{
+                      background: `${meta.accent}1F`,
+                      color: meta.accent,
+                    }}
                   >
-                    {i.title}
+                    <Icon name={meta.icon} size={13} strokeWidth={1.8} />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className="text-[13.5px] leading-snug"
+                      style={{ fontWeight: 600 }}
+                    >
+                      {i.title}
+                    </div>
+                    <div
+                      className="text-[12px] mt-0.5 leading-snug line-clamp-2"
+                      style={{ color: "var(--muted)" }}
+                    >
+                      {i.body}
+                    </div>
+                    <div className="flex gap-1.5 mt-2">
+                      <button
+                        onClick={() => applyInsight(i)}
+                        className="text-[11.5px] px-2.5 py-1 rounded-lg flex items-center gap-1"
+                        style={{
+                          background: meta.accent,
+                          color: "#FBFAF6",
+                          fontWeight: 700,
+                        }}
+                      >
+                        <Icon name="check-circle" size={10} strokeWidth={2.4} />
+                        {meta.verb}
+                      </button>
+                      <button
+                        onClick={() => discussInsight(i)}
+                        className="text-[11.5px] px-2.5 py-1 rounded-lg"
+                        style={{
+                          background: "var(--surface-alt)",
+                          color: "var(--foreground-soft)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        More
+                      </button>
+                    </div>
                   </div>
-                  <div
-                    className="text-[12.5px] mt-1 leading-relaxed whitespace-pre-line"
+                  <button
+                    onClick={(e) => dismiss(e, i.id)}
+                    className="shrink-0 leading-none px-1 -mr-1 -mt-0.5"
                     style={{ color: "var(--muted)" }}
+                    aria-label="Dismiss"
                   >
-                    {i.body}
-                  </div>
+                    <Icon name="plus" size={13} className="rotate-45" />
+                  </button>
                 </div>
-                <button
-                  onClick={(e) => dismiss(e, i.id)}
-                  className="shrink-0 leading-none px-1.5 -mr-1.5 -mt-0.5"
-                  style={{ color: "var(--muted)" }}
-                  aria-label="Dismiss"
-                >
-                  <Icon name="plus" size={14} className="rotate-45" />
-                </button>
               </div>
-              <div className="flex gap-2 mt-3 ml-10">
-                <button
-                  onClick={() => applyInsight(i)}
-                  className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
-                  style={{
-                    background: meta.accent,
-                    color: "#FBFAF6",
-                    fontWeight: 600,
-                  }}
-                >
-                  <Icon name="check-circle" size={12} strokeWidth={2.2} />
-                  {meta.verb}
-                </button>
-                <button
-                  onClick={() => discussInsight(i)}
-                  className="text-[12.5px] px-3 py-1.5 rounded-lg"
-                  style={{
-                    background: "var(--surface-alt)",
-                    color: "var(--foreground-soft)",
-                  }}
-                >
-                  Tell me more
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </section>
+  );
+}
+
+// Spotlight rendering for the single-note case — prominent body, pair of
+// strong CTA buttons. Reads like a real recommendation, not a row in a
+// list.
+function SingleNote({
+  insight,
+  onApply,
+  onDiscuss,
+  onDismiss,
+}: {
+  insight: Insight;
+  onApply: () => void;
+  onDiscuss: () => void;
+  onDismiss: (e: React.MouseEvent) => void;
+}) {
+  const meta = TYPE_META[insight.type] ?? DEFAULT_META;
+  return (
+    <div
+      className="rounded-2xl card-glass p-4 relative"
+      style={{
+        borderLeft: `3px solid ${meta.accent}`,
+      }}
+    >
+      <button
+        onClick={onDismiss}
+        className="absolute top-2.5 right-2.5 leading-none px-1"
+        style={{ color: "var(--muted)" }}
+        aria-label="Dismiss"
+      >
+        <Icon name="plus" size={13} className="rotate-45" />
+      </button>
+      <div className="flex items-start gap-2.5 pr-6">
+        <span
+          className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
+          style={{
+            background: `${meta.accent}1F`,
+            color: meta.accent,
+          }}
+        >
+          <Icon name={meta.icon} size={13} strokeWidth={1.8} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div
+            className="text-[10px] uppercase tracking-wider"
+            style={{
+              color: meta.accent,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+            }}
+          >
+            Coach noticed
+          </div>
+          <div
+            className="text-[14px] leading-snug mt-0.5"
+            style={{ fontWeight: 600 }}
+          >
+            {insight.title}
+          </div>
+          <div
+            className="text-[12.5px] mt-1 leading-relaxed whitespace-pre-line"
+            style={{ color: "var(--muted)" }}
+          >
+            {insight.body}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2 mt-3 ml-9">
+        <button
+          onClick={onApply}
+          className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+          style={{
+            background: meta.accent,
+            color: "#FBFAF6",
+            fontWeight: 700,
+          }}
+        >
+          <Icon name="check-circle" size={11} strokeWidth={2.4} />
+          {meta.verb}
+        </button>
+        <button
+          onClick={onDiscuss}
+          className="text-[12.5px] px-3 py-1.5 rounded-lg"
+          style={{
+            background: "var(--surface-alt)",
+            color: "var(--foreground-soft)",
+            fontWeight: 600,
+          }}
+        >
+          Tell me more
+        </button>
+      </div>
+    </div>
   );
 }
