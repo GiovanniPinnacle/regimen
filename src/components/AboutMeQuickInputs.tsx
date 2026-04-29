@@ -8,6 +8,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Icon from "@/components/Icon";
 
 export default function AboutMeQuickInputs() {
   const router = useRouter();
@@ -53,21 +54,23 @@ export default function AboutMeQuickInputs() {
       <div className="flex gap-2 flex-wrap">
         <Link
           href="/about-me/chat"
-          className="flex-1 px-4 py-3 rounded-xl text-[14px] text-center"
+          className="flex-1 px-4 py-3 rounded-xl text-[14px] text-center inline-flex items-center justify-center gap-1.5"
           style={{
             background: "var(--foreground)",
             color: "var(--background)",
-            fontWeight: 500,
+            fontWeight: 600,
           }}
         >
-          💬 Chat with Coach instead
+          <Icon name="sparkle" size={14} strokeWidth={2.2} />
+          Chat with Coach instead
         </Link>
         <Link
           href="/scan"
-          className="px-4 py-3 rounded-xl text-[14px] text-center border-hair"
-          style={{ color: "var(--muted)" }}
+          className="px-4 py-3 rounded-xl text-[14px] text-center border-hair inline-flex items-center gap-1.5"
+          style={{ color: "var(--muted)", fontWeight: 600 }}
         >
-          📷 Photo
+          <Icon name="camera" size={14} strokeWidth={2} />
+          Photo
         </Link>
       </div>
 
@@ -75,8 +78,12 @@ export default function AboutMeQuickInputs() {
         <summary
           className="px-4 py-3 cursor-pointer list-none flex items-center justify-between"
         >
-          <span className="text-[13px]" style={{ fontWeight: 500 }}>
-            📋 Paste anything → Coach extracts
+          <span
+            className="text-[13px] inline-flex items-center gap-1.5"
+            style={{ fontWeight: 500 }}
+          >
+            <Icon name="edit" size={13} strokeWidth={2} />
+            Paste anything — Coach extracts the rest
           </span>
           <span
             className="text-[12px] transition-transform group-open:rotate-180"

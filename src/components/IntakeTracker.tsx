@@ -514,7 +514,7 @@ function MealLogSheet({
                     : undefined,
               }}
             >
-              {m === "photo" ? "📷 Photo" : "✍ Text"}
+              {m === "photo" ? "Photo" : "Type"}
             </button>
           ))}
         </div>
@@ -539,7 +539,14 @@ function MealLogSheet({
                 opacity: busy ? 0.5 : 1,
               }}
             >
-              <div className="text-[40px] mb-2">📷</div>
+              <div className="flex justify-center mb-2">
+                <span aria-hidden>
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                </span>
+              </div>
               <div className="text-[14px]">
                 {stage === "uploading"
                   ? "Uploading…"

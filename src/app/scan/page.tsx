@@ -24,25 +24,25 @@ const TYPE_META: Record<
   }
 > = {
   food: {
-    label: "Food",
+    label: "Meal",
     icon: "list-ordered",
     accent: "var(--accent)",
     bucket: "meal-photos",
-    desc: "Trigger scan — flags insulin / histamine / hard-NO hits + macros",
+    desc: "Get macros + flag any banned items or trigger foods",
   },
   supplement: {
-    label: "Supplement",
+    label: "Supplement label",
     icon: "test-tube",
     accent: "var(--pro)",
     bucket: "supplement-photos",
-    desc: "Label audit — duplicates, hard-NOs, add-to-stack proposal",
+    desc: "Read the label, check for duplicates, add to your stack",
   },
   scalp: {
-    label: "Scalp",
+    label: "Recovery photo",
     icon: "camera",
     accent: "var(--premium)",
     bucket: "scalp-photos",
-    desc: "Post-op tracking — crusting, redness, anomalies",
+    desc: "Track healing — redness, crusting, anything to watch",
   },
 };
 

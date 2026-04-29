@@ -30,14 +30,14 @@ const CATEGORY_FILTERS: Array<{ value: "all" | Category; label: string }> = [
 
 const TYPE_FILTERS: Array<{ value: "all" | ItemType; label: string }> = [
   { value: "all", label: "All types" },
-  { value: "supplement", label: "💊 Supps" },
-  { value: "topical", label: "🧴 Topicals" },
-  { value: "device", label: "📟 Devices" },
-  { value: "procedure", label: "🏥 Procedures" },
-  { value: "practice", label: "🧘 Practices" },
-  { value: "food", label: "🥑 Food" },
-  { value: "gear", label: "🛏️ Gear" },
-  { value: "test", label: "🧪 Tests" },
+  { value: "supplement", label: "Supplements" },
+  { value: "topical", label: "Topicals" },
+  { value: "device", label: "Devices" },
+  { value: "procedure", label: "Procedures" },
+  { value: "practice", label: "Practices" },
+  { value: "food", label: "Foods" },
+  { value: "gear", label: "Gear" },
+  { value: "test", label: "Tests" },
 ];
 
 type SortMode = "default" | "name" | "adherence_low" | "supply_low" | "recent";

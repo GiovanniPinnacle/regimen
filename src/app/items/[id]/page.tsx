@@ -349,22 +349,26 @@ export default async function ItemDetailPage({
                   )}
                 </div>
                 <div
-                  className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]"
+                  className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] tabular-nums"
                   style={{ color: "var(--muted)" }}
                 >
                   {reactionCounts.helped > 0 && (
-                    <span>👍 {reactionCounts.helped} helped</span>
+                    <span style={{ color: "var(--olive)" }}>
+                      Helped {reactionCounts.helped}
+                    </span>
                   )}
                   {reactionCounts.no_change > 0 && (
-                    <span>✋ {reactionCounts.no_change} no change</span>
+                    <span style={{ color: "var(--warn)" }}>
+                      No change {reactionCounts.no_change}
+                    </span>
                   )}
                   {reactionCounts.worse > 0 && (
                     <span style={{ color: "var(--error)" }}>
-                      👎 {reactionCounts.worse} worse
+                      Worse {reactionCounts.worse}
                     </span>
                   )}
                   {reactionCounts.forgot > 0 && (
-                    <span>❓ {reactionCounts.forgot} forgot</span>
+                    <span>Forgot {reactionCounts.forgot}</span>
                   )}
                 </div>
               </div>
