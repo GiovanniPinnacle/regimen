@@ -18,6 +18,7 @@ import StreakCounter from "@/components/StreakCounter";
 import DailyScore from "@/components/DailyScore";
 import AchievementsChecker from "@/components/AchievementsChecker";
 import StreakAtRiskBanner from "@/components/StreakAtRiskBanner";
+import StackWarningsBanner from "@/components/StackWarningsBanner";
 import CoachQuickActions from "@/components/CoachQuickActions";
 import NextStep from "@/components/NextStep";
 import ProtocolCompletionModal from "@/components/ProtocolCompletionModal";
@@ -651,6 +652,12 @@ export default function TodayPage() {
         takenCount={takenCount}
         totalActive={totalActive}
       />
+
+      {/* Stack ingredient safety check — flags cumulative dosing problems
+          across multiple supplements (e.g. stacked vitamin D from multi +
+          D3 cap pushing total >4000 IU UL). High-signal, sits above the
+          fold so users notice before they take everything. */}
+      <StackWarningsBanner />
 
       <OnboardingBanner />
       {/* AuditPrompt + MagicMomentPrompt removed — NextStep covers both

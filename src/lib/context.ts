@@ -6,6 +6,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { daysSincePostOp } from "@/lib/constants";
 import type { Item, SymptomLog } from "@/lib/types";
 import { calcMacros, type MacroTargets } from "@/lib/macros";
+import {
+  computeIngredientStack,
+  type IngredientStackResult,
+} from "@/lib/ingredient-stack";
 
 export type ProtocolContext = {
   userId: string;
@@ -115,6 +119,10 @@ export type ProtocolContext = {
   userStage: UserStage;
   /** Concrete next-step signals — drives NextStep component on /today. */
   signals: UserSignals;
+  /** Cumulative ingredient totals across the active stack. Used to surface
+   *  UL-exceeding warnings (e.g. stacked vitamin D from multi + D3 cap +
+   *  cod liver oil). */
+  ingredientStack: IngredientStackResult;
 };
 
 /**
@@ -311,6 +319,11 @@ export async function buildContextForUser(
   const allItems = (itemsRes.data ?? []) as Item[];
   const activeItems = allItems.filter((i) => i.status === "active");
   const queuedItems = allItems.filter((i) => i.status === "queued");
+
+  // Cumulative ingredient totals across the active stack. Runs its own
+  // catalog query so it stays composable even if the user expands which
+  // items count later. Cheap — one items + one catalog query.
+  const ingredientStack = await computeIngredientStack(userId);
 
   // Pull catalog enrichment for active items linked to catalog rows. This
   // gives Coach mechanism + cautions + brand picks + evidence grade for
@@ -664,6 +677,7 @@ export async function buildContextForUser(
     aboutMe: (profile?.about_me as Record<string, string> | null) ?? null,
     userStage,
     signals,
+    ingredientStack,
     recommendableCatalog,
     catalogEnrichments: (() => {
       const out = new Map<
@@ -754,6 +768,34 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     }
   }
   lines.push(``);
+
+  // Ingredient-level UL warnings — surfaced near the top of the prompt
+  // because they're a SAFETY concern. Cumulative dosing problems aren't
+  // visible from any single item's label, so Coach should always check.
+  if (ctx.ingredientStack.warnings.length > 0) {
+    lines.push(
+      `# ⚠️ STACK INGREDIENT WARNINGS (cumulative across active items)`,
+    );
+    lines.push(
+      `These flag where total daily intake from multiple items in ${userTag}'s stack approaches or exceeds the published Tolerable Upper Intake Level (UL). Treat as a hard safety signal — proactively raise these in any conversation about the affected items.`,
+    );
+    for (const w of ctx.ingredientStack.warnings) {
+      const sevTag =
+        w.severity === "critical"
+          ? "CRITICAL"
+          : w.severity === "warning"
+            ? "OVER UL"
+            : "approaching UL";
+      lines.push(
+        `- [${sevTag}] ${w.label}: ${w.total_amount} ${w.unit} / day (UL ${w.ul} ${w.unit}, ${Math.round(w.ratio * 100)}% of UL)`,
+      );
+      lines.push(`    Why this matters: ${w.rationale}`);
+      lines.push(
+        `    Sources in stack: ${w.sources.map((s) => `${s.item_name} (${s.amount} ${s.unit})`).join("; ")}`,
+      );
+    }
+    lines.push(``);
+  }
   if (ctx.daysSincePostOp != null) {
     lines.push(`# RECOVERY CONTEXT`);
     lines.push(
