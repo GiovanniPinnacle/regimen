@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import type { IngredientStackResult, IngredientWarning } from "@/lib/ingredient-stack";
 
-const HIDE_KEY = "regimen.stackwarn.dismissed_today.v1";
+const HIDE_KEY_BASE = "regimen.stackwarn.dismissed_today.v1";
 
 const SEV_STYLE: Record<
   IngredientWarning["severity"],
@@ -45,15 +45,29 @@ const SEV_STYLE: Record<
   },
 };
 
-export default function StackWarningsBanner() {
+type Props = {
+  /** Per-surface scope so dismissing on /today doesn't hide it on /audit
+   *  where the user is actively triaging. Defaults to "today". */
+  surface?: "today" | "audit";
+  /** Skip the dismiss button entirely — useful on surfaces that are
+   *  always action-oriented (the audit page). */
+  persistent?: boolean;
+};
+
+export default function StackWarningsBanner({
+  surface = "today",
+  persistent = false,
+}: Props = {}) {
+  const hideKey = `${HIDE_KEY_BASE}.${surface}`;
   const [data, setData] = useState<IngredientStackResult | null>(null);
   // Lazy init reads localStorage on the very first render — no effect
   // needed, no cascading-render warning. SSR-safe via the window check.
   const [dismissed, setDismissed] = useState<boolean>(() => {
+    if (persistent) return false;
     if (typeof window === "undefined") return false;
     try {
       return (
-        localStorage.getItem(HIDE_KEY) ===
+        localStorage.getItem(hideKey) ===
         new Date().toISOString().slice(0, 10)
       );
     } catch {
@@ -84,7 +98,7 @@ export default function StackWarningsBanner() {
 
   function dismiss() {
     try {
-      localStorage.setItem(HIDE_KEY, new Date().toISOString().slice(0, 10));
+      localStorage.setItem(hideKey, new Date().toISOString().slice(0, 10));
     } catch {}
     setDismissed(true);
   }
@@ -141,14 +155,16 @@ export default function StackWarningsBanner() {
             Cumulative dose across multiple items — single labels won&apos;t flag this.
           </div>
         </div>
-        <button
-          onClick={dismiss}
-          className="shrink-0 leading-none px-1 -mr-1"
-          style={{ color: "var(--muted)" }}
-          aria-label="Dismiss for today"
-        >
-          <Icon name="plus" size={14} className="rotate-45" />
-        </button>
+        {persistent ? null : (
+          <button
+            onClick={dismiss}
+            className="shrink-0 leading-none px-1 -mr-1"
+            style={{ color: "var(--muted)" }}
+            aria-label="Dismiss for today"
+          >
+            <Icon name="plus" size={14} className="rotate-45" />
+          </button>
+        )}
       </div>
 
       <div

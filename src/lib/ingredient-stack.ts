@@ -28,7 +28,7 @@ import type { Item } from "@/lib/types";
 import type { ActiveIngredient } from "@/lib/catalog/types";
 
 /** Ingredient identity — a normalized name we can sum across sources. */
-type IngredientKey =
+export type IngredientKey =
   | "vitamin_a"
   | "vitamin_b3_niacin"
   | "vitamin_b6"
@@ -51,7 +51,7 @@ type IngredientKey =
   | "caffeine";
 
 /** Canonical UL definitions. amount is in `unit`. */
-type ULDef = {
+export type ULDef = {
   key: IngredientKey;
   label: string;
   unit: "mg" | "mcg";
@@ -219,6 +219,33 @@ const UL_TABLE: ULDef[] = [
 const UL_BY_KEY = new Map<IngredientKey, ULDef>(
   UL_TABLE.map((d) => [d.key, d]),
 );
+
+/** Public export — read-only view of the UL table. */
+export function getULTable(): readonly ULDef[] {
+  return UL_TABLE;
+}
+
+/** Public export — used by the preview endpoint to project a single
+ *  candidate item's contribution onto the existing stack without
+ *  duplicating the matcher/converter logic. */
+export function classifyIngredient(
+  rawName: string,
+  amount: number,
+  rawUnit: string | null | undefined,
+):
+  | {
+      def: ULDef;
+      canonicalAmount: number;
+    }
+  | null {
+  const key = normalizeIngredientName(rawName);
+  if (!key) return null;
+  const def = UL_BY_KEY.get(key);
+  if (!def) return null;
+  const canonical = convertToCanonical(amount, rawUnit, key);
+  if (canonical == null) return null;
+  return { def, canonicalAmount: canonical };
+}
 
 /** Map a free-text ingredient name to a canonical IngredientKey, or null
  *  if we don't have a UL we trust for it. We deliberately match BROADLY

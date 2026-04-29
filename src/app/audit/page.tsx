@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Item, ItemType } from "@/lib/types";
 import { ITEM_TYPE_LABELS } from "@/lib/constants";
 import Icon from "@/components/Icon";
+import StackWarningsBanner from "@/components/StackWarningsBanner";
 
 // Types that make sense to audit — things you BUY (not foods, not practices).
 const AUDITABLE_TYPES: ItemType[] = [
@@ -199,6 +200,12 @@ export default function AuditPage() {
           </button>
         )}
       </section>
+
+      {/* Cumulative ingredient safety check — surfaces here too because
+          /audit is where the user is actively triaging the stack. If
+          anything's over UL, this is the moment to act. Persistent here
+          (no dismiss) since this is exactly the surface for action. */}
+      <StackWarningsBanner surface="audit" persistent />
 
       {TYPE_ORDER.map((type) => {
         const list = grouped[type];

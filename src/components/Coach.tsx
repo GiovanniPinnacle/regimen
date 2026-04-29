@@ -939,6 +939,21 @@ function humanizeExtra(key: string, value: string): string | null {
   }
 }
 
+type PreviewWarning = {
+  ingredient_key: string;
+  label: string;
+  unit: "mg" | "mcg";
+  total_amount: number;
+  ul: number;
+  ratio: number;
+  severity: "info" | "warning" | "critical";
+};
+type PreviewResponse = {
+  matched: boolean;
+  candidate: { id: string; name: string } | null;
+  added: PreviewWarning[];
+};
+
 function ProposalCard({
   proposal,
   state,
@@ -950,6 +965,35 @@ function ProposalCard({
   onApprove: (p: Proposal) => void;
   onDismiss: (p: Proposal) => void;
 }) {
+  // For add/queue proposals — preview whether this would push any
+  // ingredient over UL. Surfaces inline before the Yes button so the
+  // user sees the safety impact before approving. Silent if there's no
+  // projected impact (the common case).
+  const [preview, setPreview] = useState<PreviewResponse | null>(null);
+  const isAdd = proposal.action === "add" || proposal.action === "queue";
+  useEffect(() => {
+    if (!isAdd) return;
+    const catalogId = proposal.extra?.catalog_item_id;
+    const params = new URLSearchParams();
+    if (catalogId) params.set("catalog_item_id", catalogId);
+    else params.set("name", proposal.item_name);
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/ingredient-stack/preview?${params.toString()}`, {
+          credentials: "include",
+        });
+        if (!r.ok) return;
+        const j = (await r.json()) as PreviewResponse;
+        if (alive) setPreview(j);
+      } catch {
+        // silent — preview is non-blocking
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [isAdd, proposal.extra?.catalog_item_id, proposal.item_name]);
   // Friendlier action labels. "Add to active" → "Yes, add it"; "Drop now"
   // → "Yes, drop it"; etc. The action verb stays directional but reads
   // like a person's choice, not a system command.
@@ -1050,6 +1094,49 @@ function ProposalCard({
           ))}
         </ul>
       )}
+
+      {/* UL safety preview — only renders if adding this would push any
+          ingredient into a more severe tier. Silent when safe. */}
+      {preview && preview.added.length > 0 ? (
+        <div
+          className="rounded-lg mt-2.5 px-3 py-2 text-[12px] leading-relaxed"
+          style={{
+            background:
+              preview.added.some((w) => w.severity === "critical") ||
+              preview.added.some((w) => w.severity === "warning")
+                ? "rgba(239, 68, 68, 0.10)"
+                : "rgba(245, 158, 11, 0.10)",
+            border:
+              "1px solid " +
+              (preview.added.some((w) => w.severity === "critical") ||
+              preview.added.some((w) => w.severity === "warning")
+                ? "rgba(239, 68, 68, 0.30)"
+                : "rgba(245, 158, 11, 0.30)"),
+            color: "var(--foreground-soft)",
+          }}
+        >
+          <div
+            className="text-[10px] uppercase tracking-wider mb-0.5"
+            style={{
+              color:
+                preview.added.some((w) => w.severity === "critical") ||
+                preview.added.some((w) => w.severity === "warning")
+                  ? "var(--error)"
+                  : "var(--warn)",
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+            }}
+          >
+            ⚠ Stack impact
+          </div>
+          {preview.added.slice(0, 2).map((w) => (
+            <div key={w.ingredient_key} className="mt-0.5">
+              <strong style={{ color: "var(--foreground)" }}>{w.label}</strong>{" "}
+              would reach {w.total_amount} {w.unit} ({Math.round(w.ratio * 100)}% of UL {w.ul} {w.unit}).
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="flex gap-2 mt-3">
         {state === "done" ? (
