@@ -143,6 +143,15 @@ export type ProtocolContext = {
    *  preceding 14 days. Coach raises these as "did X break your sleep?"
    *  hypotheses. Empty when no clear signal. */
   symptomCorrelations: SymptomCorrelation[];
+  /** Most recent Coach conversation turn within the last 7 days. Lets
+   *  Coach reference what the user asked about / what was proposed
+   *  without the user having to repeat themselves. Null when no recent
+   *  conversation. */
+  recentCoachTurn: {
+    user: string;
+    assistant: string;
+    created_at: string;
+  } | null;
   /** Last 14 days of Oura daily metrics (when the user has Oura PAT
    *  configured + recent sync). Empty array when not connected. */
   ouraDaily: Array<{
@@ -246,6 +255,7 @@ export async function buildContextForUser(
     stackLog30Res,
     changelog30Res,
     ouraRes,
+    coachConvoRes,
   ] = await Promise.all([
       admin.from("items").select("*").eq("user_id", userId),
       admin
@@ -386,6 +396,18 @@ export async function buildContextForUser(
           new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10),
         )
         .order("date", { ascending: false }),
+      // Most-recent Coach turn within the last 7 days — surfaces "where
+      // we left off" so the user doesn't need to repeat context.
+      admin
+        .from("claude_conversations")
+        .select("messages_json, created_at")
+        .eq("user_id", userId)
+        .gte(
+          "created_at",
+          new Date(Date.now() - 7 * 86400000).toISOString(),
+        )
+        .order("created_at", { ascending: false })
+        .limit(1),
     ]);
 
   const allItems = (itemsRes.data ?? []) as Item[];
@@ -768,6 +790,33 @@ export async function buildContextForUser(
     wasteCandidates,
     symptomCorrelations,
     ouraDaily: (ouraRes.data ?? []) as ProtocolContext["ouraDaily"],
+    recentCoachTurn: (() => {
+      const row = coachConvoRes.data?.[0];
+      if (!row) return null;
+      const j = row.messages_json as
+        | { user?: unknown; assistant?: unknown }
+        | null;
+      if (!j) return null;
+      // Normalize user content to a string. The persisted shape is
+      // either a string OR an array of content parts (image + text).
+      let userText = "";
+      if (typeof j.user === "string") {
+        userText = j.user;
+      } else if (Array.isArray(j.user)) {
+        userText = (j.user as Array<{ type: string; text?: string }>)
+          .filter((p) => p.type === "text" && p.text)
+          .map((p) => p.text!)
+          .join(" ");
+      }
+      const assistantText =
+        typeof j.assistant === "string" ? j.assistant : "";
+      if (!userText && !assistantText) return null;
+      return {
+        user: userText.slice(0, 800),
+        assistant: assistantText.slice(0, 1200),
+        created_at: row.created_at as string,
+      };
+    })(),
     recommendableCatalog,
     catalogEnrichments: (() => {
       const out = new Map<
@@ -858,6 +907,30 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     }
   }
   lines.push(``);
+
+  // Where-we-left-off — surfaces the most recent Coach conversation
+  // so the user doesn't have to repeat context. Capped to keep the
+  // prompt lean.
+  if (ctx.recentCoachTurn) {
+    const ago = Math.round(
+      (Date.now() - new Date(ctx.recentCoachTurn.created_at).getTime()) /
+        (60 * 60 * 1000),
+    );
+    const agoStr = ago < 1 ? "just now" : ago < 24 ? `${ago}h ago` : `${Math.round(ago / 24)}d ago`;
+    lines.push(`# 🔁 LAST CONVERSATION (${agoStr})`);
+    lines.push(
+      `Reference this when relevant — pick up where you left off without making the user re-explain.`,
+    );
+    if (ctx.recentCoachTurn.user) {
+      lines.push(`User: "${ctx.recentCoachTurn.user}"`);
+    }
+    if (ctx.recentCoachTurn.assistant) {
+      lines.push(
+        `Coach (you): "${ctx.recentCoachTurn.assistant.slice(0, 400)}${ctx.recentCoachTurn.assistant.length > 400 ? "…" : ""}"`,
+      );
+    }
+    lines.push(``);
+  }
 
   // Symptom × stack-change correlations — declining symptoms paired
   // with the recent stack changes that PRECEDED them. Always raise
