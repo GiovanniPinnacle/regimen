@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ItemCard from "@/components/ItemCard";
 import InsightsBanner from "@/components/InsightsBanner";
 import OnboardingBanner from "@/components/OnboardingBanner";
-import AuditPrompt from "@/components/AuditPrompt";
 import SkipReasonSheet from "@/components/SkipReasonSheet";
 import SwapSheet from "@/components/SwapSheet";
 import QuickCheckin from "@/components/QuickCheckin";
@@ -13,7 +12,6 @@ import PatternCard from "@/components/PatternCard";
 import VoiceMemo from "@/components/VoiceMemo";
 import IntakeTracker from "@/components/IntakeTracker";
 import ProtocolProgress from "@/components/ProtocolProgress";
-import MagicMomentPrompt from "@/components/MagicMomentPrompt";
 import EmptyToday from "@/components/EmptyToday";
 import ProBenefits from "@/components/ProBenefits";
 import StreakCounter from "@/components/StreakCounter";
@@ -22,6 +20,7 @@ import AchievementsChecker from "@/components/AchievementsChecker";
 import StreakAtRiskBanner from "@/components/StreakAtRiskBanner";
 import CoachQuickActions from "@/components/CoachQuickActions";
 import NextStep from "@/components/NextStep";
+import ProtocolCompletionModal from "@/components/ProtocolCompletionModal";
 import { showToast } from "@/lib/toast";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -582,6 +581,7 @@ export default function TodayPage() {
       />
 
       <NextStep todayTakenCount={takenCount} />
+      <ProtocolCompletionModal />
 
       <StreakAtRiskBanner
         takenCount={takenCount}
@@ -589,10 +589,11 @@ export default function TodayPage() {
       />
 
       <OnboardingBanner />
-      <AuditPrompt />
+      {/* AuditPrompt + MagicMomentPrompt removed — NextStep covers both
+          (priority #5 magic_ready, priority #8 needs_audit) so the user
+          gets ONE primary CTA instead of three competing cards. */}
       <ProtocolProgress />
       <ProBenefits />
-      <MagicMomentPrompt />
       <InsightsBanner />
       <PatternCard />
       <CoachQuickActions />
