@@ -69,7 +69,7 @@ const LENSES: Lens[] = [
     icon: "trend-down",
     accent: "var(--error)",
     prompt:
-      "Audit my stack for drop candidates. Focus on items with 5+ no_change reactions, 2+ worse reactions, or zero adherence over 14+ days. Emit each drop as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: retire.",
+      "Audit my stack for items I should drop. Focus on items where I've reacted 'no change' 5+ times, 'worse' 2+ times, or skipped them entirely for 14+ days. Emit each drop as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: retire.",
   },
   {
     label: "What's slowing me down?",
@@ -569,9 +569,9 @@ export default function InsightsPage() {
                 onClick={() => {
                   const summary = [
                     r.helped > 0 ? `${r.helped} helped` : null,
-                    r.no_change > 0 ? `${r.no_change} no_change` : null,
-                    r.worse > 0 ? `${r.worse} worse` : null,
-                    r.forgot > 0 ? `${r.forgot} forgot` : null,
+                    r.no_change > 0 ? `${r.no_change} "no change"` : null,
+                    r.worse > 0 ? `${r.worse} "worse"` : null,
+                    r.forgot > 0 ? `${r.forgot} "forgot"` : null,
                   ]
                     .filter(Boolean)
                     .join(", ");
@@ -650,7 +650,7 @@ export default function InsightsPage() {
                   )}
                   {r.no_change > 0 && (
                     <span style={{ color: "var(--warn)" }}>
-                      no_change {r.no_change}
+                      no change {r.no_change}
                     </span>
                   )}
                   {r.worse > 0 && (

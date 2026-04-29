@@ -82,11 +82,13 @@ export default function AuditPage() {
 
   function fireCoachAudit() {
     const prompt =
-      `Run a bulk audit of my buyable stack. For each item I haven't audited yet, ` +
-      `decide "have" / "need" / "skip" based on my goals, hard NOs, recent reactions, ` +
-      `and stack overlap. Surface ONLY the calls you're confident about — emit each as ` +
-      `a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: adjust ` +
-      `and the appropriate purchase_state in extra. Skip items where you'd guess.`;
+      `Run a bulk audit of items I haven't triaged yet. For each one, decide ` +
+      `whether I likely already Have it, Need to order it, or should Skip it ` +
+      `entirely — based on my goals, banned items, recent reactions, and what ` +
+      `else is in my stack. Only surface the calls you're confident about. For ` +
+      `each, emit a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format with ` +
+      `action: adjust and an "owned" hint of true/false in extra (true means I ` +
+      `have it, false means I need to order it).`;
     window.dispatchEvent(
       new CustomEvent("regimen:ask", {
         detail: { text: prompt, send: true },

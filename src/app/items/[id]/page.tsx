@@ -234,7 +234,7 @@ export default async function ItemDetailPage({
         </Section>
       )}
 
-      <Section title="Deep research (Opus memo)">
+      <Section title="Deep research">
         {item.deep_research ? (
           <details className="border-hair rounded-xl group">
             <summary

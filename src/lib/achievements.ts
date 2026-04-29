@@ -44,21 +44,21 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     key: "first_skip_with_reason",
     title: "First skip with reason",
-    detail: "Skip-as-data unlocked. Claude's eyes widen.",
+    detail: "You told Coach why. That's the data refinements need.",
     icon: "✋",
     tier: "starter",
   },
   {
     key: "first_reaction",
     title: "First reaction",
-    detail: "Tagged an item helped/no_change/worse/forgot. Refinement-grade signal.",
+    detail: "Tagged an item helped, no change, worse, or forgot. Real signal Coach can use.",
     icon: "👍",
     tier: "starter",
   },
   {
     key: "first_voice_memo",
     title: "First voice memo",
-    detail: "Said it instead of typing. Claude reads it on next refine.",
+    detail: "Said it instead of typing. Coach reads it on the next refinement.",
     icon: "🎙",
     tier: "starter",
   },
@@ -81,7 +81,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     key: "first_refinement",
     title: "First refinement",
-    detail: "Ran the full Claude audit on your stack. The magic moment.",
+    detail: "Ran the full Coach audit on your stack. The magic moment.",
     icon: "✨",
     tier: "milestone",
   },
@@ -109,7 +109,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     key: "ten_reactions",
     title: "10 reactions",
-    detail: "Real signal accumulating. Claude's refinements get sharper.",
+    detail: "Real signal accumulating. Coach's refinements get sharper.",
     icon: "📊",
     tier: "milestone",
   },
@@ -146,7 +146,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     key: "hundred_items_logged",
     title: "100 items logged",
-    detail: "Years of regimen data. Claude knows you better than your doctor.",
+    detail: "Years of regimen data. Coach knows you better than your doctor.",
     icon: "🌟",
     tier: "legendary",
   },
