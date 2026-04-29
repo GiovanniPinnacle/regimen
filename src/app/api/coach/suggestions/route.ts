@@ -150,5 +150,41 @@ function findHeuristicSuggestion(
     };
   }
 
+  // Pairing-mismatch detector — if an item's notes/usage_notes say "take
+  // with X" / "pair with X" / "combine with X" and X exists in the user's
+  // stack but in a DIFFERENT slot, surface that as an actionable mismatch.
+  const PAIR_PATTERNS = [
+    /take\s+with\s+([a-zA-Z][a-zA-Z\s\-]{2,30})/i,
+    /pair\s+with\s+([a-zA-Z][a-zA-Z\s\-]{2,30})/i,
+    /combine\s+with\s+([a-zA-Z][a-zA-Z\s\-]{2,30})/i,
+    /alongside\s+([a-zA-Z][a-zA-Z\s\-]{2,30})/i,
+  ];
+  for (const item of items) {
+    const text = `${item.notes ?? ""} ${item.usage_notes ?? ""}`.trim();
+    if (!text) continue;
+    for (const pat of PAIR_PATTERNS) {
+      const m = text.match(pat);
+      if (!m) continue;
+      const target = m[1].trim().toLowerCase();
+      // Find an existing stack item whose name contains this token (loose
+      // match — supplements often have brand names like "Thorne Magnesium")
+      const matched = items.find(
+        (other) =>
+          other.id !== item.id &&
+          other.name.toLowerCase().includes(target.split(/\s+/)[0] ?? target),
+      );
+      if (!matched) continue;
+      if (matched.timing_slot === item.timing_slot) continue;
+      return {
+        id: `pair_mismatch:${item.id}:${matched.id}`,
+        kind: "move_slot",
+        title: `${item.name} should pair with ${matched.name}`,
+        body: `Your notes for ${item.name} say to take it ${m[0]}, but ${matched.name} is in ${matched.timing_slot.replace(/_/g, " ")} while ${item.name} is in ${item.timing_slot.replace(/_/g, " ")}. Coach can move one to match.`,
+        apply_prompt: `My ${item.name} (currently ${item.timing_slot.replace(/_/g, " ")}) and ${matched.name} (currently ${matched.timing_slot.replace(/_/g, " ")}) should be in the same slot per the notes ("${m[0].slice(0, 60)}"). Decide which slot is better given my routine, then emit ONE proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: adjust, item_name: <whichever item is moving>, and timing_slot: <new slot>. If they should also be linked as parent/companion, prefer that — emit a second proposal for companion_of.`,
+        item_ids: [item.id, matched.id],
+      };
+    }
+  }
+
   return null;
 }

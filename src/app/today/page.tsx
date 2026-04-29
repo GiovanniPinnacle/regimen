@@ -604,10 +604,10 @@ export default function TodayPage() {
           (priority #5 magic_ready, priority #8 needs_audit) so the user
           gets ONE primary CTA instead of three competing cards. */}
       <ProtocolProgress />
-      <ProBenefits />
+      {/* High-signal observations stay near the top so users see them
+          before the daily checklist. */}
       <InsightsBanner />
       <PatternCard />
-      <CoachQuickActions />
 
       <IntakeTracker
         targets={
@@ -1042,6 +1042,10 @@ export default function TodayPage() {
               );
             })()}
       </div>
+
+      {/* Below-checklist zone — Coach prompts + Pro benefits + extras. */}
+      <CoachQuickActions />
+      <ProBenefits />
         </>
       )}
 
