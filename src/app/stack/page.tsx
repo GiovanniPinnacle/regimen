@@ -221,7 +221,13 @@ export default function StackPage() {
       gear: [],
       test: [],
     };
-    for (const item of sorted) map[item.item_type].push(item);
+    for (const item of sorted) {
+      // Defensive: an item may have a brand-new item_type Coach proposed
+      // before the type union was widened. Default to supplement to keep
+      // the page rendering instead of crashing the whole stack.
+      const bucket = map[item.item_type] ?? map.supplement;
+      bucket.push(item);
+    }
     return map;
   }, [sorted, groupByType, sortMode]);
 

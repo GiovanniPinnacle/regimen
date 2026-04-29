@@ -278,9 +278,11 @@ export default function TodayPage() {
   const totalActive = checkoffItems.length;
   const takenCount = checkoffItems.filter((i) => taken[i.id]).length;
 
-  // Once items load, pick a default active slot (or restore the user's choice
-  // for today if one is persisted). If hours roll over while the page is open
-  // and the user hasn't manually picked, the active slot tracks the clock.
+  // Once items load, pick a default active slot. The default is now
+  // ALWAYS a specific slot (current time of day), never "all" — the user
+  // explicitly chooses "all" via DayStrip if they want the full list.
+  // If the user persisted "all" in a prior session, ignore it and reset
+  // to the time-of-day slot.
   useEffect(() => {
     if (loading) return;
     setActiveSlot((prev) => {
@@ -292,7 +294,9 @@ export default function TodayPage() {
             date: string;
             slot: TimingSlot | "all";
           };
-          if (parsed.date === today) {
+          // Honor same-day restore but never restore "all" — start
+          // focused on whatever slot is current.
+          if (parsed.date === today && parsed.slot !== "all") {
             return parsed.slot;
           }
         }
@@ -302,6 +306,7 @@ export default function TodayPage() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, grouped, today]);
+
 
   // Snoozed items — localStorage keyed by item id, value is timestamp.
   // We re-evaluate on each render against Date.now(); items past their
@@ -334,6 +339,54 @@ export default function TodayPage() {
     // snoozedTick included to force re-eval each minute
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, snoozedTick]);
+
+  // Auto-advance: when the active slot's checkoff items are ALL handled
+  // (taken / skipped / snoozed), automatically move to the next non-empty
+  // slot. Doesn't fire if user explicitly picked "all" — only when they're
+  // flowing through the day in single-slot mode.
+  useEffect(() => {
+    if (loading) return;
+    if (activeSlot === "all") return;
+    if (NON_CHECKOFF_SLOTS.includes(activeSlot)) return;
+    const list = grouped[activeSlot] ?? [];
+    if (list.length === 0) return;
+    const allHandled = list.every(
+      (i) => taken[i.id] || skipReasons[i.id] || snoozedIds.has(i.id),
+    );
+    if (!allHandled) return;
+    const order: TimingSlot[] = [
+      "pre_breakfast",
+      "breakfast",
+      "pre_workout",
+      "lunch",
+      "dinner",
+      "pre_bed",
+    ];
+    const idx = order.indexOf(activeSlot);
+    let next: TimingSlot | null = null;
+    for (let i = idx + 1; i < order.length; i++) {
+      const candidate = order[i];
+      const candidateList = grouped[candidate] ?? [];
+      if (candidateList.length === 0) continue;
+      const candidateAllDone = candidateList.every((it) => taken[it.id]);
+      if (!candidateAllDone) {
+        next = candidate;
+        break;
+      }
+    }
+    if (next && next !== activeSlot) {
+      window.dispatchEvent(
+        new CustomEvent("regimen:toast", {
+          detail: {
+            kind: "success",
+            text: `${TIMING_LABELS[activeSlot]} done — on to ${TIMING_LABELS[next]}`,
+          },
+        }),
+      );
+      setActiveSlot(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taken, skipReasons, snoozedIds, grouped, loading, activeSlot]);
 
   // Fire confetti when a slot newly transitions to 100% complete. Compares
   // current complete-slot set vs the ref from the previous render. The ref
