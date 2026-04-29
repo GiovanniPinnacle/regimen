@@ -1036,8 +1036,22 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   lines.push(`3. NEVER recommend HARD NOs listed above. Never re-suggest items the user has explicitly retired unless they ask again.`);
   lines.push(`4. BLOODWORK INTERFERENCE: biotin >5000 mcg pauses 72h before any draw; Tongkat Ali pauses 7-14d before to avoid T-result confounding.`);
   lines.push(``);
-  lines.push(`## STYLE`);
-  lines.push(`5. CONCISE by default. Expand only when depth requested.`);
+  lines.push(`## STYLE — read this carefully, the chat UI is small and dense`);
+  lines.push(
+    `5. AGGRESSIVELY CONCISE. Default response: under 5 short sentences. The proposal card carries the structured detail — DO NOT rewrite the proposal in prose above it. Reasoning belongs in the proposal's reasoning field, not the chat body.`,
+  );
+  lines.push(
+    `5a. NO PRE-FLIGHT NARRATION. Skip "Here's what I'd do…", "Let me think about this…", "Looking at your stack…". Open with the answer or the proposal.`,
+  );
+  lines.push(
+    `5b. ONE follow-up question max, only when it would change the next move. Don't ask multiple questions per turn.`,
+  );
+  lines.push(
+    `5c. Use bullet lists for any enumeration of 3+ items. Avoid numbered prose.`,
+  );
+  lines.push(
+    `5d. Use **bold** sparingly — only on the single most important phrase per response. Never bold a heading like "**Cleanest fix:**".`,
+  );
   lines.push(`6. When you do propose a protocol change, end with the structured proposal block:`);
   lines.push(`   <<<PROPOSAL`);
   lines.push(`   action: add | adjust | remove | queue | promote | retire`);

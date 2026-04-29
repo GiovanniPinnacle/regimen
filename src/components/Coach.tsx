@@ -20,6 +20,7 @@ import {
   type Proposal,
 } from "@/lib/proposals";
 import Icon from "@/components/Icon";
+import CoachMarkdown from "@/components/CoachMarkdown";
 
 type ContentPart =
   | { type: "text"; text: string }
@@ -715,6 +716,79 @@ function compactUserLabel(text: string): string | null {
   return (cut.length > 30 ? cut : first.slice(0, 77)) + "…";
 }
 
+// Threshold below which we auto-show the full message; above which we
+// truncate to the first ~3 paragraphs and offer a "Show more" toggle.
+// Coach answers can run very long (multi-paragraph reasoning before the
+// proposal card) — burying the proposal makes it hard to act on. We
+// collapse the prose so the proposal sits one tap away.
+const COLLAPSE_THRESHOLD = 480;
+
+function AssistantOrUserBubble({
+  isUser,
+  text,
+}: {
+  isUser: boolean;
+  text: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const long = !isUser && text.length > COLLAPSE_THRESHOLD;
+  // Take the first ~3 short blocks for the collapsed view. We split on
+  // blank lines and keep going until we have enough characters or hit
+  // 3 blocks, whichever comes first.
+  const collapsedText = (() => {
+    if (!long || expanded) return text;
+    const blocks = text.split(/\n{2,}/);
+    let out = "";
+    for (const b of blocks) {
+      if (out.length + b.length > 280 && out.length > 0) break;
+      out += (out ? "\n\n" : "") + b;
+      if (out.length > 280) break;
+    }
+    return out;
+  })();
+  return (
+    <div
+      className="rounded-2xl px-4 py-3 max-w-[88%] text-[14.5px]"
+      style={{
+        background: isUser
+          ? "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)"
+          : "var(--surface-alt)",
+        color: isUser ? "#FBFAF6" : "var(--foreground)",
+        borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+        fontWeight: isUser ? 500 : 400,
+      }}
+    >
+      {isUser ? (
+        // User messages stay plain — no markdown parsing needed (and we
+        // don't want their literal asterisks reinterpreted).
+        <div className="leading-relaxed whitespace-pre-wrap">{text}</div>
+      ) : (
+        <>
+          <CoachMarkdown text={collapsedText} />
+          {long && (
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="text-[12px] mt-2.5 inline-flex items-center gap-1"
+              style={{
+                color: "var(--pro)",
+                fontWeight: 600,
+              }}
+            >
+              {expanded ? "Show less" : "Show more"}
+              <Icon
+                name="chevron-right"
+                size={11}
+                strokeWidth={2.4}
+                className={expanded ? "-rotate-90" : "rotate-90"}
+              />
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function MessageBubble({
   msg,
   executed,
@@ -784,21 +858,10 @@ function MessageBubble({
         </button>
       ) : (
         displayText && (
-          <div
-            className="rounded-2xl px-4 py-2.5 max-w-[85%] text-[14.5px] leading-relaxed whitespace-pre-wrap"
-            style={{
-              background: isUser
-                ? "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)"
-                : "var(--surface-alt)",
-              color: isUser ? "#FBFAF6" : "var(--foreground)",
-              borderRadius: isUser
-                ? "18px 18px 4px 18px"
-                : "18px 18px 18px 4px",
-              fontWeight: isUser ? 500 : 400,
-            }}
-          >
-            {displayText}
-          </div>
+          <AssistantOrUserBubble
+            isUser={isUser}
+            text={displayText}
+          />
         )
       )}
       {proposals.map((p) => (
