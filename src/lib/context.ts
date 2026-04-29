@@ -143,6 +143,18 @@ export type ProtocolContext = {
    *  preceding 14 days. Coach raises these as "did X break your sleep?"
    *  hypotheses. Empty when no clear signal. */
   symptomCorrelations: SymptomCorrelation[];
+  /** Last 14 days of Oura daily metrics (when the user has Oura PAT
+   *  configured + recent sync). Empty array when not connected. */
+  ouraDaily: Array<{
+    date: string;
+    readiness: number | null;
+    hrv: number | null;
+    rhr: number | null;
+    deep_sleep_min: number | null;
+    rem_sleep_min: number | null;
+    total_sleep_min: number | null;
+    temp_deviation: number | null;
+  }>;
 };
 
 /**
@@ -233,6 +245,7 @@ export async function buildContextForUser(
     refineRes,
     stackLog30Res,
     changelog30Res,
+    ouraRes,
   ] = await Promise.all([
       admin.from("items").select("*").eq("user_id", userId),
       admin
@@ -359,6 +372,20 @@ export async function buildContextForUser(
           new Date(Date.now() - 30 * 86400000).toISOString(),
         )
         .order("changed_at", { ascending: false }),
+      // Last 14 days of Oura daily metrics — readiness, HRV, RHR, sleep
+      // stages. Coach was previously blind to wearable data even though
+      // the sync was working.
+      admin
+        .from("oura_daily")
+        .select(
+          "date, readiness, hrv, rhr, deep_sleep_min, rem_sleep_min, total_sleep_min, temp_deviation",
+        )
+        .eq("user_id", userId)
+        .gte(
+          "date",
+          new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10),
+        )
+        .order("date", { ascending: false }),
     ]);
 
   const allItems = (itemsRes.data ?? []) as Item[];
@@ -740,6 +767,7 @@ export async function buildContextForUser(
     ingredientStack,
     wasteCandidates,
     symptomCorrelations,
+    ouraDaily: (ouraRes.data ?? []) as ProtocolContext["ouraDaily"],
     recommendableCatalog,
     catalogEnrichments: (() => {
       const out = new Map<
@@ -1014,6 +1042,63 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     lines.push(`- ${i.name}${i.brand ? ` (${i.brand})` : ""} — trigger: ${i.review_trigger ?? "n/a"}`);
   }
   lines.push(``);
+  if (ctx.ouraDaily.length > 0) {
+    lines.push(`# WEARABLE DATA (Oura, last 14 days)`);
+    // Compute 7d-vs-7d trend on the metrics that matter most. The lib
+    // already orders by date desc.
+    const recent7 = ctx.ouraDaily.slice(0, 7);
+    const prev7 = ctx.ouraDaily.slice(7, 14);
+    function avg(rows: typeof ctx.ouraDaily, key: "readiness" | "hrv" | "rhr" | "total_sleep_min" | "deep_sleep_min" | "rem_sleep_min") {
+      const vs = rows.map((r) => r[key]).filter((v): v is number => v != null);
+      if (vs.length === 0) return null;
+      return Math.round(vs.reduce((s, v) => s + v, 0) / vs.length);
+    }
+    function delta(metric: "readiness" | "hrv" | "rhr" | "total_sleep_min", label: string, unit: string, betterIsHigher = true) {
+      const a = avg(recent7, metric);
+      const b = avg(prev7, metric);
+      if (a == null || b == null) return null;
+      const diff = a - b;
+      const arrow = (betterIsHigher ? diff > 0 : diff < 0) ? "↑" : diff === 0 ? "→" : "↓";
+      const tag =
+        Math.abs(diff) >= (metric === "total_sleep_min" ? 30 : 3)
+          ? betterIsHigher
+            ? diff > 0
+              ? "improving"
+              : "declining"
+            : diff < 0
+              ? "improving"
+              : "declining"
+          : "stable";
+      return `- ${label}: ${a}${unit} avg last 7d vs ${b}${unit} prev 7d ${arrow} (${tag})`;
+    }
+    const lines2 = [
+      delta("readiness", "Readiness", ""),
+      delta("hrv", "HRV", "ms"),
+      delta("rhr", "RHR", "bpm", false),
+      delta("total_sleep_min", "Total sleep", "min"),
+    ].filter(Boolean) as string[];
+    for (const l of lines2) lines.push(l);
+    // Most-recent-night detail
+    const latest = ctx.ouraDaily[0];
+    if (latest) {
+      const parts: string[] = [];
+      if (latest.readiness != null) parts.push(`readiness ${latest.readiness}`);
+      if (latest.hrv != null) parts.push(`HRV ${latest.hrv}ms`);
+      if (latest.rhr != null) parts.push(`RHR ${latest.rhr}bpm`);
+      if (latest.total_sleep_min != null) parts.push(`${Math.round(latest.total_sleep_min / 60 * 10) / 10}h total`);
+      if (latest.deep_sleep_min != null) parts.push(`${latest.deep_sleep_min}min deep`);
+      if (latest.rem_sleep_min != null) parts.push(`${latest.rem_sleep_min}min REM`);
+      if (latest.temp_deviation != null) parts.push(`temp dev ${latest.temp_deviation > 0 ? "+" : ""}${latest.temp_deviation}°C`);
+      if (parts.length > 0) {
+        lines.push(`- Last night (${latest.date}): ${parts.join(" · ")}`);
+      }
+    }
+    lines.push(
+      `Reference these numbers when answering anything about sleep, recovery, energy, or training. Tie symptom-log scores to objective wearable data when both exist for the same day.`,
+    );
+    lines.push(``);
+  }
+
   if (ctx.recentSymptoms.length > 0) {
     lines.push(`# RECENT SYMPTOM LOGS (last 7 days)`);
     for (const s of ctx.recentSymptoms) {
