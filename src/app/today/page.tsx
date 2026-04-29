@@ -21,6 +21,8 @@ import StreakAtRiskBanner from "@/components/StreakAtRiskBanner";
 import CoachQuickActions from "@/components/CoachQuickActions";
 import NextStep from "@/components/NextStep";
 import ProtocolCompletionModal from "@/components/ProtocolCompletionModal";
+import QuickAddInline from "@/components/QuickAddInline";
+import SmartSuggestions from "@/components/SmartSuggestions";
 import { showToast } from "@/lib/toast";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -150,6 +152,13 @@ export default function TodayPage() {
       if (!e.taken && e.skipped_reason) skipMap[e.item_id] = e.skipped_reason;
     }
     setSkipReasons(skipMap);
+  }
+
+  // Bumped after a quick-add succeeds so the items query re-runs and the
+  // new item shows up immediately under its slot.
+  const [reloadKey, setReloadKey] = useState(0);
+  function reloadItems() {
+    setReloadKey((k) => k + 1);
   }
 
   useEffect(() => {
@@ -303,7 +312,8 @@ export default function TodayPage() {
     // their snooze period elapses without requiring a manual reload.
     const t = setInterval(() => setSnoozedTick((n) => n + 1), 60_000);
     return () => clearInterval(t);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadKey]);
   const snoozedIds = useMemo(() => {
     if (typeof window === "undefined") return new Set<string>();
     const ids = new Set<string>();
@@ -581,6 +591,7 @@ export default function TodayPage() {
       />
 
       <NextStep todayTakenCount={takenCount} />
+      <SmartSuggestions />
       <ProtocolCompletionModal />
 
       <StreakAtRiskBanner
@@ -803,6 +814,12 @@ export default function TodayPage() {
                             compact
                           />
                         ))}
+                        <QuickAddInline
+                          slot={slot}
+                          slotLabel={TIMING_LABELS[slot]}
+                          itemsInSlot={list}
+                          onAdded={reloadItems}
+                        />
                         {isCheckoff && done.length > 0 && (
                           <details className="mt-1">
                             <summary
@@ -972,6 +989,12 @@ export default function TodayPage() {
                         compact
                       />
                     ))}
+                    <QuickAddInline
+                      slot={activeSlot}
+                      slotLabel={TIMING_LABELS[activeSlot]}
+                      itemsInSlot={list}
+                      onAdded={reloadItems}
+                    />
                     {isCheckoff && done.length > 0 && (
                       <details className="mt-1">
                         <summary
