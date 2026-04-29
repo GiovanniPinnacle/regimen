@@ -6,9 +6,11 @@
 // history. No more dead-end "result, now what?".
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { uploadPhoto, type PhotoBucket } from "@/lib/photo";
 import Icon from "@/components/Icon";
+import BarcodeScanner from "@/components/BarcodeScanner";
 
 type IconName = Parameters<typeof Icon>[0]["name"];
 type ScanType = "food" | "supplement" | "scalp";
@@ -51,6 +53,7 @@ type AnalysisResult =
   | { error: string; raw?: string };
 
 export default function ScanPage() {
+  const router = useRouter();
   const [type, setType] = useState<ScanType | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -60,6 +63,42 @@ export default function ScanPage() {
   >("idle");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [barcodeOpen, setBarcodeOpen] = useState(false);
+
+  // Barcode scanner returned a match — fire Coach with the item's catalog
+  // data so it can decide if/how to add to the user's stack as a one-tap
+  // proposal. Includes calories/macros + brand so Coach can reason about
+  // overlap with existing items.
+  function handleBarcodeMatch(match: {
+    upc: string;
+    item: {
+      id?: string;
+      name: string;
+      brand: string | null;
+      item_type: string;
+      calories: number | null;
+      protein_g: number | null;
+    };
+  }) {
+    const macroLine =
+      match.item.calories != null || match.item.protein_g != null
+        ? ` (${match.item.calories ?? "?"} kcal, ${match.item.protein_g ?? "?"}g protein)`
+        : "";
+    window.dispatchEvent(
+      new CustomEvent("regimen:ask", {
+        detail: {
+          text:
+            `I just scanned a barcode and matched: ${match.item.name}${match.item.brand ? ` (${match.item.brand})` : ""}${macroLine}. ` +
+            `Decide if this should be added to my stack. Check for hard-NO conflicts, stack overlap, and goal alignment. ` +
+            `If it fits, emit a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: add and the right timing/category. ` +
+            `If not, explain why in 1-2 sentences and suggest an alternative.`,
+          send: true,
+        },
+      }),
+    );
+    // Refresh so the catalog cache is hot for any subsequent flows
+    router.refresh();
+  }
 
   function pickFile(f: File | null) {
     setFile(f);
@@ -139,8 +178,47 @@ export default function ScanPage() {
         </p>
       </header>
 
+      <BarcodeScanner
+        open={barcodeOpen}
+        onClose={() => setBarcodeOpen(false)}
+        onMatch={handleBarcodeMatch}
+      />
+
       {!type ? (
         <div className="flex flex-col gap-2.5">
+          <button
+            onClick={() => setBarcodeOpen(true)}
+            className="rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
+            style={{
+              background:
+                "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
+              color: "#FBFAF6",
+              boxShadow: "0 8px 24px var(--accent-glow)",
+            }}
+          >
+            <span
+              className="shrink-0 h-11 w-11 rounded-xl flex items-center justify-center"
+              style={{ background: "rgba(251, 250, 246, 0.18)" }}
+            >
+              <Icon name="search" size={20} strokeWidth={1.8} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[15px]" style={{ fontWeight: 700 }}>
+                Scan a barcode
+              </div>
+              <div
+                className="text-[12.5px] mt-0.5 leading-snug"
+                style={{ opacity: 0.92 }}
+              >
+                3M+ products from Open Food Facts — instant macros + auto-add
+              </div>
+            </div>
+            <Icon
+              name="chevron-right"
+              size={16}
+              className="shrink-0 opacity-70"
+            />
+          </button>
           {(Object.keys(TYPE_META) as ScanType[]).map((t) => {
             const m = TYPE_META[t];
             return (

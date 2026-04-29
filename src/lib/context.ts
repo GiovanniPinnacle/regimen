@@ -70,6 +70,25 @@ export type ProtocolContext = {
   }[];
   hardNos: string[];
   macros: MacroTargets | null;
+  /** Catalog enrichment per active item — mechanism + cautions + brand
+   *  picks pulled from the shared catalog. Coach uses these to cite
+   *  real pharmacology in refinements. Keyed by item.id (not catalog_item_id)
+   *  so the system prompt can join with active items by id. */
+  catalogEnrichments: Map<
+    string,
+    {
+      coach_summary: string | null;
+      mechanism: string | null;
+      best_timing: string | null;
+      pairs_well_with: { name: string; reason: string }[] | null;
+      conflicts_with: { name: string; reason: string }[] | null;
+      cautions: { tag: string; note: string }[] | null;
+      brand_recommendations:
+        | { brand: string; reasoning: string }[]
+        | null;
+      evidence_grade: string | null;
+    }
+  >;
   profile: {
     weight_kg?: number;
     activity_level?: string;
@@ -277,6 +296,40 @@ export async function buildContextForUser(
   const allItems = (itemsRes.data ?? []) as Item[];
   const activeItems = allItems.filter((i) => i.status === "active");
   const queuedItems = allItems.filter((i) => i.status === "queued");
+
+  // Pull catalog enrichment for active items linked to catalog rows. This
+  // gives Coach mechanism + cautions + brand picks + evidence grade for
+  // every item they discuss — so refinements cite real pharmacology, not
+  // generic guesses.
+  const catalogIds = activeItems
+    .map((i) => i.catalog_item_id)
+    .filter((id): id is string => Boolean(id));
+  type CatalogEnrichmentRow = {
+    id: string;
+    coach_summary: string | null;
+    mechanism: string | null;
+    best_timing: string | null;
+    pairs_well_with: { name: string; reason: string }[] | null;
+    conflicts_with: { name: string; reason: string }[] | null;
+    cautions: { tag: string; note: string }[] | null;
+    brand_recommendations:
+      | { brand: string; reasoning: string }[]
+      | null;
+    evidence_grade: string | null;
+  };
+  const catalogById = new Map<string, CatalogEnrichmentRow>();
+  if (catalogIds.length > 0) {
+    const { data: catalogRows } = await admin
+      .from("catalog_items")
+      .select(
+        "id, coach_summary, mechanism, best_timing, pairs_well_with, " +
+          "conflicts_with, cautions, brand_recommendations, evidence_grade",
+      )
+      .in("id", catalogIds);
+    for (const row of (catalogRows ?? []) as unknown as CatalogEnrichmentRow[]) {
+      catalogById.set(row.id, row);
+    }
+  }
 
   // Adherence: rollup stack_log by date
   const byDate: Record<string, { taken: number; total: number }> = {};
@@ -545,6 +598,30 @@ export async function buildContextForUser(
     aboutMe: (profile?.about_me as Record<string, string> | null) ?? null,
     userStage,
     signals,
+    catalogEnrichments: (() => {
+      const out = new Map<
+        string,
+        ProtocolContext["catalogEnrichments"] extends Map<string, infer V>
+          ? V
+          : never
+      >();
+      for (const item of activeItems) {
+        if (!item.catalog_item_id) continue;
+        const enriched = catalogById.get(item.catalog_item_id);
+        if (!enriched) continue;
+        out.set(item.id, {
+          coach_summary: enriched.coach_summary,
+          mechanism: enriched.mechanism,
+          best_timing: enriched.best_timing,
+          pairs_well_with: enriched.pairs_well_with,
+          conflicts_with: enriched.conflicts_with,
+          cautions: enriched.cautions,
+          brand_recommendations: enriched.brand_recommendations,
+          evidence_grade: enriched.evidence_grade,
+        });
+      }
+      return out;
+    })(),
   };
 }
 
@@ -685,6 +762,35 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
       lines.push(
         `- ${i.name}${i.brand ? ` (${i.brand})` : ""}${i.dose ? ` — ${i.dose}` : ""} · ${i.timing_slot} · ${i.category}${i.notes ? ` · ${i.notes}` : ""}`,
       );
+      // Append catalog enrichment inline as indented bullets so Coach
+      // sees the pharmacology + cautions for THIS specific item without
+      // needing a separate lookup
+      const enriched = ctx.catalogEnrichments.get(i.id);
+      if (enriched) {
+        if (enriched.evidence_grade) {
+          lines.push(`    Evidence grade: ${enriched.evidence_grade}`);
+        }
+        if (enriched.mechanism) {
+          lines.push(`    Mechanism: ${enriched.mechanism}`);
+        }
+        if (enriched.best_timing) {
+          lines.push(`    Best timing: ${enriched.best_timing}`);
+        }
+        if (enriched.cautions && enriched.cautions.length > 0) {
+          lines.push(
+            `    Cautions: ${enriched.cautions
+              .map((c) => `${c.tag} (${c.note})`)
+              .join("; ")}`,
+          );
+        }
+        if (enriched.conflicts_with && enriched.conflicts_with.length > 0) {
+          lines.push(
+            `    Conflicts with: ${enriched.conflicts_with
+              .map((c) => `${c.name} — ${c.reason}`)
+              .join("; ")}`,
+          );
+        }
+      }
     }
   }
   lines.push(``);
