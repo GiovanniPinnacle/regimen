@@ -25,6 +25,7 @@ import ProtocolCompletionModal from "@/components/ProtocolCompletionModal";
 import QuickAddInline from "@/components/QuickAddInline";
 import SmartSuggestions from "@/components/SmartSuggestions";
 import CatalogPicks from "@/components/CatalogPicks";
+import WeeklyDigestCard from "@/components/WeeklyDigestCard";
 import { showToast } from "@/lib/toast";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -650,6 +651,11 @@ export default function TodayPage() {
       {/* Proactive catalog recommendations — high-evidence items the
           user doesn't have yet. Hidden when nothing fresh to surface. */}
       <CatalogPicks />
+      {/* Weekly digest — only renders Mon/Tue, dismissable per ISO week.
+          Aggregates last 7 days vs prev 7 with adherence delta + top
+          helpers + slipping items. "Discuss with Coach" pre-fills the
+          numbers as the conversation starting point. */}
+      <WeeklyDigestCard />
       <ProtocolCompletionModal />
 
       <StreakAtRiskBanner
