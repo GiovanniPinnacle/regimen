@@ -103,6 +103,12 @@ const SECTIONS: Section[] = [
         desc: "Scheduled checkpoints + decisions due",
         icon: "calendar",
       },
+      {
+        href: "/coach-history",
+        label: "Coach history",
+        desc: "Past conversations, newest first",
+        icon: "sparkle",
+      },
     ],
   },
   {
