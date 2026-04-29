@@ -39,7 +39,7 @@ export default function DataPage() {
           className="text-[13px] mt-1 leading-relaxed"
           style={{ color: "var(--muted)" }}
         >
-          Bring in your Oura, bloodwork, and CGM data so Claude has the full
+          Bring in your Oura, bloodwork, and CGM data so Coach has the full
           picture when it refines your stack.
         </p>
       </header>
@@ -125,7 +125,7 @@ export default function DataPage() {
           style={{ color: "var(--muted)" }}
         >
           Upload any bloodwork PDF (Function Health, InsideTracker, Marek,
-          LabCorp, Quest) and Claude vision extracts every biomarker into a
+          LabCorp, Quest) and Coach vision extracts every biomarker into a
           trendable timeline. $5/scan or unlimited with Pro.
         </div>
       </section>

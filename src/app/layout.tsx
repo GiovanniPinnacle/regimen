@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import TabNav from "@/components/TabNav";
-import AskClaude from "@/components/AskClaude";
+import Coach from "@/components/Coach";
 import SessionKeeper from "@/components/SessionKeeper";
 import ToastHost from "@/components/ToastHost";
 
@@ -49,7 +49,7 @@ export default function RootLayout({
         <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-8">
           {children}
         </main>
-        <AskClaude />
+        <Coach />
         <ToastHost />
         <TabNav />
       </body>

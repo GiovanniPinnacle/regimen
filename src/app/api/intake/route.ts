@@ -2,7 +2,7 @@
 // used for water taps, manual meal entries, voice memos.
 //
 // For photo analysis, use /api/analyze with type='food' which extracts
-// macros via Claude vision and ALSO writes to intake_log.
+// macros via Coach vision and ALSO writes to intake_log.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -16,7 +16,7 @@ type Kind = "meal" | "snack" | "water" | "beverage";
 type Body = {
   kind: Kind;
   content: string;
-  /** If true and kind is meal/snack, run Claude to estimate macros from text. */
+  /** If true and kind is meal/snack, run Coach to estimate macros from text. */
   analyze?: boolean;
   /** Manual macros override (used if no analyze). */
   calories?: number;
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     analyzed_by = analyzed_by ?? "quick_water";
   }
 
-  // Text-based macro estimate via Claude
+  // Text-based macro estimate via Coach
   if (
     body.analyze &&
     (body.kind === "meal" || body.kind === "snack") &&

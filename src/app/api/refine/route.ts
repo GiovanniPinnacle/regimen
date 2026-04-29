@@ -1,5 +1,5 @@
 // POST /api/refine
-// Asks Claude (refinement-first system prompt + full context) what to drop,
+// Asks Coach (refinement-first system prompt + full context) what to drop,
 // swap, or simplify this week. Returns markdown for direct render.
 
 import { NextResponse } from "next/server";
@@ -68,7 +68,7 @@ Rules:
   } catch (err) {
     console.error("refine/POST claude error", err);
     return NextResponse.json(
-      { error: `Claude error: ${(err as Error).message}` },
+      { error: `Coach error: ${(err as Error).message}` },
       { status: 500 },
     );
   }

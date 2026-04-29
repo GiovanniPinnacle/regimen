@@ -44,7 +44,7 @@ export default function ChangelogPage() {
             No changes logged yet
           </div>
           <div className="text-[13px]">
-            Changes you make through Ask Claude or manual edits will appear
+            Changes you make through Ask Coach or manual edits will appear
             here with reasoning.
           </div>
         </div>

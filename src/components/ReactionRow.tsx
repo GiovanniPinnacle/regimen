@@ -6,7 +6,7 @@
 //
 // Tap an emoji to set today's reaction. Tap the same emoji again to clear.
 // Today's reaction is highlighted. Multiple reactions over time become the
-// signal Claude uses for refinement: "no_change ×5 in 30 days → drop candidate."
+// signal Coach uses for refinement: "no_change ×5 in 30 days → drop candidate."
 
 import { useEffect, useRef, useState } from "react";
 import { getReactionForToday, setReaction } from "@/lib/storage";

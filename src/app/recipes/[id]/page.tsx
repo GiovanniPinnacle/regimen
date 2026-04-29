@@ -68,7 +68,7 @@ export default async function RecipeDetailPage({
           {recipe.carbs_g != null && <span>{recipe.carbs_g}g carbs</span>}
           {recipe.servings > 1 && <span>{recipe.servings} servings</span>}
           {recipe.times_made > 0 && <span>Made {recipe.times_made}×</span>}
-          {recipe.source === "claude" && <span>✨ Claude</span>}
+          {recipe.source === "claude" && <span>✨ Coach</span>}
         </div>
         {recipe.tags && recipe.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">

@@ -5,7 +5,7 @@
 // works on iOS Safari 15.5+). User taps mic, talks, taps again to stop.
 // Transcript is editable before save. POSTs to /api/voice-memo.
 //
-// Claude reads recent memos in the refine context, so anything you say
+// Coach reads recent memos in the refine context, so anything you say
 // shows up in the next refinement run automatically.
 
 import { useEffect, useRef, useState } from "react";
@@ -308,7 +308,7 @@ export default function VoiceMemo() {
                   style={{ color: "var(--muted)" }}
                 >
                   Transcribed in your browser — audio never leaves the device.
-                  Claude reads recent memos when refining your stack.
+                  Coach reads recent memos when refining your stack.
                 </div>
               </div>
             )}
@@ -486,7 +486,7 @@ export default function VoiceMemo() {
                   )}
                   {!linkedToName && !loggedAsMeal && (
                     <div>
-                      Claude reads recent memos on next refine.
+                      Coach reads recent memos on next refine.
                     </div>
                   )}
                 </div>

@@ -33,7 +33,7 @@ type FitItem = {
   phase: Phase;
   notes?: string;
   companions?: { name: string; prescription: string }[];
-  refinement?: string; // Claude's recommendation for this item
+  refinement?: string; // Coach's recommendation for this item
 };
 
 // Sample Pull Day, Week 3 of a 4-week mesocycle (load week, deload next).
@@ -237,7 +237,7 @@ export default function FitDemoPage() {
         </div>
       </section>
 
-      {/* Refinement callout — Claude's "drop this" recommendation */}
+      {/* Refinement callout — Coach's "drop this" recommendation */}
       <section className="mt-6 rounded-2xl p-5 card-glass">
         <div
           className="text-[11px] uppercase tracking-wider mb-2"
@@ -264,7 +264,7 @@ export default function FitDemoPage() {
           className="text-[12px]"
           style={{ color: "var(--muted)" }}
         >
-          Source: Claude reading your last 3 weeks of Pull Day logs + RPE
+          Source: Coach reading your last 3 weeks of Pull Day logs + RPE
           trend on weighted pull-ups.
         </div>
         <div className="flex gap-2 mt-4">
@@ -349,7 +349,7 @@ export default function FitDemoPage() {
           className="text-[11px] uppercase tracking-wider mb-3"
           style={{ color: "var(--muted)", fontWeight: 500 }}
         >
-          Skip patterns Claude is watching
+          Skip patterns Coach is watching
         </div>
         <div className="flex flex-col gap-2">
           {[
@@ -623,7 +623,7 @@ function FitCard({
               fontStyle: "italic",
             }}
           >
-            ↓ Claude: {item.refinement}
+            ↓ Coach: {item.refinement}
           </div>
         )}
       </div>

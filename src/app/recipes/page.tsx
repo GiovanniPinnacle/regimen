@@ -129,7 +129,7 @@ function RecipeList({ recipes }: { recipes: Recipe[] }) {
                 </span>
               )}
               {r.servings > 1 && <span>{r.servings} servings</span>}
-              {r.source === "claude" && <span>✨ Claude</span>}
+              {r.source === "claude" && <span>✨ Coach</span>}
             </div>
             {r.tags && r.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">

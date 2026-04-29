@@ -497,3 +497,50 @@ a:active {
   background: var(--purple-tint);
   color: var(--purple-deep);
 }
+
+/* ============== Coach (AI assistant) ============== */
+.coach-fab {
+  animation: coach-fab-pulse 3.6s ease-in-out infinite;
+}
+@keyframes coach-fab-pulse {
+  0%, 100% {
+    box-shadow:
+      0 12px 32px rgba(168, 85, 247, 0.40),
+      0 4px 12px rgba(109, 40, 217, 0.30),
+      0 0 0 0 rgba(168, 85, 247, 0.42);
+  }
+  50% {
+    box-shadow:
+      0 14px 36px rgba(168, 85, 247, 0.52),
+      0 6px 14px rgba(109, 40, 217, 0.36),
+      0 0 0 10px rgba(168, 85, 247, 0);
+  }
+}
+
+.coach-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pro);
+  display: inline-block;
+  animation: coach-dot-bounce 1.05s ease-in-out infinite;
+}
+@keyframes coach-dot-bounce {
+  0%, 60%, 100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+.coach-mic-pulse {
+  display: inline-flex;
+  animation: coach-mic-flash 1.2s ease-in-out infinite;
+}
+@keyframes coach-mic-flash {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}

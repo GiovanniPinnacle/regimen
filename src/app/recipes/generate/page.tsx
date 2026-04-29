@@ -63,7 +63,7 @@ export default function GenerateRecipePage() {
           Generate a meal
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          Claude uses your hard-NOs, triggers, and macro targets.
+          Coach uses your hard-NOs, triggers, and macro targets.
         </div>
       </header>
 

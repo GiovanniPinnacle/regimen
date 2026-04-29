@@ -552,7 +552,7 @@ export default async function ItemDetailPage({
           className="border-hair rounded-xl p-4 mb-6 text-[13px]"
           style={{ color: "var(--muted)" }}
         >
-          No curated info yet for this item. Tap the Ask Claude button to ask
+          No curated info yet for this item. Tap the Ask Coach button to ask
           anything about it.
         </div>
       )}

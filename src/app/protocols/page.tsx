@@ -188,7 +188,7 @@ export default function ProtocolsBrowsePage() {
             should help. No vibes.
           </li>
           <li>
-            <strong>Refinement-first.</strong> Claude reads your skips +
+            <strong>Refinement-first.</strong> Coach reads your skips +
             reactions and recommends drops as you go.
           </li>
           <li>

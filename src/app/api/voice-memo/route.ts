@@ -1,4 +1,4 @@
-// Save a voice memo (transcript). Claude reads recent memos in /api/refine
+// Save a voice memo (transcript). Coach reads recent memos in /api/refine
 // context, so the user's voice notes flow into refinement automatically.
 //
 // Audio is never sent here — Web Speech API transcribes in the browser.
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
   // Auto-link to a mentioned item if user didn't pre-pick one. Pulls active
   // items, fuzzy-matches by name/brand against the transcript. Captures
-  // signal Claude can use ("voice memo about Tongkat" surfaced on item card).
+  // signal Coach can use ("voice memo about Tongkat" surfaced on item card).
   let linkedItemId = body.item_id ?? null;
   if (!linkedItemId) {
     const { data: items } = await supabase
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Food-intent auto-log: if memo looks like a meal log, also write to
-  // intake_log with macros estimated by Claude. Best-effort, non-blocking
+  // intake_log with macros estimated by Coach. Best-effort, non-blocking
   // on failure — voice memo save still succeeds even if this fails.
   let loggedAsMeal = false;
   if (detectFoodIntent(transcript, body.context_tag ?? null)) {

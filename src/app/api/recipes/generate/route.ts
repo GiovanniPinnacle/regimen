@@ -1,7 +1,7 @@
 // POST /api/recipes/generate
-// Generates a meal recipe from fridge contents using Claude.
+// Generates a meal recipe from fridge contents using Coach.
 // Uses the user's full context (hard NOs, triggers, macros, active items).
-// Parses Claude's JSON output, saves to recipes table, returns { id }.
+// Parses Coach's JSON output, saves to recipes table, returns { id }.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -111,12 +111,12 @@ Generate one recipe. JSON only.`;
   } catch (err) {
     console.error("recipes/generate claude error", err);
     return NextResponse.json(
-      { error: `Claude error: ${(err as Error).message}` },
+      { error: `Coach error: ${(err as Error).message}` },
       { status: 500 },
     );
   }
 
-  // Extract JSON — Claude sometimes wraps in fences despite instructions
+  // Extract JSON — Coach sometimes wraps in fences despite instructions
   const jsonText = extractJson(raw);
   let parsed: Record<string, unknown>;
   try {
@@ -124,7 +124,7 @@ Generate one recipe. JSON only.`;
   } catch {
     console.error("recipes/generate JSON parse failed, raw:", raw);
     return NextResponse.json(
-      { error: "Claude did not return valid JSON. Try again." },
+      { error: "Coach did not return valid JSON. Try again." },
       { status: 500 },
     );
   }

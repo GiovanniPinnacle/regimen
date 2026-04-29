@@ -2,7 +2,7 @@
 
 // Top-of-page widget on /about-me that gives 3 frictionless ways in:
 // 1. Chat (link to /about-me/chat)
-// 2. Paste anything (textarea → Claude extracts → fields fill)
+// 2. Paste anything (textarea → Coach extracts → fields fill)
 // 3. Photo / file → /scan with category preset
 
 import { useState } from "react";
@@ -60,7 +60,7 @@ export default function AboutMeQuickInputs() {
             fontWeight: 500,
           }}
         >
-          💬 Chat with Claude instead
+          💬 Chat with Coach instead
         </Link>
         <Link
           href="/scan"
@@ -76,7 +76,7 @@ export default function AboutMeQuickInputs() {
           className="px-4 py-3 cursor-pointer list-none flex items-center justify-between"
         >
           <span className="text-[13px]" style={{ fontWeight: 500 }}>
-            📋 Paste anything → Claude extracts
+            📋 Paste anything → Coach extracts
           </span>
           <span
             className="text-[12px] transition-transform group-open:rotate-180"
@@ -91,7 +91,7 @@ export default function AboutMeQuickInputs() {
             style={{ color: "var(--muted)" }}
           >
             Drop a journal entry, a list of meds, a doctor's note, your
-            bloodwork summary, ChatGPT export, or anything else. Claude pulls
+            bloodwork summary, ChatGPT export, or anything else. Coach pulls
             structured fields and fills them.
           </p>
           <textarea

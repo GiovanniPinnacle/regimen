@@ -18,7 +18,7 @@ const TIERS = [
     features: [
       "Track up to 30 items",
       "1 active protocol pack",
-      "3 Claude refinements/day",
+      "3 Coach refinements/day",
       "5 photo scans/month",
       "Basic patterns + skip-with-reason",
     ],
@@ -33,7 +33,7 @@ const TIERS = [
     badge: "Best value",
     features: [
       "Unlimited items + protocols",
-      "Unlimited Claude (chat, refinement, deep research)",
+      "Unlimited Coach (chat, refinement, deep research)",
       "Unlimited photo scans + bloodwork analysis",
       "Apple Health + Oura sync",
       "5% rebate on items ordered through Regimen",
@@ -60,7 +60,7 @@ const TIERS = [
 const VALUE_BREAKDOWN = [
   {
     icon: "sparkle" as const,
-    title: "Unlimited Claude",
+    title: "Unlimited Coach",
     detail:
       "Ask anything, refine your stack daily, deep-research any item — no caps. ($60+/mo retail value)",
   },

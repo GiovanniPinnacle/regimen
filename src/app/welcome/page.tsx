@@ -31,7 +31,7 @@ export default function WelcomePage() {
     setStage("scanning");
     setErr(null);
 
-    // Pull signal counts so the user sees Claude is actually reading their data
+    // Pull signal counts so the user sees Coach is actually reading their data
     try {
       const client = createClient();
       const [items, logs, skips, checkins] = await Promise.all([
@@ -137,7 +137,7 @@ export default function WelcomePage() {
               className="text-[11px] uppercase tracking-wider mb-2"
               style={{ color: "var(--olive)", fontWeight: 600 }}
             >
-              Right now Claude will:
+              Right now Coach will:
             </div>
             <ul
               className="text-[13px] flex flex-col gap-1.5 leading-relaxed"
@@ -202,7 +202,7 @@ export default function WelcomePage() {
             className="text-[12px] mt-6"
             style={{ color: "var(--muted)" }}
           >
-            Claude is now looking for redundancy, dose-stacking risk, and
+            Coach is now looking for redundancy, dose-stacking risk, and
             patterns in your skip reasons…
           </div>
         </section>
@@ -229,7 +229,7 @@ export default function WelcomePage() {
             Refinement runs on patterns. With{" "}
             <strong>{signalCounts?.items ?? 0} items</strong> and{" "}
             <strong>{signalCounts?.logs ?? 0} logs</strong>, there's not
-            enough signal yet for Claude to recommend drops with confidence.
+            enough signal yet for Coach to recommend drops with confidence.
           </p>
           <div
             className="rounded-2xl p-5 mb-6 card-glass"

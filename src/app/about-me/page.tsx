@@ -68,7 +68,7 @@ const ESSENTIALS: Field[] = [
   { key: "past_diagnoses", label: "Past diagnoses", placeholder: "Anything a doctor labeled" },
   { key: "current_medications", label: "Current medications", placeholder: "Any Rx" },
   { key: "allergies_sensitivities", label: "Allergies / sensitivities", placeholder: "Food, environmental, drugs" },
-  { key: "communication_style", label: "How should Claude talk to you?", placeholder: "Tight + terse, or detailed and explanatory. Pick a vibe." },
+  { key: "communication_style", label: "How should Coach talk to you?", placeholder: "Tight + terse, or detailed and explanatory. Pick a vibe." },
 ];
 
 const LIFESTYLE: Field[] = [
@@ -248,7 +248,7 @@ export default function AboutMePage() {
         className="mt-10 text-[11px] leading-relaxed"
         style={{ color: "var(--muted)" }}
       >
-        Everything filled goes into Claude&apos;s system prompt every chat. Half of it is plenty.
+        Everything filled goes into Coach&apos;s system prompt every chat. Half of it is plenty.
       </footer>
     </div>
   );

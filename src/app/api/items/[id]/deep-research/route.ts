@@ -1,5 +1,5 @@
 // POST /api/items/:id/deep-research
-// Long-form research memo using Claude Opus 4.5. Slower + more thorough
+// Long-form research memo using Coach Opus 4.5. Slower + more thorough
 // than the standard research field. On-demand only — never auto-triggered.
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -98,14 +98,14 @@ Write the deep research memo. Markdown only.`;
   } catch (err) {
     console.error("deep-research/POST claude error", err);
     return NextResponse.json(
-      { error: `Claude error: ${(err as Error).message}` },
+      { error: `Coach error: ${(err as Error).message}` },
       { status: 500 },
     );
   }
 
   if (!memo.trim()) {
     return NextResponse.json(
-      { error: "Empty response from Claude. Try again." },
+      { error: "Empty response from Coach. Try again." },
       { status: 500 },
     );
   }

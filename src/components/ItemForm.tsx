@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type {
@@ -116,6 +116,75 @@ export default function ItemForm({ initial, onSaved }: Props) {
   const [classifying, setClassifying] = useState(false);
   const [classifyHint, setClassifyHint] = useState<string | null>(null);
   const [classifyErr, setClassifyErr] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoErr, setPhotoErr] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Photo-to-form: snap a supplement label, Coach extracts name + brand +
+  // dose + type/timing/goals/frequency in one shot. Uses the existing
+  // /api/analyze pipeline with type=supplement.
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 6 * 1024 * 1024) {
+      setPhotoErr("Photo too large (6MB max)");
+      return;
+    }
+    setPhotoBusy(true);
+    setPhotoErr(null);
+    setClassifyHint(null);
+    try {
+      // Upload to Supabase storage to get a URL we pass to /api/analyze
+      const client = createClient();
+      const {
+        data: { user },
+      } = await client.auth.getUser();
+      if (!user) throw new Error("Not signed in");
+      const path = `${user.id}/items/${Date.now()}-${file.name}`;
+      const { error: upErr } = await client.storage
+        .from("photos")
+        .upload(path, file, { contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: pub } = client.storage.from("photos").getPublicUrl(path);
+      const imageUrl = pub.publicUrl;
+
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "supplement", imageUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Analyze failed");
+      const r = data.result ?? data;
+
+      if (r.name && !name.trim()) setName(r.name);
+      if (r.brand && !brand.trim()) setBrand(r.brand);
+      if (Array.isArray(r.ingredients) && r.ingredients.length > 0 && !dose.trim()) {
+        const summary = r.ingredients
+          .slice(0, 3)
+          .map((i: { name: string; dose: string }) =>
+            i.dose ? `${i.name} ${i.dose}` : i.name,
+          )
+          .join(" · ");
+        setDose(summary);
+      }
+      const p = r.proposal ?? {};
+      if (p.timing_slot) setTimingSlot(p.timing_slot);
+      if (p.category) setCategory(p.category);
+      if (Array.isArray(p.goals) && p.goals.length > 0) setGoals(p.goals);
+      if (p.frequency) setFrequency(p.frequency);
+      setItemType("supplement");
+      setClassifyHint(
+        r.reasoning ??
+          "Pre-filled from photo. Review the fields below before saving.",
+      );
+    } catch (err) {
+      setPhotoErr((err as Error).message);
+    } finally {
+      setPhotoBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
 
   async function autoClassify() {
     if (!name.trim()) return;
@@ -252,7 +321,7 @@ export default function ItemForm({ initial, onSaved }: Props) {
         />
       </Field>
 
-      {/* Auto-classify — Claude pre-fills everything below */}
+      {/* Auto-classify + photo — two paths to fill the rest of the form */}
       <div
         className="rounded-2xl p-3.5 -my-1"
         style={{
@@ -260,35 +329,60 @@ export default function ItemForm({ initial, onSaved }: Props) {
           border: "1px solid var(--accent-glow)",
         }}
       >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div
-              className="text-[13px]"
-              style={{ fontWeight: 500 }}
-            >
-              ✨ Let Claude classify this
-            </div>
-            <div
-              className="text-[11px] mt-0.5 leading-snug"
-              style={{ color: "var(--muted)" }}
-            >
-              Auto-fills type, timing, category, goals, schedule, default dose.
-              You can still adjust below.
-            </div>
+        <div className="flex-1 min-w-0">
+          <div
+            className="text-[13px]"
+            style={{ fontWeight: 600 }}
+          >
+            Skip the form — let Coach fill it
           </div>
+          <div
+            className="text-[11px] mt-0.5 leading-snug"
+            style={{ color: "var(--muted)" }}
+          >
+            Snap the label, or just type a name and tap Auto-fill.
+          </div>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoUpload}
+            className="hidden"
+            id="item-photo"
+          />
+          <label
+            htmlFor="item-photo"
+            className="flex-1 text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer"
+            style={{
+              background: "var(--olive)",
+              color: "#FBFAF6",
+              fontWeight: 600,
+              opacity: photoBusy ? 0.6 : 1,
+              pointerEvents: photoBusy ? "none" : "auto",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            {photoBusy ? "Reading label…" : "Photo this label"}
+          </label>
           <button
             type="button"
             onClick={autoClassify}
             disabled={!name.trim() || classifying}
-            className="text-[12px] px-3 py-2 rounded-lg shrink-0"
+            className="text-[12.5px] px-3 py-2 rounded-lg"
             style={{
-              background: "var(--olive)",
-              color: "#FBFAF6",
-              fontWeight: 500,
+              background: "var(--surface-alt)",
+              color: "var(--foreground)",
+              fontWeight: 600,
               opacity: !name.trim() || classifying ? 0.5 : 1,
             }}
           >
-            {classifying ? "Classifying…" : "Auto-fill"}
+            {classifying ? "…" : "Auto-fill"}
           </button>
         </div>
         {classifyHint && (
@@ -299,12 +393,12 @@ export default function ItemForm({ initial, onSaved }: Props) {
             ↓ {classifyHint}
           </div>
         )}
-        {classifyErr && (
+        {(classifyErr || photoErr) && (
           <div
             className="text-[11px] mt-2"
             style={{ color: "var(--error)" }}
           >
-            {classifyErr}
+            {classifyErr ?? photoErr}
           </div>
         )}
       </div>

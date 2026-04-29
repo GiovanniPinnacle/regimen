@@ -1,6 +1,6 @@
 "use client";
 
-// /hard-nos — per-user editable list of items Claude should never
+// /hard-nos — per-user editable list of items Coach should never
 // recommend. Stored on profiles.hard_nos (JSONB). Defaults to empty for
 // new users; user adds their own rather than inheriting someone else's
 // seeded list.
@@ -120,7 +120,7 @@ export default function HardNosPage() {
           className="text-[13px] mt-1 leading-relaxed"
           style={{ color: "var(--muted)" }}
         >
-          Items Claude will never recommend, and will flag if it sees them
+          Items Coach will never recommend, and will flag if it sees them
           in a photo or food log. Examples: allergies, things that broke
           you out, banned approaches.
         </p>
@@ -130,7 +130,7 @@ export default function HardNosPage() {
         <EmptyState
           icon="🚫"
           title="No hard NOs yet"
-          body="Add anything Claude should never suggest. You'll see them flagged in photos, recipes, and recommendations."
+          body="Add anything Coach should never suggest. You'll see them flagged in photos, recipes, and recommendations."
           primary={{
             label: "Add your first",
             onClick: () => setAdding("supplement"),

@@ -1,5 +1,5 @@
 // POST /api/items/:id/research
-// Generates usage_notes + research_summary for a single item using Claude
+// Generates usage_notes + research_summary for a single item using Coach
 // + the user's full protocol context. Saves to DB and returns the result.
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -89,7 +89,7 @@ Generate usage_notes + research_summary. JSON only.`;
   } catch (err) {
     console.error("research/POST claude error", err);
     return NextResponse.json(
-      { error: `Claude error: ${(err as Error).message}` },
+      { error: `Coach error: ${(err as Error).message}` },
       { status: 500 },
     );
   }
@@ -101,7 +101,7 @@ Generate usage_notes + research_summary. JSON only.`;
   } catch {
     console.error("research/POST JSON parse failed, raw:", raw.slice(0, 500));
     return NextResponse.json(
-      { error: "Claude did not return valid JSON. Try again." },
+      { error: "Coach did not return valid JSON. Try again." },
       { status: 500 },
     );
   }

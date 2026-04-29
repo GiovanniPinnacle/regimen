@@ -102,7 +102,7 @@ export default function ScanPage() {
           Scan
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          Snap → Claude vision analyzes against your regimen + triggers
+          Snap → Coach vision analyzes against your regimen + triggers
         </div>
       </header>
 
@@ -220,7 +220,7 @@ export default function ScanPage() {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
-              placeholder="Anything Claude should know?"
+              placeholder="Anything Coach should know?"
               className="w-full border-hair rounded-lg p-3 text-[14px] resize-none focus:outline-none focus:border-hair-strong"
               style={{
                 background: "var(--background)",
@@ -243,7 +243,7 @@ export default function ScanPage() {
             {stage === "uploading"
               ? "Uploading…"
               : stage === "analyzing"
-                ? "Claude is analyzing…"
+                ? "Coach is analyzing…"
                 : "Analyze"}
           </button>
 

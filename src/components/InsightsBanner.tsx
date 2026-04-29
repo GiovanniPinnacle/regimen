@@ -1,7 +1,9 @@
 "use client";
 
-// Insights banner — Claude's surfaced "notes for today" (day milestones,
-// cycle flips, biotin pause warnings, etc.). Tap to chat about one or all.
+// Insights banner — Coach's surfaced "notes for today" (day milestones,
+// cycle flips, biotin pause warnings, daily suggestions). Each insight is
+// now truly actionable: tap "Apply" and Coach generates a one-tap proposal
+// you approve in the Coach pane. No more dead-end suggestions.
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -19,21 +21,47 @@ type Insight = {
 
 type IconName = Parameters<typeof Icon>[0]["name"];
 
-// Map insight types to clean line icons + accent colors. Replaces emoji.
+// Map insight types to icon, accent color, and a tailored verb for the
+// primary "Apply" action. Falls back to a generic verb if unknown.
 const TYPE_META: Record<
   string,
-  { icon: IconName; accent: string }
+  { icon: IconName; accent: string; verb: string }
 > = {
-  day_milestone: { icon: "calendar", accent: "var(--olive)" },
-  cycle_flip: { icon: "refresh", accent: "var(--olive)" },
-  biotin_pause: { icon: "alert", accent: "var(--warn)" },
-  daily_suggestion: { icon: "sparkle", accent: "var(--olive)" },
-  reorder_alert: { icon: "shopping-bag", accent: "var(--warn)" },
+  day_milestone: {
+    icon: "calendar",
+    accent: "var(--accent)",
+    verb: "Acknowledge",
+  },
+  cycle_flip: {
+    icon: "refresh",
+    accent: "var(--accent)",
+    verb: "Apply cycle change",
+  },
+  biotin_pause: {
+    icon: "alert",
+    accent: "var(--warn)",
+    verb: "Pause biotin",
+  },
+  daily_suggestion: {
+    icon: "sparkle",
+    accent: "var(--pro)",
+    verb: "Apply now",
+  },
+  reorder_alert: {
+    icon: "shopping-bag",
+    accent: "var(--premium)",
+    verb: "Add to shopping list",
+  },
 };
-const DEFAULT_META = { icon: "sparkle" as IconName, accent: "var(--olive)" };
+const DEFAULT_META = {
+  icon: "sparkle" as IconName,
+  accent: "var(--accent)",
+  verb: "Apply",
+};
 
 export default function InsightsBanner() {
   const [insights, setInsights] = useState<Insight[]>([]);
+  const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     (async () => {
@@ -54,17 +82,41 @@ export default function InsightsBanner() {
     setInsights((prev) => prev.filter((i) => i.id !== id));
   }
 
-  function openInChat(insight: Insight) {
-    const preface = insights
-      .map((i) => `[${i.title}]\n${i.body}`)
-      .join("\n\n");
-    const initialPrompt = `Here's what's on my plate today:\n\n${preface}\n\n---\n\nLet's talk about: **${insight.title}**`;
+  // Primary action — fire Coach with a pre-built "apply this" prompt.
+  // Coach will generate a <<<PROPOSAL>>> block the user can approve in one
+  // tap. Marks the insight as applied locally so the row dims while the
+  // user is in Coach.
+  async function applyInsight(insight: Insight) {
+    setAppliedIds((s) => new Set(s).add(insight.id));
+    const client = createClient();
+    await client
+      .from("insights")
+      .update({ status: "applied" })
+      .eq("id", insight.id);
+
+    const prompt =
+      `Take action on this insight from my Today screen and propose the specific change(s) as one-tap proposals I can approve.\n\n` +
+      `**${insight.title}**\n${insight.body}\n\n` +
+      `Generate ONLY the minimum changes needed. Use the <<<PROPOSAL ... PROPOSAL>>> format so I can approve them in one tap. If no concrete change is needed, just confirm in 1 sentence.`;
+
     window.dispatchEvent(
-      new CustomEvent("regimen:ask", { detail: { text: initialPrompt } }),
+      new CustomEvent("regimen:ask", {
+        detail: { text: prompt, send: true },
+      }),
     );
   }
 
-  if (insights.length === 0) return null;
+  function discussInsight(insight: Insight) {
+    const prompt =
+      `Tell me more about this:\n\n**${insight.title}**\n${insight.body}\n\n` +
+      `Help me decide what to do — but only propose changes if I ask.`;
+    window.dispatchEvent(
+      new CustomEvent("regimen:ask", { detail: { text: prompt } }),
+    );
+  }
+
+  const visible = insights.filter((i) => !appliedIds.has(i.id));
+  if (visible.length === 0) return null;
 
   return (
     <section className="mb-6">
@@ -77,72 +129,85 @@ export default function InsightsBanner() {
             letterSpacing: "0.06em",
           }}
         >
-          Notes from Claude
+          Notes from Coach
         </h2>
-        <button
-          onClick={() => {
-            const preface = insights
-              .map((i) => `[${i.title}]\n${i.body}`)
-              .join("\n\n");
-            window.dispatchEvent(
-              new CustomEvent("regimen:ask", {
-                detail: {
-                  text: `Today's notes:\n\n${preface}\n\nLet's chat about this.`,
-                },
-              }),
-            );
-          }}
-          className="text-[11px] flex items-center gap-1"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
+        <span
+          className="text-[11px] tabular-nums"
+          style={{ color: "var(--muted)" }}
         >
-          Chat about all
-          <Icon name="chevron-right" size={11} strokeWidth={2} />
-        </button>
+          {visible.length}
+        </span>
       </div>
 
       <div className="rounded-2xl card-glass overflow-hidden">
-        {insights.map((i, idx) => {
+        {visible.map((i, idx) => {
           const meta = TYPE_META[i.type] ?? DEFAULT_META;
           return (
-            <button
+            <div
               key={i.id}
-              onClick={() => openInChat(i)}
-              className="w-full text-left flex items-start gap-3 px-4 py-3.5"
+              className="px-4 pt-3.5 pb-3"
               style={{
-                borderTop:
-                  idx > 0 ? "1px solid var(--border)" : undefined,
+                borderTop: idx > 0 ? "1px solid var(--border)" : undefined,
               }}
             >
-              <span
-                className="shrink-0 mt-0.5"
-                style={{ color: meta.accent }}
-              >
-                <Icon name={meta.icon} size={16} strokeWidth={1.7} />
-              </span>
-              <div className="flex-1 min-w-0">
-                <div
-                  className="text-[14px] leading-snug"
-                  style={{ fontWeight: 500 }}
+              <div className="flex items-start gap-3">
+                <span
+                  className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
+                  style={{
+                    background: `${meta.accent}1F`,
+                    color: meta.accent,
+                  }}
                 >
-                  {i.title}
+                  <Icon name={meta.icon} size={14} strokeWidth={1.8} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="text-[14px] leading-snug"
+                    style={{ fontWeight: 600 }}
+                  >
+                    {i.title}
+                  </div>
+                  <div
+                    className="text-[12.5px] mt-1 leading-relaxed whitespace-pre-line"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    {i.body}
+                  </div>
                 </div>
-                <div
-                  className="text-[12px] mt-1 leading-relaxed whitespace-pre-line"
+                <button
+                  onClick={(e) => dismiss(e, i.id)}
+                  className="shrink-0 leading-none px-1.5 -mr-1.5 -mt-0.5"
                   style={{ color: "var(--muted)" }}
+                  aria-label="Dismiss"
                 >
-                  {i.body}
-                </div>
+                  <Icon name="plus" size={14} className="rotate-45" />
+                </button>
               </div>
-              <span
-                onClick={(e) => dismiss(e, i.id)}
-                className="shrink-0 leading-none cursor-pointer px-1.5 -mr-1.5"
-                style={{ color: "var(--muted)" }}
-                aria-label="Dismiss"
-                role="button"
-              >
-                <Icon name="plus" size={14} className="rotate-45" />
-              </span>
-            </button>
+              <div className="flex gap-2 mt-3 ml-10">
+                <button
+                  onClick={() => applyInsight(i)}
+                  className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                  style={{
+                    background: meta.accent,
+                    color: "#FBFAF6",
+                    fontWeight: 600,
+                  }}
+                >
+                  <Icon name="check-circle" size={12} strokeWidth={2.2} />
+                  {meta.verb}
+                </button>
+                <button
+                  onClick={() => discussInsight(i)}
+                  className="text-[12.5px] px-3 py-1.5 rounded-lg"
+                  style={{
+                    background: "var(--surface-alt)",
+                    color: "var(--foreground-soft)",
+                  }}
+                >
+                  Tell me more
+                </button>
+              </div>
+            </div>
           );
         })}
       </div>

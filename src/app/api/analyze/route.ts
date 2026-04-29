@@ -1,6 +1,6 @@
 // Unified photo analysis endpoint.
 // POST { type: 'food'|'supplement'|'scalp', imageUrl: string, note?: string }
-// Returns structured JSON analysis from Claude vision + stores it in the appropriate table.
+// Returns structured JSON analysis from Coach vision + stores it in the appropriate table.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";

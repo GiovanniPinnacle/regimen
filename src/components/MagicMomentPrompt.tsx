@@ -114,7 +114,7 @@ export default function MagicMomentPrompt() {
               className="text-[12px] mt-1 leading-relaxed"
               style={{ opacity: 0.85 }}
             >
-              You've logged {daysWithLogs} days. Claude can now read your
+              You've logged {daysWithLogs} days. Coach can now read your
               patterns and tell you what to drop. Takes 15 seconds.
             </div>
           </div>

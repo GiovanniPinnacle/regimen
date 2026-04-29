@@ -1,6 +1,6 @@
 // Heuristic pattern detection for the /today PatternCard.
-// No Claude call — pure SQL aggregation + rule-based scoring. Cheap to run,
-// shows insights immediately. Claude's deeper analysis lives in /api/refine.
+// No Coach call — pure SQL aggregation + rule-based scoring. Cheap to run,
+// shows insights immediately. Coach's deeper analysis lives in /api/refine.
 //
 // Patterns surfaced:
 //   1. WORSE warnings (urgent, top priority)

@@ -1,6 +1,6 @@
 // POST /api/about-me/extract
 // Single-shot extraction: paste any text (notes, transcript, journal entry,
-// list of meds, etc) and Claude pulls out structured profile fields.
+// list of meds, etc) and Coach pulls out structured profile fields.
 // Returns the patch + a summary; UI applies the patch with one tap.
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -110,7 +110,7 @@ Rules:
     }
   } catch (err) {
     return NextResponse.json(
-      { error: `Claude error: ${(err as Error).message}` },
+      { error: `Coach error: ${(err as Error).message}` },
       { status: 500 },
     );
   }
@@ -120,7 +120,7 @@ Rules:
     parsed = JSON.parse(extractJson(raw));
   } catch {
     return NextResponse.json(
-      { error: "Claude did not return valid JSON. Try again." },
+      { error: "Coach did not return valid JSON. Try again." },
       { status: 500 },
     );
   }

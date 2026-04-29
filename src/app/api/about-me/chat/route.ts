@@ -1,6 +1,6 @@
 // POST /api/about-me/chat
-// Conversational profile filler. Claude asks 2-3 sharp follow-ups per turn,
-// based on what's still empty. Each user message = a turn; Claude returns
+// Conversational profile filler. Coach asks 2-3 sharp follow-ups per turn,
+// based on what's still empty. Each user message = a turn; Coach returns
 // a) a friendly response, b) a profile patch (extracted), c) the next 1-3
 // questions to keep the convo moving.
 
@@ -125,7 +125,7 @@ Style:
     }
   } catch (err) {
     return NextResponse.json(
-      { error: `Claude error: ${(err as Error).message}` },
+      { error: `Coach error: ${(err as Error).message}` },
       { status: 500 },
     );
   }
@@ -139,7 +139,7 @@ Style:
     parsed = JSON.parse(extractJson(raw));
   } catch {
     return NextResponse.json(
-      { error: "Claude did not return valid JSON. Try again." },
+      { error: "Coach did not return valid JSON. Try again." },
       { status: 500 },
     );
   }

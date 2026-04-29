@@ -1,6 +1,6 @@
 "use client";
 
-// Conversational profile filler — chat with Claude instead of filling forms.
+// Conversational profile filler — chat with Coach instead of filling forms.
 // Each turn extracts data + saves to profile.about_me jsonb.
 
 import { useEffect, useRef, useState } from "react";

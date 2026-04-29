@@ -53,13 +53,13 @@ export default function EmptyToday({
           href="/items/new"
           icon="plus"
           title="Add a single item"
-          subtitle="Type a name, Claude classifies the rest. Magnesium, minoxidil, anything."
+          subtitle="Type a name, Coach classifies the rest. Magnesium, minoxidil, anything."
         />
         <PathCard
           href="/scan"
           icon="camera"
           title="Scan a label"
-          subtitle="Photograph your supplement bottle and Claude extracts dose + ingredients."
+          subtitle="Photograph your supplement bottle and Coach extracts dose + ingredients."
         />
       </div>
 
@@ -94,7 +94,7 @@ export default function EmptyToday({
               auto-logged macros
             </li>
             <li>
-              · <strong>Voice memos</strong> — vent, log, note. Claude reads
+              · <strong>Voice memos</strong> — vent, log, note. Coach reads
               them.
             </li>
             <li>

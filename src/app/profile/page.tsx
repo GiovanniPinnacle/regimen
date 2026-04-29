@@ -104,7 +104,7 @@ export default function ProfilePage() {
           Profile
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          Your body + goals → your portion targets. Claude uses these when suggesting meals.
+          Your body + goals → your portion targets. Coach uses these when suggesting meals.
         </div>
       </header>
 

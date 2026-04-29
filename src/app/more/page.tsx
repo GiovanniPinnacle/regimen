@@ -112,7 +112,7 @@ const SECTIONS: Section[] = [
       {
         href: "/about-me",
         label: "About me",
-        desc: "Goals, history, vision — context Claude uses",
+        desc: "Goals, history, vision — context Coach uses",
         icon: "user",
       },
       {
@@ -148,13 +148,13 @@ const SECTIONS: Section[] = [
       {
         href: "/scan",
         label: "Scan",
-        desc: "Photo of food, pill bottle, scalp — Claude analyzes",
+        desc: "Photo of food, pill bottle, scalp — Coach analyzes",
         icon: "camera",
       },
       {
         href: "/recipes",
         label: "Recipes",
-        desc: "Saved meals + Claude-generated recipes",
+        desc: "Saved meals + Coach-generated recipes",
         icon: "book",
       },
     ],

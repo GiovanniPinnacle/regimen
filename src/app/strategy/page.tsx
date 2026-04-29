@@ -154,7 +154,7 @@ const PRICING_TIERS: {
     features: [
       "Track up to 30 items",
       "1 active pack",
-      "3 Claude prompts/day",
+      "3 Coach prompts/day",
       "5 photo scans/month",
       "Manual logging + skip-with-reason",
     ],
@@ -166,7 +166,7 @@ const PRICING_TIERS: {
     highlight: true,
     features: [
       "Unlimited items + packs",
-      "Unlimited Claude (chat, auto-research, deep research)",
+      "Unlimited Coach (chat, auto-research, deep research)",
       "Unlimited photo scans + bloodwork analysis",
       "Apple Health + Oura sync",
       "Affiliate cashback (5% rebate on items ordered through Regimen)",
@@ -192,7 +192,7 @@ const PRICING_TIERS: {
       "Manage 1-50 client protocols",
       "Coach dashboard",
       "White-label option",
-      "Bulk Claude usage at lower margin",
+      "Bulk Coach usage at lower margin",
     ],
   },
 ];
@@ -216,7 +216,7 @@ const ROADMAP: { phase: string; window: string; items: string[] }[] = [
       "Regimen Recovery pack (reuses post-op day counter)",
       "Apple Health 2-way sync",
       "Affiliate cashback dashboard for users",
-      "Bloodwork OCR — upload PDF, Claude extracts + flags",
+      "Bloodwork OCR — upload PDF, Coach extracts + flags",
       "Lifetime tier launch + waitlist",
     ],
   },
@@ -293,7 +293,7 @@ export default function StrategyPage() {
             style={{ color: "var(--muted)" }}
           >
             <div>
-              · <strong>Refinement-first.</strong> Claude challenges every item.
+              · <strong>Refinement-first.</strong> Coach challenges every item.
             </div>
             <div>
               · <strong>Full context.</strong> Reads logs, skips, photos,
@@ -416,7 +416,7 @@ export default function StrategyPage() {
               Return-to-activity).
             </li>
             <li>
-              Companions, cycles, skip-as-data, photo scan, Claude context all
+              Companions, cycles, skip-as-data, photo scan, Coach context all
               work universally — zero rebuild per pack.
             </li>
             <li>
@@ -491,11 +491,11 @@ export default function StrategyPage() {
           >
             <li>
               · <strong>"Get this" button</strong> on every item with affiliate
-              URL set — Claude recommends, user clicks, we earn.
+              URL set — Coach recommends, user clicks, we earn.
             </li>
             <li>
               · <strong>Bloodwork referrals</strong> are highest-margin. After
-              Claude reviews patterns: "consider InsideTracker" with our link.
+              Coach reviews patterns: "consider InsideTracker" with our link.
             </li>
             <li>
               · <strong>Onboarding bundles</strong> — "First-time stack:
@@ -762,12 +762,12 @@ export default function StrategyPage() {
             style={{ color: "var(--foreground)", opacity: 0.9 }}
           >
             <li>
-              <strong>1. Affiliate vs. trust.</strong> If Claude recommends
+              <strong>1. Affiliate vs. trust.</strong> If Coach recommends
               what makes us money, we die. Recommendations must be picked first;
               affiliates only if available. Disclose every link.
             </li>
             <li>
-              <strong>2. Claude API cost per Pro user.</strong> Need a hard
+              <strong>2. Coach API cost per Pro user.</strong> Need a hard
               cap or smart caching. Maybe Sonnet for chat + Opus only for deep
               research.
             </li>

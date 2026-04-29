@@ -190,7 +190,7 @@ export default function OnboardPage() {
             className="text-[12px] leading-relaxed mb-6"
             style={{ color: "var(--muted)" }}
           >
-            Just so Claude can address you in the app. You can change it later
+            Just so Coach can address you in the app. You can change it later
             in /more → About me.
           </p>
           <button

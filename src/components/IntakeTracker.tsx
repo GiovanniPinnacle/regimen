@@ -482,7 +482,7 @@ function MealLogSheet({
               Log meal
             </div>
             <div className="text-[16px] mt-1" style={{ fontWeight: 500 }}>
-              Photo or describe — Claude estimates macros.
+              Photo or describe — Coach estimates macros.
             </div>
           </div>
           <button
@@ -544,7 +544,7 @@ function MealLogSheet({
                 {stage === "uploading"
                   ? "Uploading…"
                   : stage === "analyzing"
-                    ? "Claude analyzing…"
+                    ? "Coach analyzing…"
                     : "Take or upload a photo"}
               </div>
               <div className="text-[11px] mt-1" style={{ opacity: 0.8 }}>
@@ -589,7 +589,7 @@ function MealLogSheet({
               className="text-[11px] leading-relaxed"
               style={{ color: "var(--muted)" }}
             >
-              Claude estimates calories, protein, fat, carbs from your
+              Coach estimates calories, protein, fat, carbs from your
               description. Be specific about portions for better accuracy.
             </div>
           </div>

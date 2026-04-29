@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 const PRIMARY_GOALS = [
   {
     title: "Hair, recovery, post-op",
-    body: "Day-gated protocols. Photo your scalp, Claude reads it. Items unlock as your healing window opens.",
+    body: "Day-gated protocols. Photo your scalp, Coach reads it. Items unlock as your healing window opens.",
     badge: "Recovery",
   },
   {
@@ -24,7 +24,7 @@ const PRIMARY_GOALS = [
   },
   {
     title: "Longevity, refined",
-    body: "Biohacker stacks like Bryan Johnson — without the bloat. Claude tells you which 3 of 18 supps actually work for you.",
+    body: "Biohacker stacks like Bryan Johnson — without the bloat. Coach tells you which 3 of 18 supps actually work for you.",
     badge: "Longevity",
   },
 ];

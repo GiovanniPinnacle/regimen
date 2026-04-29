@@ -1,5 +1,7 @@
-// Ask Claude — streaming chat endpoint.
-// POST { messages: Array<{role, content}> } → text/event-stream
+// Coach — streaming chat endpoint. (Persona: Coach. Model: Claude Sonnet.)
+// POST { messages: Array<{role, content}> } → streaming text
+// Content can be a plain string OR an array of multimodal parts
+// ({ type: "text" | "image", ... }) so users can send photos.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -13,7 +15,16 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-type InMsg = { role: "user" | "assistant"; content: string };
+type InContentPart =
+  | { type: "text"; text: string }
+  | {
+      type: "image";
+      source: { type: "base64"; media_type: string; data: string };
+    };
+type InMsg = {
+  role: "user" | "assistant";
+  content: string | InContentPart[];
+};
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -35,7 +46,7 @@ export async function POST(request: NextRequest) {
   const anthropic = getAnthropic();
   const messages: MessageParam[] = body.messages.map((m) => ({
     role: m.role,
-    content: m.content,
+    content: m.content as MessageParam["content"],
   }));
 
   // Stream response
@@ -64,7 +75,7 @@ export async function POST(request: NextRequest) {
         console.error("ask/route streaming error", err);
         controller.enqueue(
           encoder.encode(
-            `\n\n[Error from Claude: ${(err as Error).message}]`,
+            `\n\n[Coach hit a snag: ${(err as Error).message}]`,
           ),
         );
         controller.close();

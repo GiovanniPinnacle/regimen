@@ -1,7 +1,7 @@
 "use client";
 
 // /insights — the broader "what's working / what's not" surface.
-// Replaces /refine in the bottom nav. Refine (Claude audit) is now ONE
+// Replaces /refine in the bottom nav. Refine (Coach audit) is now ONE
 // section here, alongside heuristic patterns, adherence trend, reactions
 // summary, voice memos, costs preview.
 //
@@ -421,9 +421,9 @@ export default function InsightsPage() {
         </Section>
       )}
 
-      {/* Claude audit */}
+      {/* Coach audit */}
       <Section
-        title="Full Claude audit"
+        title="Full Coach audit"
         subtitle={`${usage.count}/${FREE_DAILY_LIMIT} runs used today`}
       >
         <button
@@ -446,7 +446,7 @@ export default function InsightsPage() {
               ? "Daily free limit reached"
               : memo
                 ? "Run again →"
-                : "Run full Claude audit →"}
+                : "Run full Coach audit →"}
         </button>
 
         {limitReached && (
@@ -474,7 +474,7 @@ export default function InsightsPage() {
               className="text-[12px] mt-1 leading-relaxed"
               style={{ color: "var(--muted)" }}
             >
-              Pro = unlimited Claude audits, deep research, photo analysis, and
+              Pro = unlimited Coach audits, deep research, photo analysis, and
               5% rebate on items ordered through Regimen. $9/mo or $79/yr.
             </div>
             <button
@@ -540,7 +540,7 @@ export default function InsightsPage() {
                 className="text-[12px] mt-0.5"
                 style={{ color: "var(--muted)" }}
               >
-                Monthly cost · expensive items · Claude's drop savings estimate
+                Monthly cost · expensive items · Coach's drop savings estimate
               </div>
             </div>
             <svg

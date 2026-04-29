@@ -193,7 +193,7 @@ export default function SwapSheet({
               }}
             >
               {stage === "uploading" && "📤 Uploading…"}
-              {stage === "analyzing" && "🔍 Claude analyzing…"}
+              {stage === "analyzing" && "🔍 Coach analyzing…"}
               {stage === "idle" && "📷 Photo of what you ate"}
               {stage === "saving" && "💾 Saving…"}
             </label>
@@ -260,7 +260,7 @@ export default function SwapSheet({
           className="text-[11px] mt-4 leading-relaxed"
           style={{ color: "var(--muted)" }}
         >
-          Photo → Claude vision extracts ingredients + flags any triggers (insulin/histamine/hard NOs) and pre-fills the textarea. Edit before saving.
+          Photo → Coach vision extracts ingredients + flags any triggers (insulin/histamine/hard NOs) and pre-fills the textarea. Edit before saving.
         </div>
       </div>
     </div>

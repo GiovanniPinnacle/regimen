@@ -1,4 +1,4 @@
-// Execute a Claude-proposed change to the user's regimen.
+// Execute a Coach-proposed change to the user's regimen.
 // Writes to items table + logs in changelog. Auth required.
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
     change_type: changeType,
     item_id: itemId,
     item_name: itemName,
-    reasoning: body.reasoning ?? `Claude-proposed ${body.action}`,
+    reasoning: body.reasoning ?? `Coach-proposed ${body.action}`,
     triggered_by: "ask_claude",
     approved_by_user: true,
   });

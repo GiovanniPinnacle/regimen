@@ -6,7 +6,7 @@
 // Free user variant: shows what they've used vs the free cap, with a
 // soft CTA to upgrade — "You'd save $X with Pro."
 //
-// Pro variant: shows what they've claimed in value this month — Claude
+// Pro variant: shows what they've claimed in value this month — Coach
 // runs, photo scans, deep research, affiliate rebate. Reinforces "you're
 // already getting your money's worth."
 
@@ -144,7 +144,7 @@ export default function ProBenefits() {
             className="text-[11px] flex flex-wrap gap-x-3 gap-y-0.5"
             style={{ color: "var(--muted)" }}
           >
-            <span>{stats.claude_runs_this_month} Claude runs</span>
+            <span>{stats.claude_runs_this_month} Coach runs</span>
             {stats.photo_scans_this_month > 0 && (
               <span>{stats.photo_scans_this_month} scans</span>
             )}
@@ -197,7 +197,7 @@ function FreeUpsellCard() {
             className="text-[15px] leading-snug mt-0.5"
             style={{ fontWeight: 600 }}
           >
-            Unlock unlimited Claude + 5% rebates
+            Unlock unlimited Coach + 5% rebates
           </div>
           <div
             className="text-[12px] mt-1 leading-relaxed"

@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         ? response.content[0].text
         : "";
 
-    // Parse JSON — strip any markdown fence if Claude added one
+    // Parse JSON — strip any markdown fence if Coach added one
     const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
     const parsed = JSON.parse(cleaned);
 
