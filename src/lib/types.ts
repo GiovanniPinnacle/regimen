@@ -110,6 +110,10 @@ export type Item = {
   affiliate_url?: string | null;
   list_price_cents?: number | null;
   vendor_sku?: string | null;
+  // Global catalog link — see migration 023. When set, this item shares
+  // macro/micro/mechanism data with all users who picked the same
+  // catalog entry. The catalog row is enriched lazily by Coach.
+  catalog_item_id?: string | null;
   // Protocol provenance — see migration 015.
   from_protocol_slug?: string | null;
   from_protocol_item_key?: string | null;

@@ -17,6 +17,7 @@ import {
   ITEM_TYPE_LABELS,
   TIMING_LABELS,
 } from "@/lib/constants";
+import CatalogAutocomplete from "@/components/CatalogAutocomplete";
 
 const ITEM_TYPES: ItemType[] = [
   "supplement",
@@ -119,6 +120,12 @@ export default function ItemForm({ initial, onSaved }: Props) {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoErr, setPhotoErr] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // catalog_item_id is set when the user picks from CatalogAutocomplete
+  // — links the user item to a shared catalog row so we don't re-import
+  // and Coach enrichment can run lazily.
+  const [catalogItemId, setCatalogItemId] = useState<string | null>(
+    initial?.catalog_item_id ?? null,
+  );
 
   // Photo-to-form: snap a supplement label, Coach extracts name + brand +
   // dose + type/timing/goals/frequency in one shot. Uses the existing
@@ -265,6 +272,7 @@ export default function ItemForm({ initial, onSaved }: Props) {
         companionOf && companionInstruction.trim()
           ? companionInstruction.trim()
           : null,
+      catalog_item_id: catalogItemId,
     };
 
     let savedId: string | undefined = initial?.id;
@@ -283,6 +291,16 @@ export default function ItemForm({ initial, onSaved }: Props) {
     if (savedId) {
       fetch(`/api/items/${savedId}/research`, { method: "POST" }).catch(() => null);
     }
+    // Fire-and-forget Coach enrichment for the catalog entry — adds
+    // mechanism, timing, brand picks, cautions, evidence grade for the
+    // shared row so all users benefit. Idempotent on the server side.
+    if (catalogItemId) {
+      fetch("/api/catalog/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: catalogItemId }),
+      }).catch(() => null);
+    }
 
     setSaving(false);
     if (onSaved) onSaved();
@@ -296,11 +314,49 @@ export default function ItemForm({ initial, onSaved }: Props) {
         <input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            // User edited away from a picked catalog match — unlink so
+            // we don't claim catalog data we don't have anymore.
+            if (catalogItemId) setCatalogItemId(null);
+          }}
           required
           autoFocus
           className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
           style={{ background: "var(--background)", color: "var(--foreground)" }}
+        />
+        <CatalogAutocomplete
+          query={name}
+          disabled={Boolean(initial?.id)}
+          onPick={(hit) => {
+            setName(hit.name);
+            if (hit.brand) setBrand(hit.brand);
+            if (
+              hit.item_type === "supplement" ||
+              hit.item_type === "food" ||
+              hit.item_type === "topical" ||
+              hit.item_type === "device" ||
+              hit.item_type === "gear" ||
+              hit.item_type === "test"
+            ) {
+              setItemType(hit.item_type);
+            }
+            if (hit.catalog_item_id) setCatalogItemId(hit.catalog_item_id);
+            // Try to fill a sensible default dose from the first active
+            // ingredient when supplement
+            if (
+              hit.item_type === "supplement" &&
+              hit.active_ingredients &&
+              hit.active_ingredients.length > 0 &&
+              !dose.trim()
+            ) {
+              const first = hit.active_ingredients[0];
+              setDose(`${first.amount} ${first.unit} ${first.name}`);
+            }
+            setClassifyHint(
+              `Pre-filled from ${hit.source === "off" ? "Open Food Facts" : hit.source === "usda" ? "USDA" : hit.source === "dsld" ? "NIH DSLD" : "our catalog"}. Adjust below if needed.`,
+            );
+          }}
         />
       </Field>
 

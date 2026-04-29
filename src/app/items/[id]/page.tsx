@@ -38,6 +38,41 @@ export default async function ItemDetailPage({
   const info = getItemInfo(item.seed_id);
   const typeIcon = ITEM_TYPE_ICONS[item.item_type] ?? "";
 
+  // Pull the linked catalog row (if any) so we can render Coach's
+  // shared enrichment — mechanism, timing, brand picks, cautions —
+  // alongside the user's personal item view.
+  type CatalogEnrichment = {
+    coach_summary: string | null;
+    mechanism: string | null;
+    best_timing: string | null;
+    pairs_well_with: { name: string; reason: string }[] | null;
+    conflicts_with: { name: string; reason: string }[] | null;
+    cautions: { tag: string; note: string }[] | null;
+    brand_recommendations:
+      | { brand: string; reasoning: string; vendor_url?: string }[]
+      | null;
+    evidence_grade: string | null;
+    source: string;
+    serving_size: string | null;
+    calories: number | null;
+    protein_g: number | null;
+    fat_g: number | null;
+    carbs_g: number | null;
+  };
+  let catalog: CatalogEnrichment | null = null;
+  if (item.catalog_item_id) {
+    const { data: catalogRow } = await supabase
+      .from("catalog_items")
+      .select(
+        "coach_summary, mechanism, best_timing, pairs_well_with, " +
+          "conflicts_with, cautions, brand_recommendations, evidence_grade, " +
+          "source, serving_size, calories, protein_g, fat_g, carbs_g",
+      )
+      .eq("id", item.catalog_item_id)
+      .maybeSingle();
+    catalog = catalogRow as unknown as CatalogEnrichment | null;
+  }
+
   // Related items (same primary goal, active)
   const primaryGoal = item.goals[0];
   let related: Item[] = [];
@@ -195,6 +230,184 @@ export default async function ItemDetailPage({
       </header>
 
       <ItemActions item={item} />
+
+      {catalog && (catalog.coach_summary || catalog.mechanism) && (
+        <Section title="What it is">
+          <div className="rounded-2xl card-glass p-4 flex flex-col gap-3">
+            {catalog.evidence_grade && (
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
+                  style={{
+                    background:
+                      catalog.evidence_grade === "A"
+                        ? "var(--accent-tint)"
+                        : catalog.evidence_grade === "B"
+                          ? "var(--pro-tint)"
+                          : catalog.evidence_grade === "C"
+                            ? "var(--premium-tint)"
+                            : "rgba(239, 68, 68, 0.10)",
+                    color:
+                      catalog.evidence_grade === "A"
+                        ? "var(--accent)"
+                        : catalog.evidence_grade === "B"
+                          ? "var(--pro)"
+                          : catalog.evidence_grade === "C"
+                            ? "var(--premium)"
+                            : "var(--error)",
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                  }}
+                >
+                  Evidence {catalog.evidence_grade}
+                </span>
+                {catalog.best_timing && (
+                  <span
+                    className="text-[11px]"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    Best {catalog.best_timing}
+                  </span>
+                )}
+              </div>
+            )}
+            {catalog.coach_summary && (
+              <div
+                className="text-[13.5px] leading-relaxed"
+                style={{ color: "var(--foreground-soft)" }}
+              >
+                {catalog.coach_summary}
+              </div>
+            )}
+            {catalog.mechanism && (
+              <div>
+                <div
+                  className="text-[10px] uppercase tracking-wider mb-1"
+                  style={{
+                    color: "var(--muted)",
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  How it works
+                </div>
+                <div
+                  className="text-[12.5px] leading-relaxed"
+                  style={{ color: "var(--muted)" }}
+                >
+                  {catalog.mechanism}
+                </div>
+              </div>
+            )}
+            {catalog.cautions && catalog.cautions.length > 0 && (
+              <div
+                className="rounded-xl p-3"
+                style={{
+                  background: "rgba(239, 68, 68, 0.08)",
+                  border: "1px solid rgba(239, 68, 68, 0.20)",
+                }}
+              >
+                <div
+                  className="text-[10px] uppercase tracking-wider mb-1"
+                  style={{
+                    color: "var(--error)",
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  Watch for
+                </div>
+                <ul className="flex flex-col gap-0.5">
+                  {catalog.cautions.map((c, i) => (
+                    <li
+                      key={i}
+                      className="text-[12px] leading-snug"
+                      style={{ color: "var(--foreground-soft)" }}
+                    >
+                      <span
+                        style={{ color: "var(--error)", fontWeight: 700 }}
+                      >
+                        {c.tag}:
+                      </span>{" "}
+                      {c.note}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {catalog.pairs_well_with &&
+              catalog.pairs_well_with.length > 0 && (
+                <div>
+                  <div
+                    className="text-[10px] uppercase tracking-wider mb-1"
+                    style={{
+                      color: "var(--accent)",
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    Pairs well with
+                  </div>
+                  <ul className="flex flex-col gap-0.5">
+                    {catalog.pairs_well_with.slice(0, 4).map((p, i) => (
+                      <li
+                        key={i}
+                        className="text-[12.5px] leading-snug"
+                        style={{ color: "var(--foreground-soft)" }}
+                      >
+                        <span style={{ fontWeight: 600 }}>{p.name}</span> —{" "}
+                        {p.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            {catalog.brand_recommendations &&
+              catalog.brand_recommendations.length > 0 && (
+                <div>
+                  <div
+                    className="text-[10px] uppercase tracking-wider mb-1"
+                    style={{
+                      color: "var(--premium)",
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    Recommended brands
+                  </div>
+                  <ul className="flex flex-col gap-0.5">
+                    {catalog.brand_recommendations
+                      .slice(0, 3)
+                      .map((b, i) => (
+                        <li
+                          key={i}
+                          className="text-[12.5px] leading-snug"
+                          style={{ color: "var(--foreground-soft)" }}
+                        >
+                          <span style={{ fontWeight: 600 }}>{b.brand}</span>{" "}
+                          — {b.reasoning}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+            <div
+              className="text-[10px] mt-1 flex items-center gap-1"
+              style={{ color: "var(--muted)" }}
+            >
+              From the global catalog ·{" "}
+              {catalog.source === "off"
+                ? "Open Food Facts"
+                : catalog.source === "usda"
+                  ? "USDA"
+                  : catalog.source === "dsld"
+                    ? "NIH DSLD"
+                    : "Curated"}
+              {" · enriched by Coach"}
+            </div>
+          </div>
+        </Section>
+      )}
 
       {item.usage_notes && (
         <Section title="How to use">
