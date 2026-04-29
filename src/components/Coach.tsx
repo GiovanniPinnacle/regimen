@@ -700,6 +700,21 @@ const DEEP_PROMPTS = [
   "What pattern would my next-best biomarker test reveal?",
 ];
 
+// Synthesize a short, friendly chip-style label for technical
+// programmatic prompts (Audit Lenses, NextStep CTAs, etc.). The user
+// shouldn't see verbose engineering instructions in their own bubble.
+function compactUserLabel(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed.length < 90) return null;
+  if (trimmed.includes("?") && trimmed.length < 140) return null;
+  // First sentence, max 80 chars, ellipsis if longer.
+  const first = trimmed.split(/[.\n]/)[0].trim();
+  if (first.length <= 80) return first;
+  // Word-boundary cut
+  const cut = first.slice(0, 80).split(" ").slice(0, -1).join(" ");
+  return (cut.length > 30 ? cut : first.slice(0, 77)) + "…";
+}
+
 function MessageBubble({
   msg,
   executed,
@@ -712,6 +727,7 @@ function MessageBubble({
   onDismiss: (p: Proposal) => void;
 }) {
   const isUser = msg.role === "user";
+  const [showFull, setShowFull] = useState(false);
 
   // Multimodal: extract image + text parts
   let displayText = "";
@@ -730,6 +746,11 @@ function MessageBubble({
     ? []
     : parseProposals(typeof msg.content === "string" ? msg.content : displayText);
 
+  // For user messages, hide verbose technical prompts behind a friendly
+  // chip. User-typed questions (short, often with ?) render normally.
+  const compactLabel = isUser ? compactUserLabel(displayText) : null;
+  const isCompact = compactLabel !== null && !showFull;
+
   return (
     <div
       className={`flex flex-col ${isUser ? "items-end" : "items-start"} gap-2`}
@@ -747,22 +768,38 @@ function MessageBubble({
           />
         </div>
       )}
-      {displayText && (
-        <div
-          className="rounded-2xl px-4 py-2.5 max-w-[85%] text-[14.5px] leading-relaxed whitespace-pre-wrap"
+      {isCompact ? (
+        <button
+          onClick={() => setShowFull(true)}
+          className="text-[12px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full max-w-[85%] text-left"
           style={{
-            background: isUser
-              ? "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)"
-              : "var(--surface-alt)",
-            color: isUser ? "#FBFAF6" : "var(--foreground)",
-            borderRadius: isUser
-              ? "18px 18px 4px 18px"
-              : "18px 18px 18px 4px",
-            fontWeight: isUser ? 500 : 400,
+            background: "var(--pro-tint)",
+            color: "var(--pro)",
+            fontWeight: 600,
           }}
+          title="Tap to see full request"
         >
-          {displayText}
-        </div>
+          <Icon name="sparkle" size={11} strokeWidth={2.2} />
+          <span className="truncate">{compactLabel}</span>
+        </button>
+      ) : (
+        displayText && (
+          <div
+            className="rounded-2xl px-4 py-2.5 max-w-[85%] text-[14.5px] leading-relaxed whitespace-pre-wrap"
+            style={{
+              background: isUser
+                ? "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)"
+                : "var(--surface-alt)",
+              color: isUser ? "#FBFAF6" : "var(--foreground)",
+              borderRadius: isUser
+                ? "18px 18px 4px 18px"
+                : "18px 18px 18px 4px",
+              fontWeight: isUser ? 500 : 400,
+            }}
+          >
+            {displayText}
+          </div>
+        )
       )}
       {proposals.map((p) => (
         <ProposalCard
@@ -777,6 +814,68 @@ function MessageBubble({
   );
 }
 
+// Map technical proposal extra keys to friendly bullet-style descriptions.
+// e.g. "timing_slot: breakfast" → "• Take at breakfast"
+const TIMING_LABELS: Record<string, string> = {
+  pre_breakfast: "first thing in the morning",
+  breakfast: "with breakfast",
+  pre_workout: "before your workout",
+  lunch: "with lunch",
+  dinner: "with dinner",
+  pre_bed: "before bed",
+  ongoing: "throughout the day",
+  situational: "as needed",
+};
+
+const FREQUENCY_LABELS: Record<string, string> = {
+  daily: "every day",
+  weekly: "weekly",
+  monthly: "monthly",
+  cycled_5_2: "cycled (5 days on, 2 off)",
+  cycled_8_4: "cycled (8 weeks on, 4 off)",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  permanent: "your permanent stack",
+  temporary: "temporary — review later",
+  cycled: "cycled — on/off rotation",
+  situational: "as needed",
+  condition_linked: "tied to a condition",
+};
+
+function humanizeExtra(key: string, value: string): string | null {
+  switch (key) {
+    case "timing_slot":
+      return `Take ${TIMING_LABELS[value] ?? `at ${value.replace(/_/g, " ")}`}`;
+    case "frequency":
+      return FREQUENCY_LABELS[value] ?? value.replace(/_/g, " ");
+    case "category":
+      return `In ${CATEGORY_LABELS[value] ?? value.replace(/_/g, " ")}`;
+    case "dose":
+      return `Dose: ${value}`;
+    case "brand":
+      return `Brand: ${value}`;
+    case "goals": {
+      const list = value
+        .split(/[,;]/)
+        .map((g) => g.trim())
+        .filter(Boolean);
+      if (list.length === 0) return null;
+      return `For: ${list.join(" · ")}`;
+    }
+    case "item_type":
+      return null; // implied by rest of card
+    case "notes":
+      return value.length > 80 ? value.slice(0, 77) + "…" : value;
+    case "companion_of":
+      return `Pair with ${value}`;
+    case "companion_instruction":
+      return value;
+    default:
+      return `${key.replace(/_/g, " ")}: ${value}`;
+  }
+}
+
 function ProposalCard({
   proposal,
   state,
@@ -788,22 +887,58 @@ function ProposalCard({
   onApprove: (p: Proposal) => void;
   onDismiss: (p: Proposal) => void;
 }) {
+  // Friendlier action labels. "Add to active" → "Yes, add it"; "Drop now"
+  // → "Yes, drop it"; etc. The action verb stays directional but reads
+  // like a person's choice, not a system command.
   const ACTION_META: Record<
     Proposal["action"],
-    { label: string; accent: string; verb: string }
+    { headline: string; accent: string; yes: string; no: string }
   > = {
-    add: { label: "Add", accent: "var(--accent)", verb: "Add to active" },
-    update: { label: "Update", accent: "var(--pro)", verb: "Update" },
-    adjust: { label: "Adjust", accent: "var(--pro)", verb: "Adjust" },
-    retire: { label: "Drop", accent: "var(--error)", verb: "Drop now" },
-    promote: {
-      label: "Promote",
+    add: {
+      headline: "Add to your stack?",
       accent: "var(--accent)",
-      verb: "Promote to active",
+      yes: "Yes, add it",
+      no: "Not now",
     },
-    queue: { label: "Queue", accent: "var(--muted)", verb: "Add to queued" },
+    update: {
+      headline: "Update this item?",
+      accent: "var(--pro)",
+      yes: "Yes, update",
+      no: "Leave it",
+    },
+    adjust: {
+      headline: "Adjust this?",
+      accent: "var(--pro)",
+      yes: "Yes, adjust",
+      no: "Leave it",
+    },
+    retire: {
+      headline: "Drop from your stack?",
+      accent: "var(--error)",
+      yes: "Yes, drop it",
+      no: "Keep it",
+    },
+    promote: {
+      headline: "Move to active?",
+      accent: "var(--accent)",
+      yes: "Yes, activate",
+      no: "Not now",
+    },
+    queue: {
+      headline: "Queue for later?",
+      accent: "var(--muted)",
+      yes: "Yes, queue",
+      no: "Not now",
+    },
   };
   const meta = ACTION_META[proposal.action] ?? ACTION_META.update;
+
+  // Humanize extras into bullet sentences instead of key:value pairs
+  const friendlyExtras = proposal.extra
+    ? Object.entries(proposal.extra)
+        .map(([k, v]) => humanizeExtra(k, v))
+        .filter((s): s is string => s !== null)
+    : [];
 
   return (
     <div
@@ -813,66 +948,62 @@ function ProposalCard({
         border: `1px solid ${state === "done" ? meta.accent : "var(--border)"}`,
       }}
     >
-      <div className="flex items-center gap-2 mb-2">
-        <span
-          className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
-          style={{
-            background: `${meta.accent}1F`,
-            color: meta.accent,
-            fontWeight: 700,
-            letterSpacing: "0.06em",
-          }}
-        >
-          {meta.label}
-        </span>
-        <span
-          className="text-[11px]"
-          style={{ color: "var(--muted)" }}
-        >
-          One-tap commit
-        </span>
+      <div
+        className="text-[10px] uppercase tracking-wider mb-1"
+        style={{
+          color: meta.accent,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+        }}
+      >
+        {meta.headline}
       </div>
-      <div className="text-[15px]" style={{ fontWeight: 600 }}>
+      <div className="text-[16px]" style={{ fontWeight: 700 }}>
         {proposal.item_name}
       </div>
       {proposal.reasoning && (
         <div
-          className="text-[12.5px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
+          className="text-[13px] mt-1.5 leading-relaxed"
+          style={{ color: "var(--foreground-soft)" }}
         >
           {proposal.reasoning}
         </div>
       )}
-      {proposal.extra && Object.keys(proposal.extra).length > 0 && (
-        <div
-          className="text-[11.5px] mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1"
+      {friendlyExtras.length > 0 && (
+        <ul
+          className="text-[12px] mt-2.5 leading-snug flex flex-col gap-0.5"
           style={{ color: "var(--muted)" }}
         >
-          {Object.entries(proposal.extra).map(([k, v]) => (
-            <div key={k} className="truncate">
-              <span style={{ fontWeight: 600 }}>{k.replace(/_/g, " ")}</span>:{" "}
-              {v}
-            </div>
+          {friendlyExtras.map((s, i) => (
+            <li key={i} className="flex items-start gap-1.5">
+              <span
+                style={{ color: meta.accent, marginTop: 2 }}
+                aria-hidden
+              >
+                ·
+              </span>
+              <span>{s}</span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       <div className="flex gap-2 mt-3">
         {state === "done" ? (
           <div
-            className="text-[13px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+            className="text-[13px] px-3 py-2 rounded-lg flex items-center gap-1.5"
             style={{
               background: `${meta.accent}1F`,
               color: meta.accent,
-              fontWeight: 600,
+              fontWeight: 700,
             }}
           >
-            <Icon name="check-circle" size={14} strokeWidth={2} />
-            Applied
+            <Icon name="check-circle" size={14} strokeWidth={2.2} />
+            Done
           </div>
         ) : state === "error" ? (
           <div
-            className="text-[13px] px-3 py-1.5"
+            className="text-[13px] px-3 py-2"
             style={{ color: "var(--muted)" }}
           >
             Dismissed
@@ -882,20 +1013,20 @@ function ProposalCard({
             <button
               onClick={() => onApprove(proposal)}
               disabled={state === "pending"}
-              className="px-3.5 py-2 rounded-lg text-[13px] flex items-center gap-1.5"
+              className="flex-1 px-3.5 py-2 rounded-lg text-[13.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
               style={{
                 background: meta.accent,
                 color: "#FBFAF6",
-                fontWeight: 600,
+                fontWeight: 700,
                 opacity: state === "pending" ? 0.6 : 1,
               }}
             >
               {state === "pending" ? (
-                "Applying…"
+                "…"
               ) : (
                 <>
-                  <Icon name="check-circle" size={14} strokeWidth={2.2} />
-                  {meta.verb}
+                  <Icon name="check-circle" size={13} strokeWidth={2.4} />
+                  {meta.yes}
                 </>
               )}
             </button>
@@ -905,9 +1036,10 @@ function ProposalCard({
               style={{
                 color: "var(--muted)",
                 background: "var(--surface-alt)",
+                fontWeight: 600,
               }}
             >
-              Skip
+              {meta.no}
             </button>
           </>
         )}
