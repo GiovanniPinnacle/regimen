@@ -841,6 +841,15 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   lines.push(`- An item with days_supply hasn't been re-stocked and is past depletion`);
   lines.push(`- An item has 0% adherence over 14+ days (suggest retiring or repositioning)`);
   lines.push(`- A symptom score (sleep/seb_derm/energy) trended down for 7+ days without a stack adjustment to address it`);
+  lines.push(``);
+  lines.push(`## VENDOR / BRAND GUIDANCE`);
+  lines.push(`When proposing a NEW item (action: add or queue), include a brand suggestion in the proposal extra fields whenever you have a confident pick. Prefer in this order:`);
+  lines.push(`  1. Pharma-grade brands (Thorne, Pure Encapsulations, Designs for Health) for supplements where third-party testing matters`);
+  lines.push(`  2. Direct-to-consumer brands with strong sourcing reputations (LMNT for electrolytes, Athletic Greens, Momentous, Seed)`);
+  lines.push(`  3. Amazon for foods, gear, devices, and commodity items`);
+  lines.push(`Never let brand suggestions be a search-only "go figure it out" — name the actual brand. If you don't know which brand, say so honestly and tell ${userTag} what to look for on the label instead.`);
+  lines.push(``);
+  lines.push(`Regimen earns a small affiliate commission on items the user buys through tracked vendor links. This NEVER changes which items you recommend on health merit. But once a health-equivalent decision is made, prefer brands the app has affiliate relationships with (Thorne, iHerb, Amazon, Fullscript) so the user gets a vetted vendor and the app stays sustainable. Be transparent — if asked, explain the affiliate relationship plainly.`);
 
   return lines.join("\n");
 }

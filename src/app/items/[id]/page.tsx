@@ -14,6 +14,7 @@ import ItemActions from "@/components/ItemActions";
 import PurchaseStateControl from "@/components/PurchaseStateControl";
 import RegenerateResearchButton from "@/components/RegenerateResearchButton";
 import DeepResearchButton from "@/components/DeepResearchButton";
+import BuyButton from "@/components/BuyButton";
 
 export default async function ItemDetailPage({
   params,
@@ -571,74 +572,46 @@ export default async function ItemDetailPage({
         </Section>
       )}
 
-      {(item.affiliate_url || item.purchase_url) && (
-        <Section title="Get this">
-          {item.affiliate_url ? (
-            <div className="flex flex-col gap-2">
-              <a
-                href={item.affiliate_url}
-                target="_blank"
-                rel="noopener noreferrer sponsored"
-                className="rounded-2xl px-4 py-3 flex items-center justify-between gap-3"
-                style={{
-                  background: "var(--olive)",
-                  color: "#FBFAF6",
-                  fontWeight: 500,
-                }}
-              >
-                <span className="flex flex-col">
-                  <span className="text-[14px]">
-                    Get on {item.vendor ?? "vendor"} →
-                  </span>
-                  {item.list_price_cents != null && (
-                    <span
-                      className="text-[11px]"
-                      style={{ opacity: 0.78 }}
-                    >
-                      ${(item.list_price_cents / 100).toFixed(2)}
-                    </span>
-                  )}
-                </span>
-                <span
-                  className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
-                  style={{
-                    background: "rgba(251, 250, 246, 0.18)",
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  Affiliate
-                </span>
-              </a>
-              <div
-                className="text-[11px] leading-relaxed"
-                style={{ color: "var(--muted)" }}
-              >
-                Regimen earns a commission on this link. Recommendations are
-                picked first — affiliates are metadata on already-recommended
-                items, never the reason for them.{" "}
-                <Link
-                  href="/strategy"
-                  className="underline"
-                  style={{ color: "var(--olive)" }}
-                >
-                  How this works
-                </Link>
-              </div>
-            </div>
-          ) : item.purchase_url ? (
-            <a
-              href={item.purchase_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[13px] underline"
+      {(() => {
+        const BUYABLE = new Set([
+          "supplement",
+          "topical",
+          "device",
+          "gear",
+          "test",
+          "food",
+        ]);
+        if (!BUYABLE.has(item.item_type)) return null;
+        return (
+          <Section title="Get this">
+            <BuyButton
+              itemId={item.id}
+              itemName={item.name}
+              vendor={item.vendor}
+              affiliateUrl={item.affiliate_url ?? item.purchase_url ?? null}
+              listPriceCents={item.list_price_cents}
+              source="item_detail"
+              variant="primary"
+              label={item.affiliate_url ? "Get this" : "Find on Amazon"}
+            />
+            <div
+              className="text-[11px] leading-relaxed mt-3"
               style={{ color: "var(--muted)" }}
             >
-              {new URL(item.purchase_url).hostname}
-            </a>
-          ) : null}
-        </Section>
-      )}
+              Regimen earns a small commission on links we vetted. Recommendations
+              are picked FIRST on health merit — affiliates are only attached to
+              items already approved by Coach.{" "}
+              <Link
+                href="/strategy"
+                className="underline"
+                style={{ color: "var(--accent)" }}
+              >
+                How this works
+              </Link>
+            </div>
+          </Section>
+        );
+      })()}
 
       {related.length > 0 && (
         <Section title={`Also for ${GOAL_LABELS[primaryGoal!]}`}>

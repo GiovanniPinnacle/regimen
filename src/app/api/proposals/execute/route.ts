@@ -151,5 +151,21 @@ export async function POST(request: NextRequest) {
     approved_by_user: true,
   });
 
+  // For new items, fire-and-forget affiliate discovery so every Coach-
+  // proposed item becomes a revenue opportunity automatically.
+  if (
+    itemId &&
+    (changeType === "add" || changeType === "promote") &&
+    request.headers.get("origin")
+  ) {
+    const origin = request.headers.get("origin")!;
+    const cookie = request.headers.get("cookie") ?? "";
+    void fetch(`${origin}/api/affiliates/discover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie },
+      body: JSON.stringify({ itemId }),
+    }).catch(() => {});
+  }
+
   return NextResponse.json({ ok: true, action: changeType, itemId });
 }

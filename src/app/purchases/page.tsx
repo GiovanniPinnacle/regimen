@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Item, PurchaseState } from "@/lib/types";
 import PurchaseStateControl from "@/components/PurchaseStateControl";
 import Icon from "@/components/Icon";
+import BuyButton from "@/components/BuyButton";
 
 export const dynamic = "force-dynamic";
 
@@ -281,25 +282,19 @@ export default async function PurchasesPage() {
                       </div>
                       <div className="mt-3 flex items-center gap-2 flex-wrap">
                         <PurchaseStateControl item={item} compact />
-                        {item.purchase_url && (
-                          <a
-                            href={item.purchase_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-lg text-[12px] flex items-center gap-1"
-                            style={{
-                              background: "var(--premium)",
-                              color: "#FBFAF6",
-                              fontWeight: 600,
-                            }}
-                          >
-                            Buy
-                            <Icon
-                              name="chevron-right"
-                              size={11}
-                              strokeWidth={2.2}
-                            />
-                          </a>
+                        {(item.affiliate_url || item.purchase_url || s === "needed") && (
+                          <BuyButton
+                            itemId={item.id}
+                            itemName={item.name}
+                            vendor={item.vendor}
+                            affiliateUrl={
+                              item.affiliate_url ?? item.purchase_url ?? null
+                            }
+                            listPriceCents={item.list_price_cents}
+                            source="purchases"
+                            variant="compact"
+                            label={s === "needed" ? "Get this" : "Reorder"}
+                          />
                         )}
                       </div>
                     </div>
