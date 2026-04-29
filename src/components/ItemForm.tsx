@@ -519,7 +519,7 @@ export default function ItemForm({ initial, onSaved }: Props) {
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Days supply">
+            <Field label="How long will this last? (days)">
               <input
                 type="number"
                 min="1"
@@ -552,25 +552,25 @@ export default function ItemForm({ initial, onSaved }: Props) {
             </div>
           )}
 
-          <Field label="Sort order (lower = earlier in slot; default 100)">
+          <Field label="Order in slot (lower shows earlier)">
             <input
               type="number"
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value)}
-              placeholder="e.g. 10 = first, 50 = middle, 100 = end"
+              placeholder="100 (default)"
               className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
               style={{ background: "var(--background)", color: "var(--foreground)" }}
             />
           </Field>
 
-          <Field label="Companion of (nest under a parent item on Today)">
+          <Field label="Group with another item">
             <select
               value={companionOf ?? ""}
               onChange={(e) => setCompanionOf(e.target.value || null)}
               className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
               style={{ background: "var(--background)", color: "var(--foreground)" }}
             >
-              <option value="">— Not a companion —</option>
+              <option value="">— Stand alone —</option>
               {candidateParents.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -582,12 +582,12 @@ export default function ItemForm({ initial, onSaved }: Props) {
           </Field>
 
           {companionOf && (
-            <Field label="Companion instruction">
+            <Field label="How to take it together">
               <input
                 type="text"
                 value={companionInstruction}
                 onChange={(e) => setCompanionInstruction(e.target.value)}
-                placeholder="e.g. stir into coffee"
+                placeholder="e.g. stir into coffee, drizzle on top"
                 className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
                 style={{ background: "var(--background)", color: "var(--foreground)" }}
               />
@@ -595,12 +595,12 @@ export default function ItemForm({ initial, onSaved }: Props) {
           )}
 
           {(status === "queued" || status === "backburner") && (
-            <Field label="Review trigger (when to activate/revisit)">
+            <Field label="When should we revisit this?">
               <input
                 type="text"
                 value={reviewTrigger}
                 onChange={(e) => setReviewTrigger(e.target.value)}
-                placeholder="e.g. Day 14+, Month 3, after bloodwork"
+                placeholder="e.g. Day 14, in 3 months, after bloodwork"
                 className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
                 style={{ background: "var(--background)", color: "var(--foreground)" }}
               />

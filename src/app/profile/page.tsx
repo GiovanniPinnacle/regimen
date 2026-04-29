@@ -294,7 +294,7 @@ export default function ProfilePage() {
             />
           </Field>
 
-          <Field label="Post-op date (adds +0.3 g/kg protein for 6 months)">
+          <Field label="Recent surgery date (optional)">
             <input
               type="date"
               value={postOpDate}
@@ -305,6 +305,14 @@ export default function ProfilePage() {
                 color: "var(--foreground)",
               }}
             />
+            <div
+              className="text-[11px] mt-1.5 leading-relaxed"
+              style={{ color: "var(--muted)" }}
+            >
+              If you&apos;re recovering from surgery, Coach bumps your protein
+              target by ~30% for 6 months and warns about anything that thins
+              blood.
+            </div>
           </Field>
 
           <button

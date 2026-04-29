@@ -6,6 +6,7 @@
 // history. No more dead-end "result, now what?".
 
 import { useState } from "react";
+import Link from "next/link";
 import { uploadPhoto, type PhotoBucket } from "@/lib/photo";
 import Icon from "@/components/Icon";
 
@@ -114,6 +115,16 @@ export default function ScanPage() {
   return (
     <div className="pb-24">
       <header className="mb-6">
+        <div className="mb-2">
+          <Link
+            href="/today"
+            className="text-[12px] inline-flex items-center gap-1"
+            style={{ color: "var(--muted)" }}
+          >
+            <Icon name="chevron-right" size={11} className="rotate-180" />
+            Today
+          </Link>
+        </div>
         <h1
           className="text-[32px] leading-tight"
           style={{ fontWeight: 600, letterSpacing: "-0.02em" }}

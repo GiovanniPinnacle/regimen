@@ -80,7 +80,11 @@ export default function NewRecipePage() {
       router.push(`/recipes/${data.id}`);
       router.refresh();
     } else if (error) {
-      alert(`Error: ${error.message}`);
+      window.dispatchEvent(
+        new CustomEvent("regimen:toast", {
+          detail: { kind: "error", text: `Couldn't save: ${error.message}` },
+        }),
+      );
     }
   }
 

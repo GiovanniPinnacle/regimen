@@ -86,10 +86,19 @@ const VALUE_BREAKDOWN = [
 
 export default function UpgradePage() {
   function handleUpgrade(tier: string) {
-    // Real wiring: Stripe checkout session. Placeholder for now.
+    // Stripe checkout will live here. For now, we collect interest so we
+    // can email users when checkout opens — much better than dead-ending
+    // them with "coming soon."
+    void fetch("/api/upgrade-interest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tier }),
+    }).catch(() => {});
     showToast(
-      `${tier === "lifetime" ? "Lifetime" : "Pro"} checkout — coming soon. Stripe wiring next.`,
-      { tone: "default", duration: 4000 },
+      tier === "lifetime"
+        ? "We'll email you when Lifetime opens — you're on the early list."
+        : "We'll email you when Pro opens — you're on the early list.",
+      { tone: "success", duration: 4500 },
     );
   }
 
