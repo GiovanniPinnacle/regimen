@@ -15,6 +15,12 @@ import {
   type StackLogRow,
   type WasteCandidate,
 } from "@/lib/cost";
+import {
+  findSymptomCorrelations,
+  type SymptomCorrelation,
+  type ChangelogRow,
+  type SymptomRow as SymptomCorrelateRow,
+} from "@/lib/symptom-correlate";
 
 export type ProtocolContext = {
   userId: string;
@@ -132,6 +138,11 @@ export type ProtocolContext = {
    *  time (over the last 30 days, with 7+ log rows). Coach uses this to
    *  proactively flag drop candidates with concrete dollar impact. */
   wasteCandidates: WasteCandidate[];
+  /** Symptom dimensions that have trended down in the last 3 days vs
+   *  the prior 7-day baseline, paired with stack changes from the
+   *  preceding 14 days. Coach raises these as "did X break your sleep?"
+   *  hypotheses. Empty when no clear signal. */
+  symptomCorrelations: SymptomCorrelation[];
 };
 
 /**
@@ -221,6 +232,7 @@ export async function buildContextForUser(
     enrollmentsRes,
     refineRes,
     stackLog30Res,
+    changelog30Res,
   ] = await Promise.all([
       admin.from("items").select("*").eq("user_id", userId),
       admin
@@ -228,7 +240,7 @@ export async function buildContextForUser(
         .select("*")
         .eq("user_id", userId)
         .order("date", { ascending: false })
-        .limit(7),
+        .limit(21),
       admin
         .from("stack_log")
         .select("date, taken")
@@ -335,6 +347,18 @@ export async function buildContextForUser(
           "date",
           new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
         ),
+      // 30-day changelog — every change_type, not just /refine. Used by
+      // the symptom-correlation detector to pair declining symptoms with
+      // preceding stack changes ("did X break your sleep?").
+      admin
+        .from("changelog")
+        .select("changed_at, date, change_type, item_name, reasoning")
+        .eq("user_id", userId)
+        .gte(
+          "changed_at",
+          new Date(Date.now() - 30 * 86400000).toISOString(),
+        )
+        .order("changed_at", { ascending: false }),
     ]);
 
   const allItems = (itemsRes.data ?? []) as Item[];
@@ -351,6 +375,14 @@ export async function buildContextForUser(
   const wasteCandidates = findWasteCandidates(
     activeItems,
     (stackLog30Res.data ?? []) as StackLogRow[],
+  );
+
+  // Symptom × stack-change correlations — pairs declining symptom
+  // dimensions with stack changes from the prior 14 days. Empty when
+  // the user has too little data or no clear signal.
+  const symptomCorrelations = findSymptomCorrelations(
+    (symptomsRes.data ?? []) as SymptomCorrelateRow[],
+    (changelog30Res.data ?? []) as ChangelogRow[],
   );
 
   // Pull catalog enrichment for active items linked to catalog rows. This
@@ -707,6 +739,7 @@ export async function buildContextForUser(
     signals,
     ingredientStack,
     wasteCandidates,
+    symptomCorrelations,
     recommendableCatalog,
     catalogEnrichments: (() => {
       const out = new Map<
@@ -797,6 +830,30 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     }
   }
   lines.push(``);
+
+  // Symptom × stack-change correlations — declining symptoms paired
+  // with the recent stack changes that PRECEDED them. Always raise
+  // these when discussing the affected symptom or those items. Coach
+  // makes the judgment call (correlation vs causation); the helper
+  // just makes sure the data points are paired.
+  if (ctx.symptomCorrelations.length > 0) {
+    lines.push(`# 🔗 SYMPTOM × STACK CORRELATIONS (declining + recent changes)`);
+    lines.push(
+      `These pair a 3-day symptom decline against stack changes from the 14 days before. n=1, so frame as hypotheses ("did X break your sleep?"), not assertions. Bring up the relevant pairing whenever the user mentions the affected symptom or the candidate item.`,
+    );
+    for (const c of ctx.symptomCorrelations) {
+      lines.push(
+        `- ${c.symptom_label}: recent 3-day avg ${c.recent_avg} vs prior 7-day baseline ${c.baseline_avg} (worse by ${c.worse_by} pts, started ${c.trend_start_date})`,
+      );
+      lines.push(`    Candidate changes:`);
+      for (const ch of c.candidate_changes) {
+        lines.push(
+          `      · ${ch.happened_on} (${ch.days_before_trend}d before): ${ch.change_type}${ch.item_name ? ` ${ch.item_name}` : ""}${ch.reasoning ? ` — ${ch.reasoning}` : ""}`,
+        );
+      }
+    }
+    lines.push(``);
+  }
 
   // Adherence-x-cost waste — items the user pays for but rarely takes.
   // Surfaced near the top because the dollar impact compounds and the

@@ -26,6 +26,7 @@ import QuickAddInline from "@/components/QuickAddInline";
 import SmartSuggestions from "@/components/SmartSuggestions";
 import CatalogPicks from "@/components/CatalogPicks";
 import WeeklyDigestCard from "@/components/WeeklyDigestCard";
+import SymptomCorrelationCard from "@/components/SymptomCorrelationCard";
 import { showToast } from "@/lib/toast";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -656,6 +657,11 @@ export default function TodayPage() {
           helpers + slipping items. "Discuss with Coach" pre-fills the
           numbers as the conversation starting point. */}
       <WeeklyDigestCard />
+      {/* Symptom × stack-change correlations — n=1 hypothesis cards.
+          Renders only when a real signal exists (1+ point drop on a 1-5
+          scale + stack changes within 14d before). Dismissable for 2
+          weeks per dimension to avoid badgering. */}
+      <SymptomCorrelationCard />
       <ProtocolCompletionModal />
 
       <StreakAtRiskBanner
