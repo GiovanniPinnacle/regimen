@@ -55,12 +55,20 @@ Return ONLY a JSON object with these keys (omit any you don't have high confiden
 Output JSON only — no surrounding prose.`;
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  // Accept either a logged-in user OR the cron's bearer token, since
+  // /api/cron/catalog-seed calls this route to enrich pending rows.
+  const cronAuth = request.headers.get("authorization");
+  const isCron =
+    cronAuth && cronAuth === `Bearer ${process.env.CRON_SECRET}`;
+
+  if (!isCron) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+    }
   }
 
   let body: Body;
