@@ -5,7 +5,7 @@
 // action: food → log meal, supplement → add to stack, scalp → save to
 // history. No more dead-end "result, now what?".
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { uploadPhoto, type PhotoBucket } from "@/lib/photo";
@@ -420,6 +420,18 @@ export default function ScanPage() {
   );
 }
 
+type CatalogMatch = {
+  id: string;
+  name: string;
+  brand: string | null;
+  item_type: string;
+  serving_size: string | null;
+  calories: number | null;
+  protein_g: number | null;
+  evidence_grade: string | null;
+  coach_summary: string | null;
+};
+
 function AnalysisDisplay({
   type,
   analysis,
@@ -447,6 +459,37 @@ function AnalysisDisplay({
         : verdictTier === "bad"
           ? "var(--error)"
           : "var(--muted)";
+
+  // Catalog match — for supplement scans, try to find the same product
+  // already in our catalog so the user gets a one-tap "Add this exact
+  // catalog entry" path with rich data, instead of relying solely on
+  // Coach's text proposal. Runs once when the analysis loads.
+  const [catalogMatches, setCatalogMatches] = useState<CatalogMatch[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  useEffect(() => {
+    if (type !== "supplement") return;
+    const name = analysis.name as string | undefined;
+    if (!name?.trim()) return;
+    let alive = true;
+    setCatalogLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/catalog/search?q=${encodeURIComponent(name.trim())}`,
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { items: CatalogMatch[] };
+        if (!alive) return;
+        // Take top 3 most-relevant
+        setCatalogMatches((data.items ?? []).slice(0, 3));
+      } finally {
+        if (alive) setCatalogLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [type, analysis]);
 
   function fireCoachAction(prompt: string) {
     window.dispatchEvent(
@@ -634,6 +677,63 @@ function AnalysisDisplay({
           </div>
         );
       })()}
+
+      {/* Catalog matches — when /scan supplement extracts a name, look it
+       *  up in the catalog. If we find a hit, the user can pick it and
+       *  inherit ALL the macros, micros, and Coach enrichment instantly
+       *  (vs. starting from scratch with just OCR data). */}
+      {type === "supplement" && (catalogMatches.length > 0 || catalogLoading) && (
+        <div>
+          <SectionLabel>
+            {catalogLoading
+              ? "Looking up in catalog…"
+              : `Found in catalog (${catalogMatches.length})`}
+          </SectionLabel>
+          <div className="flex flex-col gap-1.5 mt-1.5">
+            {catalogMatches.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => {
+                  fireCoachAction(
+                    `I just scanned ${m.name}${m.brand ? ` (${m.brand})` : ""}. ` +
+                      `It matches a catalog entry I have data on (catalog_item_id=${m.id}). ` +
+                      `Add it to my stack as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format. ` +
+                      `Use action: add and include catalog_item_id=${m.id} in extra so the user item links to the shared catalog row.` +
+                      (note ? ` My note: "${note}"` : ""),
+                  );
+                }}
+                className="rounded-xl px-3 py-2.5 text-left flex items-baseline justify-between gap-2"
+                style={{
+                  background: "var(--surface-alt)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <div className="min-w-0 flex-1">
+                  <div
+                    className="text-[13px] truncate"
+                    style={{ fontWeight: 600 }}
+                  >
+                    {m.name}
+                  </div>
+                  <div
+                    className="text-[11px] flex gap-2"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    {m.brand && <span>{m.brand}</span>}
+                    {m.serving_size && <span>· {m.serving_size}</span>}
+                    {m.evidence_grade && <span>· Grade {m.evidence_grade}</span>}
+                  </div>
+                </div>
+                <Icon
+                  name="chevron-right"
+                  size={12}
+                  className="opacity-60 shrink-0"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Action footer — every scan ends in a next step */}
       <div className="flex flex-wrap gap-2 mt-1">

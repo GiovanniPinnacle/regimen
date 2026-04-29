@@ -304,9 +304,10 @@ export default async function AdminCatalogPage({
             </div>
           ) : (
             recent.map((r, i) => (
-              <div
+              <Link
                 key={r.id}
-                className="px-4 py-3"
+                href={`/admin/catalog/${r.id}`}
+                className="block px-4 py-3"
                 style={{
                   borderTop: i > 0 ? "1px solid var(--border)" : undefined,
                 }}
@@ -369,7 +370,7 @@ export default async function AdminCatalogPage({
                     )}
                   </div>
                 </div>
-              </div>
+              </Link>
             ))
           )}
         </div>
