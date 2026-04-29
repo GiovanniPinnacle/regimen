@@ -61,6 +61,7 @@ export default function CatalogAutocomplete({
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -94,7 +95,36 @@ export default function CatalogAutocomplete({
     };
   }, [query, disabled]);
 
-  if (!open || hits.length === 0) return null;
+  // Coach generation fallback — fires when public sources had nothing
+  async function generateWithCoach() {
+    if (!query.trim() || generating) return;
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/catalog/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: query.trim() }),
+      });
+      const data = (await res.json()) as { id?: string; error?: string };
+      if (data.id) {
+        // Re-run search now that the entry exists locally — it'll be the
+        // top hit and the user can pick it
+        const res2 = await fetch(
+          `/api/catalog/search?q=${encodeURIComponent(query.trim())}`,
+        );
+        if (res2.ok) {
+          const d2 = (await res2.json()) as { items: SearchHit[] };
+          setHits(d2.items ?? []);
+          setOpen(true);
+        }
+      }
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // Show even when no hits — so the "Generate with Coach" CTA surfaces
+  if (!open) return null;
 
   async function handlePick(hit: SearchHit) {
     let catalogId: string | undefined = hit.id;
@@ -147,10 +177,47 @@ export default function CatalogAutocomplete({
       >
         <span className="inline-flex items-center gap-1.5">
           <Icon name="search" size={11} strokeWidth={2} />
-          {hits.length} match{hits.length === 1 ? "" : "es"} from our catalog
+          {hits.length === 0
+            ? "No matches yet"
+            : `${hits.length} match${hits.length === 1 ? "" : "es"} from our catalog`}
         </span>
         {loading && <span>…</span>}
       </div>
+      {hits.length === 0 && !loading && (
+        <button
+          type="button"
+          onClick={generateWithCoach}
+          disabled={generating}
+          className="w-full px-3 py-3 text-left flex items-start gap-2.5 active:scale-[0.99] transition-transform"
+        >
+          <span
+            className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
+            style={{
+              background: "var(--pro-tint)",
+              color: "var(--pro)",
+            }}
+          >
+            <Icon name="sparkle" size={13} strokeWidth={2} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-[13px] leading-snug"
+              style={{ fontWeight: 600 }}
+            >
+              {generating
+                ? "Coach is researching this…"
+                : `Have Coach research "${query.trim()}"`}
+            </div>
+            <div
+              className="text-[11px] mt-0.5 leading-snug"
+              style={{ color: "var(--muted)" }}
+            >
+              Coach generates a structured catalog entry with mechanism,
+              cautions, brand picks
+            </div>
+          </div>
+        </button>
+      )}
       {hits.slice(0, 8).map((hit, i) => {
         const meta = SOURCE_LABELS[hit.source] ?? SOURCE_LABELS.manual;
         return (
