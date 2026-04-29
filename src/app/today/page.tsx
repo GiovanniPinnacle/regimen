@@ -737,24 +737,30 @@ export default function TodayPage() {
                     onClick={() => toggleCollapse(slot)}
                     className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-baseline gap-2.5 min-w-0">
                       <div
-                        className="text-[11px] uppercase tracking-wider"
-                        style={{ color: "var(--muted)", fontWeight: 500 }}
+                        className="text-[15px] leading-none"
+                        style={{
+                          color: allDone
+                            ? "var(--accent)"
+                            : "var(--foreground)",
+                          fontWeight: 700,
+                          letterSpacing: "-0.01em",
+                        }}
                       >
                         {TIMING_LABELS[slot]}
                       </div>
                       {!NON_CHECKOFF_SLOTS.includes(slot) && (
                         <div
-                          className="text-[12px]"
+                          className="text-[12px] tabular-nums"
                           style={{
-                            color: allDone ? "var(--olive)" : "var(--muted)",
-                            fontWeight: allDone ? 600 : 400,
+                            color: allDone ? "var(--accent)" : "var(--muted)",
+                            fontWeight: allDone ? 700 : 500,
                           }}
                         >
                           {allDone
-                            ? "✓ All done"
-                            : `${slotTaken} / ${slotTotal}`}
+                            ? "✓ done"
+                            : `${slotTaken}/${slotTotal}`}
                         </div>
                       )}
                       {NON_CHECKOFF_SLOTS.includes(slot) && (
@@ -895,29 +901,31 @@ export default function TodayPage() {
                     className="px-4 py-3 flex items-center justify-between"
                     style={{ borderBottom: "1px solid var(--border)" }}
                   >
-                    <div className="flex items-baseline gap-3">
+                    <div className="flex items-baseline gap-2.5">
                       <div
-                        className="text-[11px] uppercase tracking-wider"
+                        className="text-[15px] leading-none"
                         style={{
-                          color: "var(--muted)",
-                          fontWeight: 600,
-                          letterSpacing: "0.06em",
+                          color: allDone
+                            ? "var(--accent)"
+                            : "var(--foreground)",
+                          fontWeight: 700,
+                          letterSpacing: "-0.01em",
                         }}
                       >
                         {TIMING_LABELS[activeSlot]}
                       </div>
                       <div
-                        className="text-[12px]"
+                        className="text-[12px] tabular-nums"
                         style={{
-                          color: allDone ? "var(--olive)" : "var(--muted)",
-                          fontWeight: allDone ? 600 : 400,
+                          color: allDone ? "var(--accent)" : "var(--muted)",
+                          fontWeight: allDone ? 700 : 500,
                         }}
                       >
                         {!isCheckoff
                           ? `${list.length} item${list.length === 1 ? "" : "s"}`
                           : allDone
-                            ? "✓ All done"
-                            : `${slotTaken} / ${list.length}`}
+                            ? "✓ done"
+                            : `${slotTaken}/${list.length}`}
                       </div>
                       {slotSnoozed > 0 && (
                         <div

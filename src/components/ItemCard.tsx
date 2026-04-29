@@ -211,6 +211,26 @@ export default function ItemCard({
           </div>
         )}
 
+        {/* Inline companions — ALWAYS visible in compact mode so meals
+         *  read as one card instead of fragmenting into eggs+avocado+
+         *  garlic+oil. Shows "+ avocado, olive oil, garlic" as a single
+         *  comma-list under the parent's dose line. Tap the chevron to
+         *  expand and see each companion's dose/instruction. */}
+        {compact &&
+          item.__companions &&
+          item.__companions.length > 0 &&
+          !expanded && (
+            <div
+              className="text-[11.5px] mt-0.5 leading-snug truncate"
+              style={{ color: "var(--muted)" }}
+            >
+              <span style={{ color: "var(--accent)", fontWeight: 700 }}>
+                +
+              </span>{" "}
+              {item.__companions.map((c) => c.name).join(", ")}
+            </div>
+          )}
+
         {/* Inline action links (compact, only when not yet acted on) */}
         {compact && interactive && !taken && !skipped && (
           <div className="flex gap-3 mt-1">
