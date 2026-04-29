@@ -450,16 +450,25 @@ create table if not exists public.catalog_items (
   updated_at timestamptz default now()
 );
 
--- Full-text search index on name + brand + aliases
+-- Full-text search index on name + brand + aliases.
+-- Postgres needs an explicit regconfig cast for to_tsvector to be
+-- recognized as IMMUTABLE in an index expression. Without the
+-- '::regconfig' cast, PG treats it as STABLE and rejects the index
+-- with "42P17: functions in index expression must be marked IMMUTABLE".
 create index if not exists idx_catalog_search
   on catalog_items using gin (
     to_tsvector(
-      'english',
+      'english'::regconfig,
       coalesce(name, '') || ' ' ||
       coalesce(brand, '') || ' ' ||
       coalesce(array_to_string(search_aliases, ' '), '')
     )
   );
+
+-- Btree on lower(name) accelerates the ilike '%q%' path used by
+-- /api/catalog/search when full-text doesn't match
+create index if not exists idx_catalog_name_lower
+  on catalog_items (lower(name));
 
 create index if not exists idx_catalog_upc
   on catalog_items(upc) where upc is not null;
