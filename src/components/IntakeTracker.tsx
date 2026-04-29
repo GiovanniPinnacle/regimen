@@ -384,6 +384,18 @@ function IntakeRow({
 }
 
 // ============== Meal log sheet ==============
+type FrequentMeal = {
+  content: string;
+  kind: "meal" | "snack";
+  calories: number | null;
+  protein_g: number | null;
+  fat_g: number | null;
+  carbs_g: number | null;
+  serving: string | null;
+  occurrences: number;
+  last_logged: string;
+};
+
 function MealLogSheet({
   onClose,
   onLogged,
@@ -396,6 +408,61 @@ function MealLogSheet({
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState<"idle" | "uploading" | "analyzing" | "saving">("idle");
   const [err, setErr] = useState<string | null>(null);
+  const [frequent, setFrequent] = useState<FrequentMeal[]>([]);
+  const [quickLogId, setQuickLogId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/intake/frequent", {
+          credentials: "include",
+        });
+        if (!r.ok) return;
+        const j = (await r.json()) as { meals?: FrequentMeal[] };
+        if (alive) setFrequent(j.meals ?? []);
+      } catch {
+        // silent — frequent is a nice-to-have, not required
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /** One-tap re-log: posts the chosen meal's macros directly without
+   *  re-analyzing. Faster than typing or photo for repeated meals. */
+  async function quickLog(meal: FrequentMeal) {
+    setQuickLogId(meal.content);
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: meal.kind,
+          content: meal.content,
+          analyze: false,
+          calories: meal.calories ?? undefined,
+          protein_g: meal.protein_g ?? undefined,
+          fat_g: meal.fat_g ?? undefined,
+          carbs_g: meal.carbs_g ?? undefined,
+          serving: meal.serving ?? undefined,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `Error ${res.status}`);
+      }
+      onLogged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+      setQuickLogId(null);
+    }
+  }
 
   async function logText() {
     if (!text.trim()) return;
@@ -494,6 +561,79 @@ function MealLogSheet({
             ×
           </button>
         </div>
+
+        {/* Frequent meals — one-tap re-log row. Hidden when the user has
+            no history yet. Tapping a chip re-logs the meal with stored
+            macros, no LLM call. */}
+        {frequent.length > 0 && (
+          <div className="mb-4">
+            <div
+              className="text-[10px] uppercase tracking-wider mb-2"
+              style={{
+                color: "var(--muted)",
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+              }}
+            >
+              Quick re-log
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {frequent.map((m) => {
+                const macro =
+                  m.calories != null
+                    ? `${m.calories}kc${m.protein_g != null ? ` · ${Math.round(m.protein_g)}g P` : ""}`
+                    : null;
+                const isPending = quickLogId === m.content;
+                return (
+                  <button
+                    key={m.content}
+                    onClick={() => quickLog(m)}
+                    disabled={busy}
+                    className="text-left rounded-xl px-3 py-2 active:scale-[0.98] transition-transform"
+                    style={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      opacity: busy && !isPending ? 0.5 : 1,
+                      maxWidth: "100%",
+                    }}
+                  >
+                    <div
+                      className="text-[12.5px] leading-snug"
+                      style={{
+                        fontWeight: 600,
+                        color: "var(--foreground)",
+                        maxWidth: 220,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {m.content}
+                    </div>
+                    <div
+                      className="text-[10.5px] mt-0.5 flex items-center gap-1.5"
+                      style={{ color: "var(--muted)" }}
+                    >
+                      {isPending ? (
+                        <span>Logging…</span>
+                      ) : (
+                        <>
+                          {macro ? <span>{macro}</span> : null}
+                          {macro ? (
+                            <span aria-hidden style={{ color: "var(--border)" }}>
+                              ·
+                            </span>
+                          ) : null}
+                          <span>×{m.occurrences}</span>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div
           className="grid grid-cols-2 gap-1 p-1 rounded-2xl mb-4"
