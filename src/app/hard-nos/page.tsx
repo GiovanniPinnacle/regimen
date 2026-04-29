@@ -109,7 +109,7 @@ export default function HardNosPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-7">
+      <header className="mb-5">
         <h1
           className="text-[32px] leading-tight"
           style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
@@ -125,6 +125,55 @@ export default function HardNosPage() {
           you out, banned approaches.
         </p>
       </header>
+
+      <button
+        onClick={() => {
+          const existing = list.length > 0
+            ? `My current hard NOs: ${list.map((h) => h.name).join(", ")}.\n\n`
+            : "";
+          window.dispatchEvent(
+            new CustomEvent("regimen:ask", {
+              detail: {
+                text:
+                  existing +
+                  "Based on my goals + medical history + medications + past diagnoses, suggest 3-5 items I should consider adding to my hard NOs list (with one-sentence reasons each). " +
+                  "If you don't have enough info to suggest with confidence, say so and tell me what fields would help.",
+                send: true,
+              },
+            }),
+          );
+        }}
+        className="w-full mb-6 rounded-2xl card-glass p-3.5 flex items-center gap-2.5 active:scale-[0.99] transition-transform text-left"
+      >
+        <span
+          className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
+          style={{
+            background: "var(--pro-tint)",
+            color: "var(--pro)",
+          }}
+        >
+          <Icon name="sparkle" size={16} strokeWidth={1.8} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div
+            className="text-[13.5px] leading-snug"
+            style={{ fontWeight: 600 }}
+          >
+            Brainstorm hard NOs with Coach
+          </div>
+          <div
+            className="text-[11.5px] mt-0.5 leading-snug"
+            style={{ color: "var(--muted)" }}
+          >
+            Coach reads your About me + medications and suggests
+          </div>
+        </div>
+        <Icon
+          name="chevron-right"
+          size={14}
+          className="shrink-0 opacity-50"
+        />
+      </button>
 
       {list.length === 0 && adding === null && (
         <EmptyState

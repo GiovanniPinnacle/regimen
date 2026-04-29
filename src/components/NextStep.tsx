@@ -33,6 +33,9 @@ type StateRes = {
   signals: UserSignals;
   activeCount: number;
   displayName: string | null;
+  /** Reaction signal density — drives data-confidence checks before
+   *  pushing premature refinement. */
+  reactionCount30d?: number;
 };
 
 type Step = {
@@ -297,19 +300,43 @@ function pickStep(s: StateRes, todayTakenCount: number): Step | null {
     };
   }
 
-  // 5. Magic-moment ready
+  // 5. Magic-moment ready — but check data confidence first
   if (s.stage === "magic_ready") {
+    const reactions = s.reactionCount30d ?? 0;
+    // Need at least 5 reactions across the stack to make a confident
+    // refinement call. Otherwise prompt for MORE data before forcing it.
+    if (reactions < 5) {
+      return {
+        kind: "needs_more_data",
+        label: "Almost there",
+        title: "Coach needs more signal first",
+        body: `${sig.uniqueLogDays14d} days logged, but only ${reactions} reaction${reactions === 1 ? "" : "s"} so far. Tap helped/no-change/worse on a few items to teach Coach what's working.`,
+        icon: "graph",
+        accent: "var(--pro)",
+        primary: {
+          label: "Go react to today",
+          type: "link",
+          href: "#today-checklist",
+        },
+        secondary: {
+          label: "Why does this matter?",
+          type: "coach",
+          coachPrompt:
+            "Why do you need at least 5 reactions before recommending a refinement? Explain in 2 sentences using my actual situation.",
+        },
+      };
+    }
     return {
       kind: "magic_ready",
       label: "Ready",
       title: "Run your first refinement",
-      body: `${sig.uniqueLogDays14d} days of data. Coach can read your patterns now and tell you what to drop.`,
+      body: `${sig.uniqueLogDays14d} days of data + ${reactions} reactions. Coach can read your patterns now and tell you what to drop.`,
       icon: "sparkle",
       accent: "var(--pro)",
       primary: {
         label: "Run refinement",
         type: "coach",
-        coachPrompt: `I have ${sig.uniqueLogDays14d} days of stack_log data. Run a quick refinement: audit my last 14 days of skips and reactions, find the single most-likely drop candidate, and propose the change in <<<PROPOSAL ... PROPOSAL>>> format so I can approve it in one tap.`,
+        coachPrompt: `I have ${sig.uniqueLogDays14d} days of stack_log data and ${reactions} reactions. Run a quick refinement: audit my last 14 days of skips and reactions, find the single most-likely drop candidate, and propose the change in <<<PROPOSAL ... PROPOSAL>>> format so I can approve it in one tap. If you don't have enough confidence to make a call, say so honestly and tell me what data you'd need.`,
       },
       secondary: { label: "See full reveal", type: "link", href: "/welcome" },
     };

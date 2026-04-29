@@ -115,8 +115,10 @@ export async function GET() {
 
   // Worsened items (2+ "worse" reactions in 30d)
   type RxRow = { item_id: string; reaction: string };
+  const reactRows = (reactRes.data ?? []) as RxRow[];
+  const reactionCount30d = reactRows.length;
   const worseAgg = new Map<string, number>();
-  for (const r of (reactRes.data ?? []) as RxRow[]) {
+  for (const r of reactRows) {
     if (r.reaction === "worse") {
       worseAgg.set(r.item_id, (worseAgg.get(r.item_id) ?? 0) + 1);
     }
@@ -163,6 +165,7 @@ export async function GET() {
     stage,
     signals,
     activeCount,
+    reactionCount30d,
     displayName:
       (displayNameRes.data?.display_name as string | null) ?? null,
   });
