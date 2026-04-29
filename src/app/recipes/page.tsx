@@ -59,7 +59,7 @@ export default async function RecipesPage() {
             No recipes yet
           </div>
           <div className="text-[13px] mt-1">
-            Generate a meal from what's in your fridge, or save one manually.
+            Generate a meal from what&apos;s in your fridge, or save one manually.
           </div>
         </div>
       ) : (
@@ -129,7 +129,28 @@ function RecipeList({ recipes }: { recipes: Recipe[] }) {
                 </span>
               )}
               {r.servings > 1 && <span>{r.servings} servings</span>}
-              {r.source === "claude" && <span>✨ Coach</span>}
+              {r.source === "claude" && (
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+                  style={{
+                    background: "var(--pro-tint)",
+                    color: "var(--pro)",
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "var(--pro)",
+                    }}
+                  />
+                  Coach
+                </span>
+              )}
             </div>
             {r.tags && r.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">

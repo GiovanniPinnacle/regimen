@@ -68,7 +68,28 @@ export default async function RecipeDetailPage({
           {recipe.carbs_g != null && <span>{recipe.carbs_g}g carbs</span>}
           {recipe.servings > 1 && <span>{recipe.servings} servings</span>}
           {recipe.times_made > 0 && <span>Made {recipe.times_made}×</span>}
-          {recipe.source === "claude" && <span>✨ Coach</span>}
+          {recipe.source === "claude" && (
+            <span
+              className="text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1"
+              style={{
+                background: "var(--pro-tint)",
+                color: "var(--pro)",
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "var(--pro)",
+                }}
+              />
+              Coach-generated
+            </span>
+          )}
         </div>
         {recipe.tags && recipe.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">

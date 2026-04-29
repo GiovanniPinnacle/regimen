@@ -20,6 +20,7 @@ import StreakCounter from "@/components/StreakCounter";
 import DailyScore from "@/components/DailyScore";
 import AchievementsChecker from "@/components/AchievementsChecker";
 import StreakAtRiskBanner from "@/components/StreakAtRiskBanner";
+import CoachQuickActions from "@/components/CoachQuickActions";
 import { showToast } from "@/lib/toast";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -591,6 +592,7 @@ export default function TodayPage() {
       <MagicMomentPrompt />
       <InsightsBanner />
       <PatternCard />
+      <CoachQuickActions />
 
       <IntakeTracker
         targets={

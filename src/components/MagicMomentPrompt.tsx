@@ -1,12 +1,15 @@
 "use client";
 
 // MagicMomentPrompt — auto-trigger on /today after the user has 3+ days
-// of stack_log activity. Shows a compact card pointing to /welcome (the
-// first-refinement reveal). Dismissable and remembers the dismissal.
+// of stack_log activity. The activation event that turns "another tracker"
+// into "this app actually reads my data."
 //
-// This is the activation event that turns "another tracker" into "this
-// app actually reads my data." First-week users won't navigate to
-// /welcome on their own — the prompt brings the moment to them.
+// Two paths now:
+//  - "Quick refinement" — fires Coach with a focused prompt + send:true,
+//    so the user gets a one-tap-approvable proposal in seconds. This is
+//    the action-first path the user asked for.
+//  - "Full reveal" — routes to /welcome, the animated first-refinement
+//    experience for users who want the moment.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -70,57 +73,95 @@ export default function MagicMomentPrompt() {
     setShow(false);
   }
 
+  function fireCoach() {
+    try {
+      localStorage.setItem(SEEN_KEY, String(Date.now()));
+    } catch {}
+    const prompt =
+      `I have ${daysWithLogs} days of stack_log data. Run a quick refinement: ` +
+      `audit my last 14 days of skips and reactions, find the single most-likely ` +
+      `drop candidate, and propose the change in <<<PROPOSAL ... PROPOSAL>>> format ` +
+      `so I can approve it in one tap.`;
+    window.dispatchEvent(
+      new CustomEvent("regimen:ask", {
+        detail: { text: prompt, send: true },
+      }),
+    );
+    setShow(false);
+  }
+
   if (!show) return null;
 
   return (
-    <section className="rounded-2xl mb-6 overflow-hidden relative">
-      <Link
-        href="/welcome"
-        className="block px-5 py-4 pressable"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--olive) 0%, var(--olive-deep) 100%)",
-          color: "#FBFAF6",
-          boxShadow: "0 8px 24px var(--accent-glow)",
-        }}
-        onClick={() => {
-          try {
-            localStorage.setItem(SEEN_KEY, String(Date.now()));
-          } catch {}
-        }}
-      >
-        <div className="flex items-start gap-3">
-          <span className="shrink-0 mt-0.5">
-            <Icon name="sparkle" size={18} strokeWidth={1.7} />
-          </span>
-          <div className="flex-1 min-w-0 pr-6">
-            <div
-              className="text-[10px] uppercase tracking-wider"
-              style={{
-                opacity: 0.78,
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Ready
-            </div>
-            <div
-              className="text-[15px] leading-snug mt-0.5"
-              style={{ fontWeight: 600 }}
-            >
-              Run your first refinement
-            </div>
-            <div
-              className="text-[12px] mt-1 leading-relaxed"
-              style={{ opacity: 0.85 }}
-            >
-              You've logged {daysWithLogs} days. Coach can now read your
-              patterns and tell you what to drop. Takes 15 seconds.
-            </div>
+    <section
+      className="rounded-2xl mb-6 overflow-hidden relative px-5 py-4"
+      style={{
+        background:
+          "linear-gradient(135deg, var(--olive) 0%, var(--olive-deep) 100%)",
+        color: "#FBFAF6",
+        boxShadow: "0 8px 24px var(--accent-glow)",
+      }}
+    >
+      <div className="flex items-start gap-3 pr-7">
+        <span className="shrink-0 mt-0.5">
+          <Icon name="sparkle" size={18} strokeWidth={1.7} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div
+            className="text-[10px] uppercase tracking-wider"
+            style={{
+              opacity: 0.78,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+            }}
+          >
+            Ready
           </div>
-          <Icon name="chevron-right" size={16} className="shrink-0 mt-0.5" />
+          <div
+            className="text-[15px] leading-snug mt-0.5"
+            style={{ fontWeight: 600 }}
+          >
+            Run your first refinement
+          </div>
+          <div
+            className="text-[12px] mt-1 leading-relaxed"
+            style={{ opacity: 0.85 }}
+          >
+            You&apos;ve logged {daysWithLogs} days. Coach can read your patterns
+            and tell you what to drop. Takes 15 seconds.
+          </div>
         </div>
-      </Link>
+      </div>
+      <div className="flex gap-2 mt-3 ml-9">
+        <button
+          onClick={fireCoach}
+          className="text-[12.5px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
+          style={{
+            background: "rgba(251, 250, 246, 0.96)",
+            color: "var(--olive-deep)",
+            fontWeight: 700,
+          }}
+        >
+          <Icon name="check-circle" size={13} strokeWidth={2.2} />
+          Run refinement
+        </button>
+        <Link
+          href="/welcome"
+          onClick={() => {
+            try {
+              localStorage.setItem(SEEN_KEY, String(Date.now()));
+            } catch {}
+          }}
+          className="text-[12.5px] px-3 py-2 rounded-lg"
+          style={{
+            background: "rgba(251, 250, 246, 0.18)",
+            color: "#FBFAF6",
+            fontWeight: 600,
+          }}
+        >
+          See full reveal
+        </Link>
+      </div>
       <button
         onClick={dismiss}
         className="absolute top-3 right-3 leading-none px-1"
