@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import AboutMeQuickInputs from "@/components/AboutMeQuickInputs";
+import Icon from "@/components/Icon";
 
 type AboutMe = {
   // Essentials (always visible)
@@ -191,13 +192,62 @@ export default function AboutMePage() {
             ← More
           </Link>
         </div>
-        <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
+        <h1
+          className="text-[32px] leading-tight"
+          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+        >
           About me
         </h1>
-        <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          {filledCount}/{allFields.length} filled · skip the form, use chat or paste below
-        </div>
+        <p
+          className="text-[13px] mt-1 leading-relaxed"
+          style={{ color: "var(--muted)" }}
+        >
+          {filledCount}/{allFields.length} filled · the more Coach knows, the
+          better the calls.
+        </p>
       </header>
+
+      {filledCount < 5 && (
+        <button
+          onClick={() => {
+            window.dispatchEvent(
+              new CustomEvent("regimen:ask", {
+                detail: {
+                  text:
+                    "I'm setting up my About me profile. Ask me 3-5 high-leverage questions you'd want answered to give me great advice. Keep them concrete and personal — not generic.",
+                  send: true,
+                },
+              }),
+            );
+          }}
+          className="w-full mb-5 rounded-2xl card-glass p-3.5 flex items-center gap-2.5 active:scale-[0.99] transition-transform text-left"
+        >
+          <span
+            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
+            style={{
+              background: "var(--pro-tint)",
+              color: "var(--pro)",
+            }}
+          >
+            <Icon name="sparkle" size={16} strokeWidth={1.8} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-[13.5px] leading-snug"
+              style={{ fontWeight: 600 }}
+            >
+              Let Coach interview you
+            </div>
+            <div
+              className="text-[11.5px] mt-0.5 leading-snug"
+              style={{ color: "var(--muted)" }}
+            >
+              Answer 3-5 questions instead of filling forms
+            </div>
+          </div>
+          <Icon name="chevron-right" size={14} className="shrink-0 opacity-50" />
+        </button>
+      )}
 
       {/* Body comp summary card — pulls from /profile */}
       <section

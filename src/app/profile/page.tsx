@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ACTIVITY_LABELS,
   calcMacros,
@@ -9,6 +10,7 @@ import {
   type BodyGoal,
   type Sex,
 } from "@/lib/macros";
+import Icon from "@/components/Icon";
 
 type Unit = "metric" | "imperial";
 
@@ -99,14 +101,73 @@ export default function ProfilePage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
-          Profile
-        </h1>
-        <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          Your body + goals → your portion targets. Coach uses these when suggesting meals.
+      <header className="mb-5">
+        <div className="mb-2">
+          <Link
+            href="/more"
+            className="text-[12px] inline-flex items-center gap-1"
+            style={{ color: "var(--muted)" }}
+          >
+            <Icon name="chevron-right" size={11} className="rotate-180" />
+            More
+          </Link>
         </div>
+        <h1
+          className="text-[32px] leading-tight"
+          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+        >
+          Profile + macros
+        </h1>
+        <p
+          className="text-[13px] mt-1 leading-relaxed"
+          style={{ color: "var(--muted)" }}
+        >
+          Your body + goals → your portion targets. Coach uses these when
+          suggesting meals.
+        </p>
       </header>
+
+      {loaded && (!computedKg || !computedCm || !age) && (
+        <button
+          onClick={() => {
+            window.dispatchEvent(
+              new CustomEvent("regimen:ask", {
+                detail: {
+                  text:
+                    "I'm setting up my Profile + macros for the first time. Walk me through what each field affects (weight, height, age, sex, activity level, body goal, meals/day) and what's reasonable for my situation. Keep it tight.",
+                  send: true,
+                },
+              }),
+            );
+          }}
+          className="w-full mb-5 rounded-2xl card-glass p-3.5 flex items-center gap-2.5 active:scale-[0.99] transition-transform text-left"
+        >
+          <span
+            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
+            style={{
+              background: "var(--pro-tint)",
+              color: "var(--pro)",
+            }}
+          >
+            <Icon name="sparkle" size={16} strokeWidth={1.8} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-[13.5px] leading-snug"
+              style={{ fontWeight: 600 }}
+            >
+              First time? Coach can guide you
+            </div>
+            <div
+              className="text-[11.5px] mt-0.5 leading-snug"
+              style={{ color: "var(--muted)" }}
+            >
+              Get a 60-second walkthrough of every field
+            </div>
+          </div>
+          <Icon name="chevron-right" size={14} className="shrink-0 opacity-50" />
+        </button>
+      )}
 
       {!loaded ? (
         <div className="py-8 text-center" style={{ color: "var(--muted)" }}>

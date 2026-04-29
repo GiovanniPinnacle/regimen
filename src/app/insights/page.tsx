@@ -1,18 +1,18 @@
 "use client";
 
-// /insights — the broader "what's working / what's not" surface.
-// Replaces /refine in the bottom nav. Refine (Coach audit) is now ONE
-// section here, alongside heuristic patterns, adherence trend, reactions
-// summary, voice memos, costs preview.
-//
-// Frequency-of-visit fits a daily-to-weekly cadence — a real peer of
-// Today / Stack / Protocols / More.
+// /insights — action-first refinement hub.
+// Old design: long scrolling read-only display with audit button at bottom.
+// New design: Hero audit card up top, "Audit lenses" chips for focused
+// Coach prompts, then supporting metrics + reactions + memos. Every data
+// section ends in a clear next action — never dead-end.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PatternCard from "@/components/PatternCard";
 import { createClient } from "@/lib/supabase/client";
-import { getReactionsSummary } from "@/lib/storage";
+import Icon from "@/components/Icon";
+
+type IconName = Parameters<typeof Icon>[0]["name"];
 
 const FREE_DAILY_LIMIT = 1;
 const USAGE_KEY = "regimen.refine.usage.v1";
@@ -56,6 +56,51 @@ type VoiceMemo = {
   created_at: string;
 };
 
+type Lens = {
+  label: string;
+  icon: IconName;
+  accent: string;
+  prompt: string;
+};
+
+const LENSES: Lens[] = [
+  {
+    label: "What should I drop?",
+    icon: "trend-down",
+    accent: "var(--error)",
+    prompt:
+      "Audit my stack for drop candidates. Focus on items with 5+ no_change reactions, 2+ worse reactions, or zero adherence over 14+ days. Emit each drop as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: retire.",
+  },
+  {
+    label: "What's slowing me down?",
+    icon: "alert",
+    accent: "var(--warn)",
+    prompt:
+      "Look at my last 14 days of skips, reactions, voice memos. What's the single biggest blocker? Give me ONE concrete fix and emit it as a proposal in <<<PROPOSAL ... PROPOSAL>>> format.",
+  },
+  {
+    label: "Cut my costs",
+    icon: "dollar",
+    accent: "var(--premium)",
+    prompt:
+      "Look at my stack costs. Propose 2-3 swaps that save money WITHOUT losing efficacy. Cite mechanism, not brand. Emit each swap as a one-tap proposal.",
+  },
+  {
+    label: "What pattern am I missing?",
+    icon: "graph",
+    accent: "var(--pro)",
+    prompt:
+      "Find ONE non-obvious correlation in my data (skips × reactions × notes). Don't propose anything yet — just make me think. End with one specific question to sharpen.",
+  },
+  {
+    label: "What should I add?",
+    icon: "plus",
+    accent: "var(--accent)",
+    prompt:
+      "Based on my goals + current stack + recent reactions, what's the highest-leverage item I'm missing? If you don't have enough confidence, say so and tell me what data you'd need. Otherwise emit ONE add as a proposal.",
+  },
+];
+
 export default function InsightsPage() {
   const [adherence, setAdherence] = useState<AdherenceDay[]>([]);
   const [topReactions, setTopReactions] = useState<ReactionTop[]>([]);
@@ -80,7 +125,6 @@ export default function InsightsPage() {
       .toISOString()
       .slice(0, 10);
 
-    // Adherence over last 14 days (rollup by date)
     const stackRes = await client
       .from("stack_log")
       .select("date, taken")
@@ -94,7 +138,9 @@ export default function InsightsPage() {
     }
     const adh: AdherenceDay[] = [];
     for (let i = 13; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      const d = new Date(Date.now() - i * 86400000)
+        .toISOString()
+        .slice(0, 10);
       adh.push({
         date: d,
         taken: byDate[d]?.taken ?? 0,
@@ -103,15 +149,11 @@ export default function InsightsPage() {
     }
     setAdherence(adh);
 
-    // Reactions aggregated per item over 30 days
     const rxRes = await client
       .from("item_reactions")
       .select("item_id, reaction, items(name)")
       .gte("reacted_on", since30);
-    const rxAgg = new Map<
-      string,
-      ReactionTop
-    >();
+    const rxAgg = new Map<string, ReactionTop>();
     for (const row of rxRes.data ?? []) {
       const r = row as {
         item_id: string;
@@ -137,12 +179,12 @@ export default function InsightsPage() {
       else if (r.reaction === "forgot") a.forgot++;
       a.total++;
     }
-    const sortedRx = Array.from(rxAgg.values())
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
-    setTopReactions(sortedRx);
+    setTopReactions(
+      Array.from(rxAgg.values())
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5),
+    );
 
-    // Voice memos — last 7 days
     const since7 = new Date(Date.now() - 7 * 86400000).toISOString();
     const memosRes = await client
       .from("voice_memos")
@@ -176,9 +218,16 @@ export default function InsightsPage() {
     }
   }
 
+  function fireLens(lens: Lens) {
+    window.dispatchEvent(
+      new CustomEvent("regimen:ask", {
+        detail: { text: lens.prompt, send: true },
+      }),
+    );
+  }
+
   const limitReached = usage.count >= FREE_DAILY_LIMIT;
 
-  // Compute adherence stats
   const adherenceStats = useMemo(() => {
     const last7 = adherence.slice(-7);
     const prev7 = adherence.slice(0, 7);
@@ -191,55 +240,256 @@ export default function InsightsPage() {
     return { last7Pct, prev7Pct, delta: last7Pct - prev7Pct };
   }, [adherence]);
 
-  const maxAdherenceTotal = useMemo(
-    () => Math.max(1, ...adherence.map((d) => d.total)),
-    [adherence],
-  );
+  const totalReactions = topReactions.reduce((s, r) => s + r.total, 0);
+  const dataIsThin = totalReactions < 5;
 
   return (
     <div className="pb-24">
       <header className="mb-6">
-        <h1 className="text-[28px] leading-tight" style={{ fontWeight: 500 }}>
+        <h1
+          className="text-[32px] leading-tight"
+          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+        >
           Insights
         </h1>
         <p
-          className="text-[14px] mt-1 leading-relaxed"
+          className="text-[13px] mt-1 leading-relaxed"
           style={{ color: "var(--muted)" }}
         >
-          What's working. What's not. What to drop.
+          Audit your stack. Spot patterns. Decide what to drop.
         </p>
       </header>
 
-      {/* Patterns from your data */}
-      <Section title="Patterns" subtitle="From your reactions, skips, and streaks">
+      {/* Hero audit card */}
+      <section
+        className="rounded-2xl mb-5 overflow-hidden"
+        style={{
+          background:
+            "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
+          color: "#FBFAF6",
+          boxShadow: "0 12px 32px rgba(168, 85, 247, 0.30)",
+        }}
+      >
+        <div className="px-5 py-4">
+          <div
+            className="text-[10px] uppercase tracking-wider"
+            style={{
+              opacity: 0.85,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+            }}
+          >
+            Coach audit · {usage.count}/{FREE_DAILY_LIMIT} runs today
+          </div>
+          <div
+            className="text-[20px] leading-snug mt-1"
+            style={{ fontWeight: 700 }}
+          >
+            {dataIsThin
+              ? "Need more reactions first"
+              : "Run a full audit"}
+          </div>
+          <p
+            className="text-[12.5px] mt-1.5 leading-relaxed"
+            style={{ opacity: 0.88 }}
+          >
+            {dataIsThin
+              ? `Only ${totalReactions} reaction${totalReactions === 1 ? "" : "s"} so far. Tap helped/no-change/worse on a few items today and Coach will have enough signal to make confident calls.`
+              : "Coach reads your last 30 days of skips, reactions, voice memos, and adherence — then proposes what to keep, drop, or swap."}
+          </p>
+          <button
+            onClick={runAudit}
+            disabled={loading || limitReached || dataIsThin}
+            className="w-full mt-3 py-2.5 rounded-xl text-[13.5px] flex items-center justify-center gap-1.5"
+            style={{
+              background: "rgba(251, 250, 246, 0.96)",
+              color: "var(--pro-deep)",
+              fontWeight: 700,
+              opacity: loading || limitReached || dataIsThin ? 0.55 : 1,
+            }}
+          >
+            <Icon name="sparkle" size={13} strokeWidth={2.2} />
+            {loading
+              ? "Running audit… (15-25s)"
+              : limitReached
+                ? "Daily free limit reached"
+                : dataIsThin
+                  ? "Log more reactions first"
+                  : memo
+                    ? "Run again"
+                    : "Run full audit"}
+          </button>
+          {limitReached && (
+            <Link
+              href="/upgrade"
+              className="block w-full mt-2 py-2 rounded-xl text-center text-[12.5px]"
+              style={{
+                background: "rgba(251, 250, 246, 0.16)",
+                color: "#FBFAF6",
+                fontWeight: 600,
+              }}
+            >
+              Unlimited audits with Pro →
+            </Link>
+          )}
+        </div>
+      </section>
+
+      {/* Audit lenses — focused Coach prompts */}
+      <section className="mb-7">
+        <div className="flex items-baseline justify-between mb-2.5">
+          <h2
+            className="text-[11px] uppercase tracking-wider"
+            style={{
+              color: "var(--muted)",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+            }}
+          >
+            Audit lenses
+          </h2>
+          <span
+            className="text-[11px]"
+            style={{ color: "var(--muted)" }}
+          >
+            One tap → focused prompt
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {LENSES.map((l) => (
+            <button
+              key={l.label}
+              onClick={() => fireLens(l)}
+              className="text-left rounded-2xl p-3 card-glass active:scale-[0.98] transition-transform flex items-start gap-2.5"
+            >
+              <span
+                className="shrink-0 h-8 w-8 rounded-lg flex items-center justify-center"
+                style={{
+                  background: `${l.accent}1F`,
+                  color: l.accent,
+                }}
+              >
+                <Icon name={l.icon} size={14} strokeWidth={1.8} />
+              </span>
+              <div className="flex-1 min-w-0 pt-0.5">
+                <div
+                  className="text-[13px] leading-snug"
+                  style={{ fontWeight: 600 }}
+                >
+                  {l.label}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Audit memo — appears after Run full audit */}
+      {memo && (
+        <section className="mb-7">
+          <div className="flex items-baseline justify-between mb-2.5">
+            <h2
+              className="text-[11px] uppercase tracking-wider"
+              style={{
+                color: "var(--accent)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Latest audit
+            </h2>
+            {generatedAt && (
+              <span
+                className="text-[11px]"
+                style={{ color: "var(--muted)" }}
+              >
+                {new Date(generatedAt).toLocaleString()}
+              </span>
+            )}
+          </div>
+          <div
+            className="rounded-2xl card-glass p-4 text-[13.5px] leading-relaxed whitespace-pre-line"
+            style={{ color: "var(--foreground-soft)" }}
+          >
+            {memo}
+          </div>
+        </section>
+      )}
+
+      {err && (
+        <div
+          className="rounded-xl p-3 text-[12.5px] mb-7"
+          style={{
+            background: "rgba(239, 68, 68, 0.10)",
+            color: "var(--error)",
+            border: "1px solid rgba(239, 68, 68, 0.30)",
+          }}
+        >
+          {err}
+        </div>
+      )}
+
+      {/* Patterns from heuristics */}
+      <section className="mb-7">
+        <h2
+          className="text-[11px] uppercase tracking-wider mb-2.5"
+          style={{
+            color: "var(--muted)",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+          }}
+        >
+          Patterns
+        </h2>
         <PatternCard />
-      </Section>
+      </section>
 
       {/* Adherence trend */}
-      <Section
-        title="Adherence"
-        subtitle={
-          adherenceStats.delta !== 0
-            ? `Last 7 days vs prior 7 — ${adherenceStats.delta > 0 ? "↑" : "↓"} ${Math.abs(Math.round(adherenceStats.delta * 100))}%`
-            : "Last 14 days"
-        }
-      >
+      <section className="mb-7">
+        <div className="flex items-baseline justify-between mb-2.5">
+          <h2
+            className="text-[11px] uppercase tracking-wider"
+            style={{
+              color: "var(--muted)",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+            }}
+          >
+            Adherence
+          </h2>
+          {adherenceStats.delta !== 0 && (
+            <span
+              className="text-[11px] tabular-nums"
+              style={{
+                color:
+                  adherenceStats.delta > 0
+                    ? "var(--accent)"
+                    : "var(--warn)",
+                fontWeight: 600,
+              }}
+            >
+              {adherenceStats.delta > 0 ? "↑" : "↓"}{" "}
+              {Math.abs(Math.round(adherenceStats.delta * 100))}%
+            </span>
+          )}
+        </div>
         <div className="rounded-2xl card-glass p-4">
           <div className="flex items-baseline gap-3 mb-3">
             <div
-              className="text-[28px] tabular-nums"
+              className="text-[28px] tabular-nums leading-none"
               style={{
-                fontWeight: 600,
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
                 color:
                   adherenceStats.last7Pct >= 0.8
-                    ? "var(--olive)"
+                    ? "var(--accent)"
                     : adherenceStats.last7Pct >= 0.5
                       ? "var(--warn)"
                       : "var(--error)",
               }}
             >
               {Math.round(adherenceStats.last7Pct * 100)}
-              <span className="text-[14px]" style={{ opacity: 0.65 }}>
+              <span className="text-[14px] ml-0.5" style={{ opacity: 0.65 }}>
                 %
               </span>
             </div>
@@ -247,11 +497,10 @@ export default function InsightsPage() {
               className="text-[12px]"
               style={{ color: "var(--muted)" }}
             >
-              7-day average
+              7-day avg
             </div>
           </div>
 
-          {/* Sparkline of bars */}
           <div className="flex items-end gap-1 h-12 mb-1">
             {adherence.map((d) => {
               const h =
@@ -270,7 +519,7 @@ export default function InsightsPage() {
                       d.total === 0
                         ? "var(--border)"
                         : d.taken / d.total >= 0.8
-                          ? "var(--olive)"
+                          ? "var(--accent)"
                           : d.taken / d.total >= 0.5
                             ? "var(--warn)"
                             : "var(--error)",
@@ -290,46 +539,78 @@ export default function InsightsPage() {
             <span>today</span>
           </div>
         </div>
-      </Section>
+      </section>
 
-      {/* Reactions */}
+      {/* Top reactions — each opens Coach focused on it */}
       {topReactions.length > 0 && (
-        <Section
-          title="Reactions"
-          subtitle="Top 5 items you've rated, last 30 days"
-        >
+        <section className="mb-7">
+          <div className="flex items-baseline justify-between mb-2.5">
+            <h2
+              className="text-[11px] uppercase tracking-wider"
+              style={{
+                color: "var(--muted)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Top reactions
+            </h2>
+            <span
+              className="text-[11px]"
+              style={{ color: "var(--muted)" }}
+            >
+              Tap to discuss
+            </span>
+          </div>
           <div className="rounded-2xl card-glass overflow-hidden">
             {topReactions.map((r, i) => (
-              <Link
+              <button
                 key={r.item_id}
-                href={`/items/${r.item_id}`}
-                className="block p-3"
+                onClick={() => {
+                  const summary = [
+                    r.helped > 0 ? `${r.helped} helped` : null,
+                    r.no_change > 0 ? `${r.no_change} no_change` : null,
+                    r.worse > 0 ? `${r.worse} worse` : null,
+                    r.forgot > 0 ? `${r.forgot} forgot` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(", ");
+                  window.dispatchEvent(
+                    new CustomEvent("regimen:ask", {
+                      detail: {
+                        text:
+                          `Discuss ${r.item_name}. Reactions over the last 30 days: ${summary} (${r.total} total). ` +
+                          `Should I keep, adjust, or drop? Be specific. If you'd propose a change, emit it in <<<PROPOSAL ... PROPOSAL>>> format.`,
+                        send: true,
+                      },
+                    }),
+                  );
+                }}
+                className="block w-full text-left p-3.5"
                 style={{
-                  borderTop:
-                    i > 0 ? "1px solid var(--border)" : undefined,
+                  borderTop: i > 0 ? "1px solid var(--border)" : undefined,
                 }}
               >
                 <div className="flex items-baseline justify-between gap-2 mb-1.5">
                   <div
                     className="text-[14px] truncate"
-                    style={{ fontWeight: 500 }}
+                    style={{ fontWeight: 600 }}
                   >
                     {r.item_name}
                   </div>
                   <div
-                    className="text-[11px] shrink-0"
+                    className="text-[11px] shrink-0 tabular-nums"
                     style={{ color: "var(--muted)" }}
                   >
                     {r.total} {r.total === 1 ? "tap" : "taps"}
                   </div>
                 </div>
-                {/* Tiny bar chart of reactions */}
                 <div className="flex h-1.5 rounded-full overflow-hidden">
                   {r.helped > 0 && (
                     <div
                       style={{
                         width: `${(r.helped / r.total) * 100}%`,
-                        background: "var(--olive)",
+                        background: "var(--accent)",
                       }}
                     />
                   )}
@@ -359,40 +640,79 @@ export default function InsightsPage() {
                   )}
                 </div>
                 <div
-                  className="flex gap-3 mt-1.5 text-[10px]"
+                  className="flex gap-3 mt-1.5 text-[11px] tabular-nums"
                   style={{ color: "var(--muted)" }}
                 >
-                  {r.helped > 0 && <span>👍 {r.helped}</span>}
-                  {r.no_change > 0 && <span>✋ {r.no_change}</span>}
-                  {r.worse > 0 && <span>👎 {r.worse}</span>}
-                  {r.forgot > 0 && <span>❓ {r.forgot}</span>}
+                  {r.helped > 0 && (
+                    <span style={{ color: "var(--accent)" }}>
+                      helped {r.helped}
+                    </span>
+                  )}
+                  {r.no_change > 0 && (
+                    <span style={{ color: "var(--warn)" }}>
+                      no_change {r.no_change}
+                    </span>
+                  )}
+                  {r.worse > 0 && (
+                    <span style={{ color: "var(--error)" }}>
+                      worse {r.worse}
+                    </span>
+                  )}
+                  {r.forgot > 0 && <span>forgot {r.forgot}</span>}
                 </div>
-              </Link>
+              </button>
             ))}
           </div>
-        </Section>
+        </section>
       )}
 
       {/* Voice memos */}
       {memos.length > 0 && (
-        <Section
-          title="Voice memos"
-          subtitle={`${memos.length} memo${memos.length === 1 ? "" : "s"} this week`}
-        >
+        <section className="mb-7">
+          <div className="flex items-baseline justify-between mb-2.5">
+            <h2
+              className="text-[11px] uppercase tracking-wider"
+              style={{
+                color: "var(--muted)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Voice memos · last 7 days
+            </h2>
+            <span
+              className="text-[11px]"
+              style={{ color: "var(--muted)" }}
+            >
+              {memos.length}
+            </span>
+          </div>
           <div className="flex flex-col gap-2">
             {memos.slice(0, 3).map((m) => (
-              <div
+              <button
                 key={m.id}
-                className="rounded-2xl card-glass p-3"
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent("regimen:ask", {
+                      detail: {
+                        text:
+                          `Read this voice memo I left and tell me what to do about it.\n\n"${m.transcript}"\n\n` +
+                          `If there's a concrete change implied, emit it as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format.`,
+                        send: true,
+                      },
+                    }),
+                  );
+                }}
+                className="rounded-2xl card-glass p-3.5 text-left active:scale-[0.99] transition-transform"
               >
                 <div className="flex items-center gap-2 mb-1">
                   {m.context_tag && (
                     <span
-                      className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+                      className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
                       style={{
-                        background: "var(--olive-tint)",
-                        color: "var(--olive)",
-                        fontWeight: 600,
+                        background: "var(--accent-tint)",
+                        color: "var(--accent)",
+                        fontWeight: 700,
                         letterSpacing: "0.06em",
                       }}
                     >
@@ -400,7 +720,7 @@ export default function InsightsPage() {
                     </span>
                   )}
                   <span
-                    className="text-[10px]"
+                    className="text-[10.5px]"
                     style={{ color: "var(--muted)" }}
                   >
                     {new Date(m.created_at).toLocaleDateString(undefined, {
@@ -411,186 +731,85 @@ export default function InsightsPage() {
                 </div>
                 <div
                   className="text-[13px] leading-relaxed line-clamp-3"
-                  style={{ color: "var(--foreground)", opacity: 0.85 }}
+                  style={{ color: "var(--foreground-soft)" }}
                 >
                   {m.transcript}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
-        </Section>
+        </section>
       )}
 
-      {/* Coach audit */}
-      <Section
-        title="Full Coach audit"
-        subtitle={`${usage.count}/${FREE_DAILY_LIMIT} runs used today`}
-      >
-        <button
-          onClick={runAudit}
-          disabled={loading || limitReached}
-          className="w-full rounded-2xl px-5 py-4 text-[15px]"
-          style={{
-            background: limitReached ? "var(--surface-alt)" : "var(--olive)",
-            color: limitReached ? "var(--muted)" : "#FBFAF6",
-            fontWeight: 500,
-            opacity: loading ? 0.6 : 1,
-            boxShadow: limitReached
-              ? undefined
-              : "0 4px 14px var(--accent-glow)",
-          }}
-        >
-          {loading
-            ? "Running audit… (15-25s)"
-            : limitReached
-              ? "Daily free limit reached"
-              : memo
-                ? "Run again →"
-                : "Run full Coach audit →"}
-        </button>
-
-        {limitReached && (
-          <div
-            className="mt-3 rounded-2xl p-4"
-            style={{
-              background:
-                "linear-gradient(135deg, var(--pro-tint) 0%, var(--pro-tint) 100%)",
-              border: "1px solid var(--pro-tint)",
-            }}
-          >
-            <div
-              className="text-[11px] uppercase tracking-wider mb-1"
-              style={{ color: "var(--purple)", fontWeight: 600 }}
-            >
-              Pro
-            </div>
-            <div
-              className="text-[14px] leading-snug"
-              style={{ fontWeight: 500 }}
-            >
-              Want unlimited refinements?
-            </div>
-            <div
-              className="text-[12px] mt-1 leading-relaxed"
-              style={{ color: "var(--muted)" }}
-            >
-              Pro = unlimited Coach audits, deep research, photo analysis, and
-              5% rebate on items ordered through Regimen. $9/mo or $79/yr.
-            </div>
-            <button
-              className="mt-3 text-[13px] px-3.5 py-2 rounded-xl"
-              style={{
-                background: "var(--purple)",
-                color: "#FBFAF6",
-                fontWeight: 500,
-              }}
-              onClick={() =>
-                alert("Pro tier launches with Stripe — coming soon.")
-              }
-            >
-              Upgrade to Pro →
-            </button>
-          </div>
-        )}
-
-        {err && (
-          <div
-            className="mt-3 rounded-lg p-3 text-[13px]"
-            style={{
-              background: "rgba(176, 0, 32, 0.08)",
-              color: "var(--error)",
-            }}
-          >
-            {err}
-          </div>
-        )}
-
-        {memo && (
-          <div className="mt-4">
-            {generatedAt && (
-              <div
-                className="text-[11px] mb-2"
-                style={{ color: "var(--muted)" }}
-              >
-                Generated {new Date(generatedAt).toLocaleString()}
-              </div>
-            )}
-            <div className="rounded-2xl card-glass p-5 text-[14px] leading-relaxed whitespace-pre-line">
-              {memo}
-            </div>
-          </div>
-        )}
-      </Section>
-
-      {/* Costs preview link */}
-      <Section title="Costs">
+      {/* Bottom links */}
+      <div className="grid grid-cols-2 gap-2">
         <Link
           href="/costs"
-          className="block rounded-2xl card-glass p-4 pressable"
+          className="rounded-2xl card-glass p-3.5 flex items-center gap-2.5"
         >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div
-                className="text-[14px] leading-snug"
-                style={{ fontWeight: 500 }}
-              >
-                Stack run-rate + savings
-              </div>
-              <div
-                className="text-[12px] mt-0.5"
-                style={{ color: "var(--muted)" }}
-              >
-                Monthly cost · expensive items · Coach's drop savings estimate
-              </div>
-            </div>
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ color: "var(--muted)", flexShrink: 0 }}
-            >
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </div>
-        </Link>
-      </Section>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mb-7">
-      <div className="mb-2.5">
-        <h2
-          className="text-[11px] uppercase tracking-wider"
-          style={{ color: "var(--muted)", fontWeight: 600, letterSpacing: "0.06em" }}
-        >
-          {title}
-        </h2>
-        {subtitle && (
-          <div
-            className="text-[12px] mt-0.5"
-            style={{ color: "var(--muted)", opacity: 0.7 }}
+          <span
+            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
+            style={{
+              background: "var(--premium-tint)",
+              color: "var(--premium)",
+            }}
           >
-            {subtitle}
+            <Icon name="dollar" size={15} strokeWidth={1.8} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-[13px]"
+              style={{ fontWeight: 600 }}
+            >
+              Costs
+            </div>
+            <div
+              className="text-[11px]"
+              style={{ color: "var(--muted)" }}
+            >
+              Run-rate + savings
+            </div>
           </div>
-        )}
+          <Icon
+            name="chevron-right"
+            size={14}
+            className="shrink-0 opacity-50"
+          />
+        </Link>
+        <Link
+          href="/recap"
+          className="rounded-2xl card-glass p-3.5 flex items-center gap-2.5"
+        >
+          <span
+            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
+            style={{
+              background: "var(--accent-tint)",
+              color: "var(--accent)",
+            }}
+          >
+            <Icon name="graph" size={15} strokeWidth={1.8} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-[13px]"
+              style={{ fontWeight: 600 }}
+            >
+              Weekly recap
+            </div>
+            <div
+              className="text-[11px]"
+              style={{ color: "var(--muted)" }}
+            >
+              Last 7 days
+            </div>
+          </div>
+          <Icon
+            name="chevron-right"
+            size={14}
+            className="shrink-0 opacity-50"
+          />
+        </Link>
       </div>
-      {children}
-    </section>
+    </div>
   );
 }

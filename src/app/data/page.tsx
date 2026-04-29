@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import Icon from "@/components/Icon";
 
 export default function DataPage() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [imported, setImported] = useState(false);
 
   async function handleUpload() {
     if (!file) return;
@@ -20,15 +23,40 @@ export default function DataPage() {
     const data = await res.json();
     if (data.ok) {
       setResult(`✓ Imported ${data.inserted} days of Oura data`);
+      setImported(true);
     } else {
       setResult(`Error: ${data.error ?? "unknown"}`);
     }
     setUploading(false);
   }
 
+  function fireCoachAnalyze() {
+    window.dispatchEvent(
+      new CustomEvent("regimen:ask", {
+        detail: {
+          text:
+            "I just imported new Oura data. Look at my last 14 days of sleep + readiness + HRV + RHR. " +
+            "Find one trend worth my attention and propose ONE concrete change in <<<PROPOSAL ... PROPOSAL>>> format. " +
+            "If trends are noisy or data is too thin, say so honestly.",
+          send: true,
+        },
+      }),
+    );
+  }
+
   return (
     <div className="pb-24">
-      <header className="mb-7">
+      <header className="mb-6">
+        <div className="mb-2">
+          <Link
+            href="/more"
+            className="text-[12px] inline-flex items-center gap-1"
+            style={{ color: "var(--muted)" }}
+          >
+            <Icon name="chevron-right" size={11} className="rotate-180" />
+            More
+          </Link>
+        </div>
         <h1
           className="text-[32px] leading-tight"
           style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
@@ -39,8 +67,8 @@ export default function DataPage() {
           className="text-[13px] mt-1 leading-relaxed"
           style={{ color: "var(--muted)" }}
         >
-          Bring in your Oura, bloodwork, and CGM data so Coach has the full
-          picture when it refines your stack.
+          Bring in Oura, bloodwork, and CGM data so Coach has the full picture
+          when it refines your stack.
         </p>
       </header>
 
@@ -94,6 +122,41 @@ export default function DataPage() {
             </div>
           )}
         </div>
+        {imported && (
+          <button
+            onClick={fireCoachAnalyze}
+            className="w-full mt-3 rounded-2xl card-glass p-3.5 flex items-center gap-2.5 active:scale-[0.99] transition-transform text-left"
+          >
+            <span
+              className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
+              style={{
+                background: "var(--pro-tint)",
+                color: "var(--pro)",
+              }}
+            >
+              <Icon name="sparkle" size={16} strokeWidth={1.8} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div
+                className="text-[13.5px] leading-snug"
+                style={{ fontWeight: 600 }}
+              >
+                Have Coach analyze the import
+              </div>
+              <div
+                className="text-[11.5px] mt-0.5 leading-snug"
+                style={{ color: "var(--muted)" }}
+              >
+                Find one trend worth your attention
+              </div>
+            </div>
+            <Icon
+              name="chevron-right"
+              size={14}
+              className="shrink-0 opacity-50"
+            />
+          </button>
+        )}
       </section>
 
       <section className="mb-7">
