@@ -1,13 +1,19 @@
 "use client";
 
+// /audit — fast-paced "have / need / skip" triage of every item you'd
+// actually buy. Tap once per item, items disappear, counters tick up.
+// One-tap-per-item is the design goal. Tightened: card-glass styling,
+// removed emoji buttons in favor of color-coded labeled buttons, added
+// "Bulk-audit with Coach" CTA so users can offload the work entirely.
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { Item, ItemType } from "@/lib/types";
-import { ITEM_TYPE_ICONS, ITEM_TYPE_LABELS } from "@/lib/constants";
+import { ITEM_TYPE_LABELS } from "@/lib/constants";
+import Icon from "@/components/Icon";
 
 // Types that make sense to audit — things you BUY (not foods, not practices).
-// Food items are groceries — you just buy them. Practices have no inventory.
 const AUDITABLE_TYPES: ItemType[] = [
   "supplement",
   "topical",
@@ -38,7 +44,6 @@ export default function AuditPage() {
 
   async function loadItems() {
     const supabase = createClient();
-    // Only show items that haven't been audited yet (owned is null)
     const { data } = await supabase
       .from("items")
       .select("*")
@@ -68,12 +73,25 @@ export default function AuditPage() {
       updates.purchase_state = null;
     }
     await supabase.from("items").update(updates).eq("id", item.id);
-    // Track the choice for the running counter, then remove from list
     setHaveCount((c) => (choice === "have" ? c + 1 : c));
     setNeedCount((c) => (choice === "need" ? c + 1 : c));
     setSkipCount((c) => (choice === "skip" ? c + 1 : c));
     setItems((prev) => prev.filter((i) => i.id !== item.id));
     setSaving((s) => ({ ...s, [item.id]: false }));
+  }
+
+  function fireCoachAudit() {
+    const prompt =
+      `Run a bulk audit of my buyable stack. For each item I haven't audited yet, ` +
+      `decide "have" / "need" / "skip" based on my goals, hard NOs, recent reactions, ` +
+      `and stack overlap. Surface ONLY the calls you're confident about — emit each as ` +
+      `a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: adjust ` +
+      `and the appropriate purchase_state in extra. Skip items where you'd guess.`;
+    window.dispatchEvent(
+      new CustomEvent("regimen:ask", {
+        detail: { text: prompt, send: true },
+      }),
+    );
   }
 
   const grouped = useMemo(() => {
@@ -86,6 +104,7 @@ export default function AuditPage() {
   }, [items]);
 
   const remaining = items.length;
+  const sessionTotal = haveCount + needCount + skipCount;
 
   if (loading) {
     return (
@@ -97,38 +116,87 @@ export default function AuditPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-5">
-        <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
+      <header className="mb-6">
+        <h1
+          className="text-[32px] leading-tight"
+          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+        >
           Stack audit
         </h1>
-        <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          Tap ✓ Have / ❌ Need / ⏭ Skip — items disappear as you answer. Only
-          shows things you actually buy (no foods, no practices).
-        </div>
+        <p
+          className="text-[13px] mt-1 leading-relaxed"
+          style={{ color: "var(--muted)" }}
+        >
+          Tap once per item — Have, Need, or Skip. Items disappear as you go.
+        </p>
       </header>
 
-      {/* Progress strip — counts what you just answered this session */}
-      <div className="border-hair rounded-xl p-3 mb-5 flex items-center justify-between gap-3">
-        <div className="flex gap-3 text-[12px]" style={{ color: "var(--muted)" }}>
-          <span>{remaining} left</span>
-          {haveCount > 0 && <span>· ✓ {haveCount}</span>}
-          {needCount > 0 && <span>· ❌ {needCount}</span>}
-          {skipCount > 0 && <span>· ⏭ {skipCount}</span>}
+      {/* Progress + bulk-audit CTA */}
+      <section className="rounded-2xl card-glass p-4 mb-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <div
+              className="text-[20px] tabular-nums leading-none"
+              style={{ fontWeight: 700, letterSpacing: "-0.02em" }}
+            >
+              {remaining}
+              <span
+                className="text-[13px] ml-1.5"
+                style={{ color: "var(--muted)", fontWeight: 400 }}
+              >
+                left
+              </span>
+            </div>
+            {sessionTotal > 0 && (
+              <div
+                className="text-[11px] mt-1.5 flex gap-3 tabular-nums"
+                style={{ color: "var(--muted)" }}
+              >
+                {haveCount > 0 && (
+                  <span style={{ color: "var(--accent)" }}>
+                    {haveCount} have
+                  </span>
+                )}
+                {needCount > 0 && (
+                  <span style={{ color: "var(--premium)" }}>
+                    {needCount} need
+                  </span>
+                )}
+                {skipCount > 0 && <span>{skipCount} skipped</span>}
+              </div>
+            )}
+          </div>
+          {needCount > 0 && (
+            <Link
+              href="/purchases"
+              className="text-[12.5px] px-3 py-2 rounded-lg flex items-center gap-1"
+              style={{
+                background: "var(--premium)",
+                color: "#FBFAF6",
+                fontWeight: 600,
+              }}
+            >
+              Shopping list
+              <Icon name="chevron-right" size={12} strokeWidth={2.2} />
+            </Link>
+          )}
         </div>
-        {needCount > 0 && (
-          <Link
-            href="/purchases"
-            className="px-3 py-1.5 rounded-lg text-[12px]"
+        {remaining > 3 && (
+          <button
+            onClick={fireCoachAudit}
+            className="w-full mt-3 text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5"
             style={{
-              background: "var(--foreground)",
-              color: "var(--background)",
-              fontWeight: 500,
+              background: "var(--pro-tint)",
+              color: "var(--pro)",
+              fontWeight: 600,
+              border: "1px solid var(--pro-tint)",
             }}
           >
-            Shopping list →
-          </Link>
+            <Icon name="sparkle" size={12} strokeWidth={2} />
+            Have Coach audit the rest
+          </button>
         )}
-      </div>
+      </section>
 
       {TYPE_ORDER.map((type) => {
         const list = grouped[type];
@@ -136,10 +204,14 @@ export default function AuditPage() {
         return (
           <section key={type} className="mb-6">
             <h2
-              className="text-[11px] uppercase tracking-wider mb-2"
-              style={{ color: "var(--muted)", fontWeight: 500 }}
+              className="text-[11px] uppercase tracking-wider mb-2.5"
+              style={{
+                color: "var(--muted)",
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+              }}
             >
-              {ITEM_TYPE_ICONS[type]} {ITEM_TYPE_LABELS[type]}s · {list.length}
+              {ITEM_TYPE_LABELS[type]}s · {list.length}
             </h2>
             <div className="flex flex-col gap-2">
               {list.map((item) => (
@@ -156,29 +228,42 @@ export default function AuditPage() {
       })}
 
       {remaining === 0 && (
-        <div
-          className="border-hair rounded-xl p-8 text-center"
-          style={{ color: "var(--muted)" }}
-        >
-          <div className="text-[14px]" style={{ fontWeight: 500 }}>
-            {haveCount + needCount + skipCount > 0 ? "All clear ✓" : "Nothing to audit"}
+        <div className="rounded-2xl card-glass p-8 text-center">
+          <span
+            className="inline-flex items-center justify-center h-12 w-12 rounded-2xl mb-3"
+            style={{
+              background: "var(--accent-tint)",
+              color: "var(--accent)",
+            }}
+          >
+            <Icon name="check-circle" size={24} strokeWidth={1.8} />
+          </span>
+          <div
+            className="text-[16px] leading-snug"
+            style={{ fontWeight: 600 }}
+          >
+            {sessionTotal > 0 ? "All clear" : "Nothing to audit"}
           </div>
-          <div className="text-[13px] mt-1">
-            {haveCount + needCount + skipCount > 0
-              ? `Audited ${haveCount + needCount + skipCount} items this session.`
+          <div
+            className="text-[12.5px] mt-1 leading-relaxed"
+            style={{ color: "var(--muted)" }}
+          >
+            {sessionTotal > 0
+              ? `Audited ${sessionTotal} ${sessionTotal === 1 ? "item" : "items"} this session.`
               : "Every item has been audited."}
           </div>
           {needCount > 0 && (
             <Link
               href="/purchases"
-              className="inline-block mt-3 px-3 py-2 rounded-lg text-[13px]"
+              className="inline-flex items-center gap-1 mt-4 px-4 py-2 rounded-xl text-[13px]"
               style={{
-                background: "var(--foreground)",
-                color: "var(--background)",
-                fontWeight: 500,
+                background: "var(--premium)",
+                color: "#FBFAF6",
+                fontWeight: 600,
               }}
             >
-              See shopping list →
+              See shopping list
+              <Icon name="chevron-right" size={12} strokeWidth={2.2} />
             </Link>
           )}
         </div>
@@ -198,47 +283,48 @@ function AuditRow({
 }) {
   return (
     <div
-      className="border-hair rounded-xl p-3"
+      className="rounded-2xl card-glass p-3.5"
       style={{ opacity: busy ? 0.5 : 1, transition: "opacity 0.15s" }}
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="min-w-0 flex-1">
-          <div className="text-[14px] leading-snug" style={{ fontWeight: 500 }}>
-            {item.name}
-          </div>
-          {(item.brand || item.dose) && (
-            <div
-              className="text-[12px] mt-0.5"
-              style={{ color: "var(--muted)" }}
-            >
-              {[item.brand, item.dose].filter(Boolean).join(" · ")}
-            </div>
-          )}
-          {item.status === "queued" && item.review_trigger && (
-            <div
-              className="text-[11px] mt-0.5"
-              style={{ color: "var(--muted)", fontStyle: "italic" }}
-            >
-              Scheduled: {item.review_trigger}
-            </div>
-          )}
+      <div className="mb-3">
+        <div
+          className="text-[14.5px] leading-snug"
+          style={{ fontWeight: 600 }}
+        >
+          {item.name}
         </div>
+        {(item.brand || item.dose) && (
+          <div
+            className="text-[12px] mt-0.5"
+            style={{ color: "var(--muted)" }}
+          >
+            {[item.brand, item.dose].filter(Boolean).join(" · ")}
+          </div>
+        )}
+        {item.status === "queued" && item.review_trigger && (
+          <div
+            className="text-[11px] mt-0.5 italic"
+            style={{ color: "var(--muted)" }}
+          >
+            Scheduled: {item.review_trigger}
+          </div>
+        )}
       </div>
       <div className="flex gap-1.5">
         <ChoiceButton
-          label="✓ Have"
+          label="Have"
           busy={busy}
           variant="have"
           onClick={() => onChoice(item, "have")}
         />
         <ChoiceButton
-          label="❌ Need"
+          label="Need"
           busy={busy}
           variant="need"
           onClick={() => onChoice(item, "need")}
         />
         <ChoiceButton
-          label="⏭ Skip"
+          label="Skip"
           busy={busy}
           variant="skip"
           onClick={() => onChoice(item, "skip")}
@@ -259,20 +345,31 @@ function ChoiceButton({
   variant: "have" | "need" | "skip";
   onClick: () => void;
 }) {
-  const color =
+  const styles =
     variant === "have"
-      ? "#04342C"
+      ? {
+          background: "var(--accent)",
+          color: "#FBFAF6",
+          fontWeight: 700 as const,
+        }
       : variant === "need"
-        ? "#412402"
-        : "var(--muted)";
+        ? {
+            background: "var(--premium)",
+            color: "#FBFAF6",
+            fontWeight: 700 as const,
+          }
+        : {
+            background: "var(--surface-alt)",
+            color: "var(--foreground-soft)",
+            fontWeight: 600 as const,
+          };
   return (
     <button
       onClick={onClick}
       disabled={busy}
-      className="flex-1 py-2 rounded-lg text-[13px] border-hair"
+      className="flex-1 py-2.5 rounded-xl text-[13.5px] active:scale-[0.98] transition-transform"
       style={{
-        background: "var(--background)",
-        color,
+        ...styles,
         opacity: busy ? 0.5 : 1,
       }}
     >
