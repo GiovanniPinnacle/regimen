@@ -73,6 +73,9 @@ export default async function AdminCatalogPage({
     { data: bySourceRaw },
     { data: recentRaw },
     { data: recentRunsRaw },
+    { data: clicks30dRaw },
+    { data: linkedAggRaw },
+    { data: staleCandidatesRaw },
   ] = await Promise.all([
     admin
       .from("catalog_items")
@@ -103,6 +106,36 @@ export default async function AdminCatalogPage({
       .select("id, source, query, imported_count, error_count, status, started_at")
       .order("started_at", { ascending: false })
       .limit(10),
+    // Top 100 most-clicked catalog items in last 30 days — drives the
+    // "what's actually converting" leaderboard
+    admin
+      .from("affiliate_clicks")
+      .select("item_id")
+      .not("item_id", "is", null)
+      .gte(
+        "clicked_at",
+        new Date(Date.now() - 30 * 86400000).toISOString(),
+      )
+      .limit(2000),
+    // Items table linked to catalog (count via group-style aggregation
+    // server-side would be ideal but we settle for app-side count)
+    admin
+      .from("items")
+      .select("catalog_item_id")
+      .not("catalog_item_id", "is", null)
+      .limit(5000),
+    // Stale candidates: enriched 30+ days ago — the seed cron will
+    // refresh, but this surfaces ones that need a manual look
+    admin
+      .from("catalog_items")
+      .select("id, name, brand, enriched_at")
+      .not("enriched_at", "is", null)
+      .lt(
+        "enriched_at",
+        new Date(Date.now() - 30 * 86400000).toISOString(),
+      )
+      .order("enriched_at", { ascending: true })
+      .limit(20),
   ]);
 
   // Aggregate by type
@@ -149,6 +182,62 @@ export default async function AdminCatalogPage({
     started_at: string;
   };
   const recentRuns = (recentRunsRaw ?? []) as unknown as RunRow[];
+
+  // Aggregate clicks by item_id to find leaders
+  const clickAgg = new Map<string, number>();
+  for (const r of (clicks30dRaw ?? []) as { item_id: string | null }[]) {
+    if (!r.item_id) continue;
+    clickAgg.set(r.item_id, (clickAgg.get(r.item_id) ?? 0) + 1);
+  }
+  const linkedAgg = new Map<string, number>();
+  for (const r of (linkedAggRaw ?? []) as {
+    catalog_item_id: string | null;
+  }[]) {
+    if (!r.catalog_item_id) continue;
+    linkedAgg.set(
+      r.catalog_item_id,
+      (linkedAgg.get(r.catalog_item_id) ?? 0) + 1,
+    );
+  }
+
+  // Hydrate top-clicked + top-linked with names for display
+  const topClickedIds = Array.from(clickAgg.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([id]) => id);
+  const topLinkedIds = Array.from(linkedAgg.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([id]) => id);
+
+  const allLeaderIds = Array.from(
+    new Set([...topClickedIds, ...topLinkedIds]),
+  );
+  type LeaderRow = {
+    id: string;
+    name: string;
+    brand: string | null;
+    item_type: string;
+    source: string;
+  };
+  let leaderById = new Map<string, LeaderRow>();
+  if (allLeaderIds.length > 0) {
+    const { data: leaderRaw } = await admin
+      .from("catalog_items")
+      .select("id, name, brand, item_type, source")
+      .in("id", allLeaderIds);
+    leaderById = new Map(
+      ((leaderRaw ?? []) as unknown as LeaderRow[]).map((r) => [r.id, r]),
+    );
+  }
+
+  type StaleRow = {
+    id: string;
+    name: string;
+    brand: string | null;
+    enriched_at: string;
+  };
+  const stale = (staleCandidatesRaw ?? []) as unknown as StaleRow[];
 
   return (
     <div className="pb-24">
@@ -375,6 +464,200 @@ export default async function AdminCatalogPage({
           )}
         </div>
       </section>
+
+      {/* Top clicked — leaderboard for revenue */}
+      {topClickedIds.length > 0 && (
+        <section className="mb-7">
+          <div className="flex items-baseline justify-between mb-2.5">
+            <h2
+              className="text-[11px] uppercase tracking-wider"
+              style={{
+                color: "var(--premium)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Top clicked · 30d
+            </h2>
+            <span
+              className="text-[11px]"
+              style={{ color: "var(--muted)" }}
+            >
+              Revenue leaders
+            </span>
+          </div>
+          <div className="rounded-2xl card-glass overflow-hidden">
+            {topClickedIds.map((id, i) => {
+              const r = leaderById.get(id);
+              if (!r) return null;
+              const clicks = clickAgg.get(id) ?? 0;
+              return (
+                <Link
+                  key={id}
+                  href={`/admin/catalog/${id}`}
+                  className="block px-4 py-2.5 flex items-baseline justify-between"
+                  style={{
+                    borderTop:
+                      i > 0 ? "1px solid var(--border)" : undefined,
+                  }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className="text-[13px] truncate"
+                      style={{ fontWeight: 600 }}
+                    >
+                      {r.name}
+                    </div>
+                    {r.brand && (
+                      <div
+                        className="text-[11px]"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {r.brand}
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    className="text-[14px] tabular-nums"
+                    style={{ color: "var(--premium)", fontWeight: 700 }}
+                  >
+                    {clicks}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Top linked — most-saved by users */}
+      {topLinkedIds.length > 0 && (
+        <section className="mb-7">
+          <div className="flex items-baseline justify-between mb-2.5">
+            <h2
+              className="text-[11px] uppercase tracking-wider"
+              style={{
+                color: "var(--accent)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Most-saved by users
+            </h2>
+            <span
+              className="text-[11px]"
+              style={{ color: "var(--muted)" }}
+            >
+              Items linked
+            </span>
+          </div>
+          <div className="rounded-2xl card-glass overflow-hidden">
+            {topLinkedIds.map((id, i) => {
+              const r = leaderById.get(id);
+              if (!r) return null;
+              const linked = linkedAgg.get(id) ?? 0;
+              return (
+                <Link
+                  key={id}
+                  href={`/admin/catalog/${id}`}
+                  className="block px-4 py-2.5 flex items-baseline justify-between"
+                  style={{
+                    borderTop:
+                      i > 0 ? "1px solid var(--border)" : undefined,
+                  }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className="text-[13px] truncate"
+                      style={{ fontWeight: 600 }}
+                    >
+                      {r.name}
+                    </div>
+                    {r.brand && (
+                      <div
+                        className="text-[11px]"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {r.brand}
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    className="text-[14px] tabular-nums"
+                    style={{ color: "var(--accent)", fontWeight: 700 }}
+                  >
+                    {linked}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Stale enrichment — needs refresh */}
+      {stale.length > 0 && (
+        <section className="mb-7">
+          <div className="flex items-baseline justify-between mb-2.5">
+            <h2
+              className="text-[11px] uppercase tracking-wider"
+              style={{
+                color: "var(--warn)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Stale (30d+ since enrichment)
+            </h2>
+            <span
+              className="text-[11px]"
+              style={{ color: "var(--muted)" }}
+            >
+              {stale.length}
+            </span>
+          </div>
+          <div className="rounded-2xl card-glass overflow-hidden">
+            {stale.slice(0, 8).map((r, i) => (
+              <Link
+                key={r.id}
+                href={`/admin/catalog/${r.id}`}
+                className="block px-4 py-2.5 flex items-baseline justify-between"
+                style={{
+                  borderTop:
+                    i > 0 ? "1px solid var(--border)" : undefined,
+                }}
+              >
+                <div className="min-w-0 flex-1">
+                  <div
+                    className="text-[13px] truncate"
+                    style={{ fontWeight: 600 }}
+                  >
+                    {r.name}
+                  </div>
+                  {r.brand && (
+                    <div
+                      className="text-[11px]"
+                      style={{ color: "var(--muted)" }}
+                    >
+                      {r.brand}
+                    </div>
+                  )}
+                </div>
+                <div
+                  className="text-[11px] tabular-nums shrink-0"
+                  style={{ color: "var(--muted)" }}
+                >
+                  {Math.round(
+                    (Date.now() - new Date(r.enriched_at).getTime()) /
+                      86400000,
+                  )}
+                  d ago
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* By item type */}
       {typeAgg.size > 0 && (

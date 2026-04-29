@@ -74,6 +74,21 @@ export type ProtocolContext = {
    *  picks pulled from the shared catalog. Coach uses these to cite
    *  real pharmacology in refinements. Keyed by item.id (not catalog_item_id)
    *  so the system prompt can join with active items by id. */
+  /** Top-evidence catalog candidates the user does NOT already have.
+   *  Coach can recommend these when asked "what should I add?" — grounds
+   *  recommendations in real evidence-graded entries instead of
+   *  generating from scratch. Capped at 12 to keep prompt size sane. */
+  recommendableCatalog: Array<{
+    id: string;
+    name: string;
+    brand: string | null;
+    item_type: string;
+    category: string | null;
+    coach_summary: string | null;
+    mechanism: string | null;
+    best_timing: string | null;
+    evidence_grade: string | null;
+  }>;
   catalogEnrichments: Map<
     string,
     {
@@ -304,6 +319,57 @@ export async function buildContextForUser(
   const catalogIds = activeItems
     .map((i) => i.catalog_item_id)
     .filter((id): id is string => Boolean(id));
+
+  // Pull top-evidence catalog candidates the user doesn't have yet —
+  // grounds Coach's "what should I add?" responses in our actual catalog
+  // instead of pulling from thin air. Filtered to items that are:
+  //   - Enriched (coach_summary set)
+  //   - High evidence (A or B grade)
+  //   - Not already in the user's active stack
+  type RecRow = {
+    id: string;
+    name: string;
+    brand: string | null;
+    item_type: string;
+    category: string | null;
+    coach_summary: string | null;
+    mechanism: string | null;
+    best_timing: string | null;
+    evidence_grade: string | null;
+  };
+  let recommendableCatalog: RecRow[] = [];
+  {
+    const { data: recRaw } = await admin
+      .from("catalog_items")
+      .select(
+        "id, name, brand, item_type, category, coach_summary, mechanism, " +
+          "best_timing, evidence_grade",
+      )
+      .not("coach_summary", "is", null)
+      .in("evidence_grade", ["A", "B"])
+      .in("item_type", ["supplement", "food"])
+      .limit(40);
+    const userCatalogIdSet = new Set(catalogIds);
+    const userItemNames = new Set(
+      activeItems.map((i) => i.name.toLowerCase().trim()),
+    );
+    const candidates = ((recRaw ?? []) as unknown as RecRow[]).filter(
+      (r) => {
+        if (userCatalogIdSet.has(r.id)) return false;
+        // Also dedupe by name in case the user has the item but never linked
+        // to catalog
+        if (userItemNames.has(r.name.toLowerCase().trim())) return false;
+        return true;
+      },
+    );
+    // Prefer A grade first, then B
+    candidates.sort((a, b) => {
+      const aGrade = a.evidence_grade === "A" ? 0 : 1;
+      const bGrade = b.evidence_grade === "A" ? 0 : 1;
+      return aGrade - bGrade;
+    });
+    recommendableCatalog = candidates.slice(0, 12);
+  }
   type CatalogEnrichmentRow = {
     id: string;
     coach_summary: string | null;
@@ -598,6 +664,7 @@ export async function buildContextForUser(
     aboutMe: (profile?.about_me as Record<string, string> | null) ?? null,
     userStage,
     signals,
+    recommendableCatalog,
     catalogEnrichments: (() => {
       const out = new Map<
         string,
@@ -956,6 +1023,40 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   lines.push(`Never let brand suggestions be a search-only "go figure it out" — name the actual brand. If you don't know which brand, say so honestly and tell ${userTag} what to look for on the label instead.`);
   lines.push(``);
   lines.push(`Regimen earns a small affiliate commission on items the user buys through tracked vendor links. This NEVER changes which items you recommend on health merit. But once a health-equivalent decision is made, prefer brands the app has affiliate relationships with (Thorne, iHerb, Amazon, Fullscript) so the user gets a vetted vendor and the app stays sustainable. Be transparent — if asked, explain the affiliate relationship plainly.`);
+
+  // Catalog candidates — high-evidence items the user does NOT have yet.
+  // When asked "what should I add?" Coach should prefer these over
+  // generated-from-scratch suggestions because they're already enriched
+  // with mechanism, timing, and evidence grade.
+  if (ctx.recommendableCatalog.length > 0) {
+    lines.push(``);
+    lines.push(
+      `## CATALOG CANDIDATES (not in user's stack — high evidence)`,
+    );
+    lines.push(
+      `When ${userTag} asks "what should I add?" or you find a clear gap, prefer items from THIS list over generic suggestions. Each is already in our catalog with mechanism + timing + evidence grade attached. Cite the evidence grade when proposing.`,
+    );
+    for (const r of ctx.recommendableCatalog) {
+      const parts = [
+        r.name,
+        r.brand ? `(${r.brand})` : null,
+        r.evidence_grade ? `[Grade ${r.evidence_grade}]` : null,
+        r.best_timing ? `· ${r.best_timing}` : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      lines.push(`- ${parts}`);
+      if (r.coach_summary) {
+        lines.push(`    ${r.coach_summary}`);
+      }
+      if (r.mechanism) {
+        lines.push(`    Mechanism: ${r.mechanism}`);
+      }
+    }
+    lines.push(
+      `Use catalog_item_id when emitting an add proposal so the user item links to this shared row and inherits future enrichment + affiliate URL automatically.`,
+    );
+  }
 
   return lines.join("\n");
 }

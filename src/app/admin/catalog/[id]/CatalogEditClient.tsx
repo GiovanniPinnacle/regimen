@@ -261,52 +261,224 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
         />
       </Section>
 
-      {/* JSON arrays — read-only summary; full edit is overkill for v1 */}
-      {row.cautions && row.cautions.length > 0 && (
-        <Section title="Cautions">
-          <ul className="text-[12px] flex flex-col gap-1">
-            {row.cautions.map((c, i) => (
-              <li key={i}>
-                <span style={{ color: "var(--error)", fontWeight: 700 }}>
-                  {c.tag}:
-                </span>{" "}
-                {c.note}
-              </li>
-            ))}
-          </ul>
-          <div
-            className="text-[10.5px] mt-2"
-            style={{ color: "var(--muted)" }}
-          >
-            Run re-enrichment above to regenerate this list.
-          </div>
-        </Section>
-      )}
+      {/* JSON arrays — full edit, save via PATCH /api/admin/catalog/[id]
+       *  with the field as a JSON column (we extend ALLOWED_FIELDS for these). */}
+      <ArrayEditor
+        title="Cautions"
+        items={(v("cautions") as { tag: string; note: string }[]) ?? []}
+        emptyShape={{ tag: "interaction", note: "" }}
+        onChange={(next) =>
+          set("cautions", next as unknown as CatalogRow["cautions"])
+        }
+        accent="var(--error)"
+        fields={[
+          {
+            key: "tag",
+            label: "Tag",
+            type: "select",
+            options: [
+              "pregnancy",
+              "kidney",
+              "liver",
+              "antiplatelet",
+              "antidepressant",
+              "thyroid",
+              "stimulant",
+              "fda_warning",
+              "interaction",
+            ],
+          },
+          { key: "note", label: "Note", type: "text" },
+        ]}
+      />
 
-      {row.pairs_well_with && row.pairs_well_with.length > 0 && (
-        <Section title="Pairs well with">
-          <ul className="text-[12px] flex flex-col gap-1">
-            {row.pairs_well_with.map((p, i) => (
-              <li key={i}>
-                <span style={{ fontWeight: 700 }}>{p.name}</span> — {p.reason}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+      <ArrayEditor
+        title="Pairs well with"
+        items={(v("pairs_well_with") as { name: string; reason: string }[]) ?? []}
+        emptyShape={{ name: "", reason: "" }}
+        onChange={(next) =>
+          set("pairs_well_with", next as unknown as CatalogRow["pairs_well_with"])
+        }
+        accent="var(--accent)"
+        fields={[
+          { key: "name", label: "Name", type: "text" },
+          { key: "reason", label: "Reason", type: "text" },
+        ]}
+      />
 
-      {row.brand_recommendations && row.brand_recommendations.length > 0 && (
-        <Section title="Brand recommendations">
-          <ul className="text-[12px] flex flex-col gap-1">
-            {row.brand_recommendations.map((b, i) => (
-              <li key={i}>
-                <span style={{ fontWeight: 700 }}>{b.brand}</span> — {b.reasoning}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+      <ArrayEditor
+        title="Brand recommendations"
+        items={
+          (v("brand_recommendations") as
+            | { brand: string; reasoning: string }[]
+            | null) ?? []
+        }
+        emptyShape={{ brand: "", reasoning: "" }}
+        onChange={(next) =>
+          set(
+            "brand_recommendations",
+            next as unknown as CatalogRow["brand_recommendations"],
+          )
+        }
+        accent="var(--premium)"
+        fields={[
+          { key: "brand", label: "Brand", type: "text" },
+          { key: "reasoning", label: "Why", type: "text" },
+        ]}
+      />
+
+      <ArrayEditor
+        title="Conflicts with"
+        items={
+          (v("conflicts_with") as
+            | { name: string; reason: string }[]
+            | null) ?? []
+        }
+        emptyShape={{ name: "", reason: "" }}
+        onChange={(next) =>
+          set(
+            "conflicts_with",
+            next as unknown as CatalogRow["conflicts_with"],
+          )
+        }
+        accent="var(--warn)"
+        fields={[
+          { key: "name", label: "Name / class", type: "text" },
+          { key: "reason", label: "Why", type: "text" },
+        ]}
+      />
     </>
+  );
+}
+
+// Small generic editor for arrays of objects with text/select fields.
+// Add row, remove row, edit any field — all changes go through onChange
+// so the parent's dirty-state tracking + save bar work as-is.
+type ArrayField =
+  | { key: string; label: string; type: "text" }
+  | { key: string; label: string; type: "select"; options: string[] };
+
+function ArrayEditor<T extends Record<string, string>>({
+  title,
+  items,
+  emptyShape,
+  onChange,
+  accent,
+  fields,
+}: {
+  title: string;
+  items: T[];
+  emptyShape: T;
+  onChange: (next: T[]) => void;
+  accent: string;
+  fields: ArrayField[];
+}) {
+  function update(idx: number, key: string, val: string) {
+    const next = items.map((it, i) =>
+      i === idx ? ({ ...it, [key]: val } as T) : it,
+    );
+    onChange(next);
+  }
+  function add() {
+    onChange([...items, { ...emptyShape }]);
+  }
+  function remove(idx: number) {
+    onChange(items.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <Section title={title}>
+      {items.length === 0 ? (
+        <div
+          className="text-[12px]"
+          style={{ color: "var(--muted)" }}
+        >
+          None.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {items.map((it, idx) => (
+            <div
+              key={idx}
+              className="rounded-xl p-2.5 flex flex-col gap-2"
+              style={{
+                background: "var(--surface-alt)",
+                border: `1px solid ${accent}33`,
+              }}
+            >
+              {fields.map((f) => (
+                <div key={f.key}>
+                  <label
+                    className="text-[10px] uppercase tracking-wider mb-0.5 block"
+                    style={{
+                      color: "var(--muted)",
+                      fontWeight: 600,
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    {f.label}
+                  </label>
+                  {f.type === "select" ? (
+                    <select
+                      value={it[f.key] ?? ""}
+                      onChange={(e) => update(idx, f.key, e.target.value)}
+                      className="w-full rounded-lg px-2.5 py-1.5 text-[13px] focus:outline-none"
+                      style={{
+                        background: "var(--surface)",
+                        color: "var(--foreground)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      {f.options.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={it[f.key] ?? ""}
+                      onChange={(e) => update(idx, f.key, e.target.value)}
+                      className="w-full rounded-lg px-2.5 py-1.5 text-[13px] focus:outline-none"
+                      style={{
+                        background: "var(--surface)",
+                        color: "var(--foreground)",
+                        border: "1px solid var(--border)",
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => remove(idx)}
+                className="text-[11px] self-start"
+                style={{
+                  color: "var(--error)",
+                  fontWeight: 600,
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={add}
+        className="text-[12px] mt-2 px-3 py-1.5 rounded-lg flex items-center gap-1 self-start"
+        style={{
+          background: `${accent}1F`,
+          color: accent,
+          fontWeight: 700,
+        }}
+      >
+        <Icon name="plus" size={11} strokeWidth={2.4} />
+        Add row
+      </button>
+    </Section>
   );
 }
 
