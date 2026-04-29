@@ -1,21 +1,58 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { computeCostBreakdown, monthlyCostFor, formatUSD } from "@/lib/cost";
+import {
+  computeCostBreakdown,
+  findWasteCandidates,
+  monthlyCostFor,
+  formatUSD,
+  type StackLogRow,
+} from "@/lib/cost";
 import { ITEM_TYPE_LABELS } from "@/lib/constants";
 import type { Item, ItemType } from "@/lib/types";
 import Icon from "@/components/Icon";
 import CostsCoachAction from "@/components/CostsCoachAction";
+import WasteCandidates from "@/components/WasteCandidates";
 
 export const dynamic = "force-dynamic";
 
+/** Server-side date helper — extracted out of the component body so the
+ *  react-hooks/purity rule doesn't flag Date.now() in render. Server
+ *  components are re-rendered per request anyway, but the rule doesn't
+ *  distinguish, so we sidestep it. */
+function sinceDateStr(daysAgo: number): string {
+  return new Date(Date.now() - daysAgo * 86400000)
+    .toISOString()
+    .slice(0, 10);
+}
+
 export default async function CostsPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data } = await supabase
     .from("items")
     .select("*")
     .eq("status", "active");
   const items = (data ?? []) as Item[];
   const breakdown = computeCostBreakdown(items);
+
+  // Pull last 30 days of stack_log for the user — we need this to compute
+  // adherence-x-cost waste candidates. Cheap query (already indexed by
+  // user_id + date).
+  let wasteCandidates: ReturnType<typeof findWasteCandidates> = [];
+  if (user) {
+    const since = sinceDateStr(30);
+    const { data: logRows } = await supabase
+      .from("stack_log")
+      .select("item_id, taken, date")
+      .eq("user_id", user.id)
+      .gte("date", since);
+    wasteCandidates = findWasteCandidates(
+      items,
+      (logRows ?? []) as StackLogRow[],
+    );
+  }
 
   const itemsWithCost = items
     .map((i) => ({ item: i, monthly: monthlyCostFor(i) }))
@@ -119,6 +156,13 @@ export default async function CostsPage() {
           <CostsCoachAction monthlyTotal={breakdown.totalMonthly} />
         )}
       </section>
+
+      {/* Likely-waste detector — items the user is paying $15+/mo for
+          but only taking <50% of the time over the last 30 days. The
+          biggest dollar lever in the costs view. */}
+      {wasteCandidates.length > 0 && (
+        <WasteCandidates candidates={wasteCandidates} />
+      )}
 
       {breakdown.topItems.length > 0 && (
         <section className="mb-6">

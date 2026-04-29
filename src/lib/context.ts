@@ -10,6 +10,11 @@ import {
   computeIngredientStack,
   type IngredientStackResult,
 } from "@/lib/ingredient-stack";
+import {
+  findWasteCandidates,
+  type StackLogRow,
+  type WasteCandidate,
+} from "@/lib/cost";
 
 export type ProtocolContext = {
   userId: string;
@@ -123,6 +128,10 @@ export type ProtocolContext = {
    *  UL-exceeding warnings (e.g. stacked vitamin D from multi + D3 cap +
    *  cod liver oil). */
   ingredientStack: IngredientStackResult;
+  /** Items the user is paying $15+/mo for but only taking <50% of the
+   *  time (over the last 30 days, with 7+ log rows). Coach uses this to
+   *  proactively flag drop candidates with concrete dollar impact. */
+  wasteCandidates: WasteCandidate[];
 };
 
 /**
@@ -211,6 +220,7 @@ export async function buildContextForUser(
     stackLog14Res,
     enrollmentsRes,
     refineRes,
+    stackLog30Res,
   ] = await Promise.all([
       admin.from("items").select("*").eq("user_id", userId),
       admin
@@ -314,6 +324,17 @@ export async function buildContextForUser(
           new Date(Date.now() - 7 * 86400000).toISOString(),
         )
         .limit(1),
+      // 30-day stack_log with item_id — used for adherence-x-cost waste
+      // detection. Larger window than streak logic so we have enough
+      // log rows per item to trust the rate.
+      admin
+        .from("stack_log")
+        .select("item_id, date, taken")
+        .eq("user_id", userId)
+        .gte(
+          "date",
+          new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
+        ),
     ]);
 
   const allItems = (itemsRes.data ?? []) as Item[];
@@ -324,6 +345,13 @@ export async function buildContextForUser(
   // catalog query so it stays composable even if the user expands which
   // items count later. Cheap — one items + one catalog query.
   const ingredientStack = await computeIngredientStack(userId);
+
+  // Waste candidates — items the user is paying for but barely taking.
+  // Uses the 30-day stack_log we just fetched.
+  const wasteCandidates = findWasteCandidates(
+    activeItems,
+    (stackLog30Res.data ?? []) as StackLogRow[],
+  );
 
   // Pull catalog enrichment for active items linked to catalog rows. This
   // gives Coach mechanism + cautions + brand picks + evidence grade for
@@ -678,6 +706,7 @@ export async function buildContextForUser(
     userStage,
     signals,
     ingredientStack,
+    wasteCandidates,
     recommendableCatalog,
     catalogEnrichments: (() => {
       const out = new Map<
@@ -768,6 +797,26 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     }
   }
   lines.push(``);
+
+  // Adherence-x-cost waste — items the user pays for but rarely takes.
+  // Surfaced near the top because the dollar impact compounds and the
+  // user wants drop candidates flagged proactively, not buried.
+  if (ctx.wasteCandidates.length > 0) {
+    const totalAnnual = ctx.wasteCandidates.reduce(
+      (s, w) => s + w.annualized_waste,
+      0,
+    );
+    lines.push(`# 💸 LIKELY WASTE (paying-but-not-taking)`);
+    lines.push(
+      `These items cost ≥$15/mo and have <50% adherence over the last 30 days. Total annualized waste: ~$${Math.round(totalAnnual)}. Proactively raise these in any conversation about cost, refinement, or "what should I drop".`,
+    );
+    for (const w of ctx.wasteCandidates) {
+      lines.push(
+        `- ${w.item_name}: ${Math.round(w.adherence_rate * 100)}% adherence (${w.taken_count}/${w.total_count} in 30d), $${w.monthly_cost.toFixed(2)}/mo → ~$${Math.round(w.annualized_waste)}/yr in waste`,
+      );
+    }
+    lines.push(``);
+  }
 
   // Ingredient-level UL warnings — surfaced near the top of the prompt
   // because they're a SAFETY concern. Cumulative dosing problems aren't
