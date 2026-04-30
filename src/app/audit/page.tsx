@@ -39,6 +39,17 @@ export default function AuditPage() {
   const [needCount, setNeedCount] = useState(0);
   const [skipCount, setSkipCount] = useState(0);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    function onChange() {
+      setReloadKey((k) => k + 1);
+    }
+    window.addEventListener("regimen:items-changed", onChange);
+    return () =>
+      window.removeEventListener("regimen:items-changed", onChange);
+  }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -58,7 +69,7 @@ export default function AuditPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   async function mark(item: Item, choice: "have" | "need" | "skip") {
     setSaving((s) => ({ ...s, [item.id]: true }));

@@ -243,6 +243,25 @@ export async function POST(request: NextRequest) {
     approved_by_user: true,
   });
 
+  // If this add/queue/promote came from a wishlist item with the same
+  // name, mark that wishlist row as promoted so it disappears from
+  // /wishlist on next load. Closes the gap where promoting a wishlist
+  // item via Coach left the wishlist row stranded forever.
+  if (
+    itemId &&
+    (changeType === "add" || changeType === "promote" || changeType === "queue")
+  ) {
+    await supabase
+      .from("wishlist_items")
+      .update({
+        promoted_to_item_id: itemId,
+        promoted_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id)
+      .ilike("name", body.item_name)
+      .is("promoted_to_item_id", null);
+  }
+
   // For new items, fire-and-forget affiliate discovery so every Coach-
   // proposed item becomes a revenue opportunity automatically.
   if (

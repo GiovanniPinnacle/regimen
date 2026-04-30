@@ -9,7 +9,17 @@ export type Proposal = {
   extra?: Record<string, string>;
 };
 
-const BLOCK_RE = /<<<PROPOSAL\s*([\s\S]*?)\s*PROPOSAL>>>/g;
+// Match a complete proposal block. We're permissive about what wraps the
+// markers (markdown code fences, bold/italic, stray backticks) because
+// Coach sometimes wraps them when "thinking in markdown". The opening
+// and closing tokens are case-insensitive.
+const BLOCK_RE =
+  /<{2,}\s*PROPOSAL[\s>]*([\s\S]*?)\s*PROPOSAL\s*>{2,}/gi;
+// Match an in-progress (unclosed) proposal block while streaming. We
+// strip from the opening marker to end-of-string so the user doesn't
+// see raw "action: queue\nitem_name: X" lines flash by before the
+// closing marker arrives. Also matches any markdown wrapper.
+const PARTIAL_RE = /(```[a-z]*\s*)?<{2,}\s*PROPOSAL[\s\S]*$/i;
 const LINE_RE = /^\s*([a-zA-Z_]+)\s*:\s*(.+?)\s*$/;
 
 export function parseProposals(text: string): Proposal[] {
@@ -47,7 +57,19 @@ export function parseProposals(text: string): Proposal[] {
   return out;
 }
 
-// Remove proposal blocks from display text (we show them as cards instead)
+// Remove proposal blocks from display text (we show them as cards
+// instead). Two passes:
+//   1. Strip any complete <<<PROPOSAL ... PROPOSAL>>> blocks (incl.
+//      markdown wrappers around them).
+//   2. Strip any *unclosed* opening marker — happens during streaming
+//      before the closing PROPOSAL>>> has arrived. Without this the
+//      user sees raw key:value lines flashing in the chat bubble.
+// Then collapse leftover triple-backticks and trim.
 export function stripProposals(text: string): string {
-  return text.replace(BLOCK_RE, "").trim();
+  return text
+    .replace(BLOCK_RE, "")
+    .replace(PARTIAL_RE, "")
+    .replace(/```[a-z]*\s*```/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

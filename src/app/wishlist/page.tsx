@@ -28,6 +28,15 @@ export default function WishlistPage() {
 
   useEffect(() => {
     load();
+    // Re-check after any item mutation — a Coach-promoted wishlist item
+    // is now in /items AND has wishlist.promoted_to_item_id set, so
+    // re-loading filters it out of the visible list.
+    function onChange() {
+      load();
+    }
+    window.addEventListener("regimen:items-changed", onChange);
+    return () =>
+      window.removeEventListener("regimen:items-changed", onChange);
   }, []);
 
   async function load() {

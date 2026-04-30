@@ -1074,12 +1074,18 @@ function ProposalCard({
         .filter((s): s is string => s !== null)
     : [];
 
+  // After approval or dismissal, the card disappears entirely. The
+  // toast at the bottom of the screen + the items-changed event
+  // refreshing /today are the confirmation. Keeping the card around
+  // (even as a chip) clutters the chat thread.
+  if (state === "done" || state === "error") return null;
+
   return (
     <div
       className="rounded-2xl p-3.5 max-w-[90%] w-full"
       style={{
         background: "var(--surface)",
-        border: `1px solid ${state === "done" ? meta.accent : "var(--border)"}`,
+        border: "1px solid var(--border)",
       }}
     >
       <div
@@ -1166,27 +1172,10 @@ function ProposalCard({
       ) : null}
 
       <div className="flex gap-2 mt-3">
-        {state === "done" ? (
-          <div
-            className="text-[13px] px-3 py-2 rounded-lg flex items-center gap-1.5"
-            style={{
-              background: `${meta.accent}1F`,
-              color: meta.accent,
-              fontWeight: 700,
-            }}
-          >
-            <Icon name="check-circle" size={14} strokeWidth={2.2} />
-            Done
-          </div>
-        ) : state === "error" ? (
-          <div
-            className="text-[13px] px-3 py-2"
-            style={{ color: "var(--muted)" }}
-          >
-            Dismissed
-          </div>
-        ) : (
-          <>
+        {/* state can only be "pending" or undefined here — the done/error
+            branches return null at the top of the component so the card
+            disappears entirely after the action lands. */}
+        <>
             <button
               onClick={() => onApprove(proposal)}
               disabled={state === "pending"}
@@ -1219,7 +1208,6 @@ function ProposalCard({
               {meta.no}
             </button>
           </>
-        )}
       </div>
     </div>
   );
