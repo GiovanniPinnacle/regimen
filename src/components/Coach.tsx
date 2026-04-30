@@ -425,7 +425,10 @@ export default function Coach() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex flex-col"
+          // z-[70] sits above TabNav (z-50) and ToastHost (z-50) — was
+          // overlapping before, with the bottom Tab bar visible behind
+          // the Coach input bar at the same Y.
+          className="fixed inset-0 z-[70] flex flex-col"
           style={{ background: "var(--background)" }}
         >
           {/* Header */}
