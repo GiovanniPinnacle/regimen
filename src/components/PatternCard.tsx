@@ -152,6 +152,9 @@ export default function PatternCard() {
             },
           }),
         );
+        // Refresh /today + /stack so the pattern's effect on the
+        // user's actual stack shows immediately.
+        window.dispatchEvent(new CustomEvent("regimen:items-changed"));
       } else {
         setExecuted((s) => ({ ...s, [id]: "error" }));
         window.dispatchEvent(

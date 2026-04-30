@@ -303,6 +303,11 @@ export default function ItemForm({ initial, onSaved }: Props) {
     }
 
     setSaving(false);
+    // Tell every list page to refresh so the new/edited item appears
+    // immediately on /today, /stack, /audit, etc.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("regimen:items-changed"));
+    }
     if (onSaved) onSaved();
     else router.push("/stack");
     router.refresh();
