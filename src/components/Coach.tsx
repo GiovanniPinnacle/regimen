@@ -362,7 +362,11 @@ export default function Coach() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  // Cross-app trigger: anyone can dispatch `regimen:ask` to seed Coach with text
+  // Cross-app trigger: anyone can dispatch `regimen:ask` to seed Coach
+  // with text. When `send: true` is set the message fires immediately
+  // (use for action-verbs like "Investigate", "Drop?"). When omitted,
+  // we pre-fill the input + put the cursor at the end so the user can
+  // append their own context before tapping send.
   useEffect(() => {
     function onAsk(e: Event) {
       const detail = (e as CustomEvent<{ text?: string; send?: boolean }>)
@@ -375,7 +379,20 @@ export default function Coach() {
         setMessages(seeded);
         void sendNow(seeded);
       } else {
-        setInput(detail.text);
+        // Pre-fill — append a newline so the cursor sits on the next
+        // line ready for the user to type more context. Focus the
+        // textarea + scroll the cursor to the end.
+        const seedText = detail.text.endsWith("\n")
+          ? detail.text
+          : detail.text + "\n\n";
+        setInput(seedText);
+        setTimeout(() => {
+          const el = textareaRef.current;
+          if (!el) return;
+          el.focus();
+          el.setSelectionRange(seedText.length, seedText.length);
+          el.scrollTop = el.scrollHeight;
+        }, 120);
       }
     }
     window.addEventListener("regimen:ask", onAsk as EventListener);
@@ -592,7 +609,9 @@ export default function Coach() {
                       handleSend();
                     }
                   }}
-                  rows={1}
+                  // Auto-grow when prefilled so the user can see the
+                  // whole prompt without scrolling inside the textarea.
+                  rows={input.length > 80 ? 4 : 1}
                   placeholder={
                     pendingImage
                       ? "What do you want to know?"

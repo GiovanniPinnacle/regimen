@@ -48,10 +48,12 @@ export default function WasteCandidates({
   }
 
   function fireReframe(c: Candidate) {
-    const prompt = `${c.item_name} is only at ${Math.round(c.adherence_rate * 100)}% adherence (${c.taken_count}/${c.total_count} in 30d) but I'm paying ${formatUSD(c.monthly_cost)}/mo. Without dropping it, what's the SINGLE smallest behavior change that would push adherence above 80%? Look at my recent skip reasons + what's in the same slot. Tight answer — under 4 sentences.`;
+    // Pre-fill, don't auto-send — user can append context before
+    // sending (e.g. "I'm not actually trying to take it daily").
+    const prompt = `${c.item_name} is only at ${Math.round(c.adherence_rate * 100)}% adherence (${c.taken_count}/${c.total_count} in 30d) but I'm paying ${formatUSD(c.monthly_cost)}/mo. Without dropping it, what's the SINGLE smallest behavior change that would push adherence above 80%? Look at my recent skip reasons + what's in the same slot.`;
     window.dispatchEvent(
       new CustomEvent("regimen:ask", {
-        detail: { text: prompt, send: true },
+        detail: { text: prompt },
       }),
     );
   }

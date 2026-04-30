@@ -117,22 +117,34 @@ export default function StackPage() {
     })();
   }, [reloadKey]);
 
-  // Refetch on status tab change OR items-changed event
+  // Refetch on status tab change OR items-changed event. Only show
+  // the full loading skeleton on TAB change or initial mount —
+  // items-changed events refresh silently in the background so the
+  // user doesn't see /stack flash to "Loading…" every time they
+  // approve a Coach proposal or quick-add an item.
   useEffect(() => {
+    let alive = true;
+    const isTabSwitch = reloadKey === 0 || items.length === 0;
+    if (isTabSwitch) setLoading(true);
     (async () => {
-      setLoading(true);
       const all = await getItemsByStatus(statusTab);
+      if (!alive) return;
       setItems(all);
       // Compute adherence only for active tab
       if (statusTab === "active") {
         const ids = all.map((i) => i.id);
         const adh = await getAdherenceMap(ids, 14);
+        if (!alive) return;
         setAdherenceMap(adh);
       } else {
         setAdherenceMap({});
       }
       setLoading(false);
     })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusTab, reloadKey]);
 
   // Nest companions under their parents — fixes the duplicate-display bug

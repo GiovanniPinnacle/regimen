@@ -127,10 +127,14 @@ export default function CatalogPicks() {
   }
 
   function tellMeWhy(p: Pick) {
-    const prompt = `Should I add "${p.name}"${p.brand ? ` (${p.brand})` : ""} to my stack? Give me the case for AND against, given my goals + what I already take. Tight — under 5 sentences.`;
+    // Pre-fill the prompt but DON'T auto-send. The user opens Coach,
+    // sees the question already typed, and can append their own
+    // context (e.g. "but I have seb derm — does that matter?") before
+    // tapping send. Closes the "doesn't let me tell more" gap.
+    const prompt = `Should I add "${p.name}"${p.brand ? ` (${p.brand})` : ""} to my stack? Give me the case for AND against, given my goals + what I already take.`;
     window.dispatchEvent(
       new CustomEvent("regimen:ask", {
-        detail: { text: prompt, send: true },
+        detail: { text: prompt },
       }),
     );
   }
