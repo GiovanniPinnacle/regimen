@@ -18,19 +18,83 @@ import { useState } from "react";
 import Icon from "@/components/Icon";
 import type { Item, TimingSlot } from "@/lib/types";
 
-const COMMON_TOPPINGS = [
+// Slot-aware quick-add suggestions. Each slot has the toppings/foods
+// that ACTUALLY pair with what's typically there. Generic fallback is
+// used for slots without a specific list (situational/ongoing).
+const SLOT_SUGGESTIONS: Record<string, string[]> = {
+  pre_breakfast: [
+    "Olive oil",
+    "Lemon",
+    "Sea salt",
+    "Apple cider vinegar",
+    "Ginger",
+    "MCT oil",
+  ],
+  breakfast: [
+    "Avocado",
+    "Olive oil",
+    "Eggs",
+    "Greek yogurt",
+    "Berries",
+    "Cinnamon",
+    "Cottage cheese",
+    "Smoked salmon",
+  ],
+  pre_workout: [
+    "Banana",
+    "Honey",
+    "Sea salt",
+    "Beet juice",
+    "Black coffee",
+    "Dates",
+  ],
+  lunch: [
+    "Avocado",
+    "Olive oil",
+    "Garlic",
+    "Sauerkraut",
+    "Sweet potato",
+    "Mixed greens",
+    "Lemon",
+    "Sea salt",
+  ],
+  dinner: [
+    "Olive oil",
+    "Garlic",
+    "Butter (grass-fed)",
+    "Bone broth",
+    "Sweet potato",
+    "Sea salt",
+    "Lemon",
+    "Ginger",
+  ],
+  pre_bed: [
+    "Tart cherry juice",
+    "Chamomile tea",
+    "Magnesium glycinate",
+    "Honey",
+    "L-theanine",
+  ],
+  ongoing: [
+    "Water",
+    "Electrolytes",
+    "Green tea",
+    "Bone broth",
+  ],
+  situational: [
+    "Sea salt",
+    "Lemon",
+    "Honey",
+    "Ginger",
+  ],
+};
+const FALLBACK_SUGGESTIONS = [
   "Avocado",
   "Olive oil",
-  "Garlic",
-  "MCT oil",
-  "Cinnamon",
   "Sea salt",
   "Lemon",
-  "Butter (grass-fed)",
+  "Garlic",
   "Greek yogurt",
-  "Ginger",
-  "Cottage cheese",
-  "Berries",
 ];
 
 type Props = {
@@ -233,28 +297,43 @@ export default function QuickAddInline({
         </div>
       )}
 
-      {/* Common toppings — one-tap shortcuts */}
-      <div className="mt-2 flex flex-wrap gap-1">
-        {COMMON_TOPPINGS.slice(0, 8).map((t) => (
-          <button
-            key={t}
-            onClick={() => {
-              setName(t);
-              void handleSave(t);
-            }}
-            disabled={busy}
-            className="text-[10.5px] px-2 py-1 rounded-full"
-            style={{
-              background: "var(--background)",
-              color: "var(--muted)",
-              border: "1px solid var(--border)",
-              opacity: busy ? 0.5 : 1,
-            }}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+      {/* Slot-aware quick-tap suggestions, deduped against what's
+          already in this slot so we don't suggest "Avocado" when the
+          user already has it. */}
+      {(() => {
+        const slotSet = new Set(
+          itemsInSlot.map((i) => i.name.toLowerCase().trim()),
+        );
+        const list = SLOT_SUGGESTIONS[slot] ?? FALLBACK_SUGGESTIONS;
+        const filtered = list.filter(
+          (t) => !slotSet.has(t.toLowerCase().trim()),
+        );
+        const visible = filtered.slice(0, 6);
+        if (visible.length === 0) return null;
+        return (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {visible.map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  setName(t);
+                  void handleSave(t);
+                }}
+                disabled={busy}
+                className="text-[10.5px] px-2 py-1 rounded-full"
+                style={{
+                  background: "var(--background)",
+                  color: "var(--muted)",
+                  border: "1px solid var(--border)",
+                  opacity: busy ? 0.5 : 1,
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       {err && (
         <div

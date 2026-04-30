@@ -12,7 +12,7 @@
 // "Claude". The model behind it is still claude-sonnet-4-5, but the
 // persona is "Coach" — your accountability + refinement partner.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   parseProposals,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/proposals";
 import Icon from "@/components/Icon";
 import CoachMarkdown from "@/components/CoachMarkdown";
+import { createClient } from "@/lib/supabase/client";
 
 type ContentPart =
   | { type: "text"; text: string }
@@ -105,6 +106,16 @@ export default function Coach() {
   } | null>(null);
   const [recording, setRecording] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
+  /** User's items, fetched once on first open. Powers @-mention
+   *  autocomplete in the textarea. We pull active + queued + backburner
+   *  so users can also reference items they've parked. */
+  const [userItems, setUserItems] = useState<
+    { id: string; name: string; brand: string | null; status: string }[]
+  >([]);
+  /** Index of the current @-token in the input string, or -1 when no
+   *  active mention is being typed. Drives the popover. */
+  const [mentionStart, setMentionStart] = useState<number>(-1);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -136,6 +147,110 @@ export default function Coach() {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
     } catch {}
   }, [messages]);
+
+  // Fetch the user's items once when Coach is first opened so @-mentions
+  // can autocomplete from their actual stack. Listens for items-changed
+  // so adding/retiring something elsewhere refreshes the mention list.
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    async function load() {
+      try {
+        const c = createClient();
+        const { data } = await c
+          .from("items")
+          .select("id, name, brand, status")
+          .in("status", ["active", "queued", "backburner"])
+          .order("name");
+        if (!alive) return;
+        setUserItems(
+          ((data ?? []) as Array<{
+            id: string;
+            name: string;
+            brand: string | null;
+            status: string;
+          }>) ?? [],
+        );
+      } catch {
+        // silent — autocomplete is best-effort
+      }
+    }
+    void load();
+    function onChange() {
+      void load();
+    }
+    window.addEventListener("regimen:items-changed", onChange);
+    return () => {
+      alive = false;
+      window.removeEventListener("regimen:items-changed", onChange);
+    };
+  }, [open]);
+
+  /** Compute the current @-token from `input` + cursor position. We
+   *  scan backward from the cursor for an `@` and require it to be at
+   *  the start of the string OR preceded by whitespace. Returns the
+   *  start index of the `@`, or -1 if no active mention. */
+  function detectMentionAt(text: string, cursor: number): number {
+    let i = cursor - 1;
+    while (i >= 0) {
+      const ch = text[i];
+      if (ch === "@") {
+        if (i === 0 || /\s/.test(text[i - 1])) return i;
+        return -1;
+      }
+      if (/\s/.test(ch)) return -1;
+      i--;
+    }
+    return -1;
+  }
+
+  /** Items that match the current @-token. Cap at 6 so the popover
+   *  doesn't dominate the screen. */
+  const mentionMatches = useMemo(() => {
+    if (mentionStart < 0) return [];
+    const cursor =
+      textareaRef.current?.selectionStart ?? input.length;
+    const token = input.slice(mentionStart + 1, cursor).toLowerCase();
+    if (token.length === 0) {
+      // Empty token (just typed @) — show recent + all
+      return userItems
+        .filter((i) => i.status === "active")
+        .slice(0, 6);
+    }
+    return userItems
+      .filter((i) => {
+        const hay = `${i.name} ${i.brand ?? ""}`.toLowerCase();
+        return hay.includes(token);
+      })
+      .slice(0, 6);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mentionStart, input, userItems]);
+
+  function insertMention(item: {
+    id: string;
+    name: string;
+    brand: string | null;
+  }) {
+    if (mentionStart < 0) return;
+    const cursor =
+      textareaRef.current?.selectionStart ?? input.length;
+    const before = input.slice(0, mentionStart);
+    const after = input.slice(cursor);
+    // Replace `@xxx` with `"Item Name"` — quotes make it parseable for
+    // Coach + visually distinguishable. Add a trailing space.
+    const mention = `"${item.name}" `;
+    const next = before + mention + after;
+    setInput(next);
+    setMentionStart(-1);
+    setMentionIndex(0);
+    setTimeout(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      const pos = before.length + mention.length;
+      el.setSelectionRange(pos, pos);
+    }, 0);
+  }
 
   async function sendNow(msgs: Msg[]) {
     setLoading(true);
@@ -171,6 +286,7 @@ export default function Coach() {
     const text = input.trim();
     if ((!text && !pendingImage) || loading) return;
     setInput("");
+    setMentionStart(-1);
 
     // Build user message — multimodal if there's a pending image
     let userMsg: Msg;
@@ -635,32 +751,152 @@ export default function Coach() {
                   </button>
                 )}
 
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
+                <div className="flex-1 relative">
+                  {/* @-mention autocomplete popover — anchored above the
+                      textarea. Only renders when the user is mid-token. */}
+                  {mentionStart >= 0 && mentionMatches.length > 0 && (
+                    <div
+                      className="absolute left-0 right-0 bottom-full mb-1.5 rounded-xl overflow-hidden"
+                      style={{
+                        background: "var(--surface)",
+                        border: "1px solid var(--border)",
+                        boxShadow:
+                          "0 8px 24px rgba(0, 0, 0, 0.3)",
+                        maxHeight: 220,
+                        overflowY: "auto",
+                      }}
+                    >
+                      {mentionMatches.map((m, i) => (
+                        <button
+                          key={m.id}
+                          onMouseDown={(ev) => {
+                            ev.preventDefault();
+                            insertMention(m);
+                          }}
+                          className="w-full text-left px-3 py-2 flex items-center justify-between gap-2"
+                          style={{
+                            background:
+                              i === mentionIndex
+                                ? "var(--surface-alt)"
+                                : "transparent",
+                          }}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div
+                              className="text-[13px] truncate"
+                              style={{ fontWeight: 500 }}
+                            >
+                              {m.name}
+                            </div>
+                            {m.brand && (
+                              <div
+                                className="text-[11px] truncate"
+                                style={{ color: "var(--muted)" }}
+                              >
+                                {m.brand}
+                              </div>
+                            )}
+                          </div>
+                          {m.status !== "active" && (
+                            <span
+                              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0"
+                              style={{
+                                background: "var(--surface-alt)",
+                                color: "var(--muted)",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {m.status}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setInput(val);
+                      const cursor = e.target.selectionStart;
+                      const at = detectMentionAt(val, cursor);
+                      setMentionStart(at);
+                      setMentionIndex(0);
+                    }}
+                    onKeyUp={(e) => {
+                      // Cursor moves (arrows, click) without triggering
+                      // onChange — re-detect mention state.
+                      if (
+                        e.key === "ArrowLeft" ||
+                        e.key === "ArrowRight" ||
+                        e.key === "Home" ||
+                        e.key === "End"
+                      ) {
+                        const t = e.currentTarget;
+                        const at = detectMentionAt(
+                          t.value,
+                          t.selectionStart,
+                        );
+                        setMentionStart(at);
+                        setMentionIndex(0);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // When the mention popover is open, capture
+                      // arrow / enter / escape for navigation.
+                      if (mentionStart >= 0 && mentionMatches.length > 0) {
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setMentionIndex(
+                            (i) =>
+                              (i + 1) % mentionMatches.length,
+                          );
+                          return;
+                        }
+                        if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setMentionIndex(
+                            (i) =>
+                              (i - 1 + mentionMatches.length) %
+                              mentionMatches.length,
+                          );
+                          return;
+                        }
+                        if (e.key === "Enter" || e.key === "Tab") {
+                          e.preventDefault();
+                          insertMention(mentionMatches[mentionIndex]);
+                          return;
+                        }
+                        if (e.key === "Escape") {
+                          e.preventDefault();
+                          setMentionStart(-1);
+                          return;
+                        }
+                      }
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    // Auto-grow when prefilled so the user can see the
+                    // whole prompt without scrolling inside the textarea.
+                    rows={input.length > 80 ? 4 : 1}
+                    placeholder={
+                      pendingImage
+                        ? "What do you want to know?"
+                        : "Ask anything… or @ to mention an item"
                     }
-                  }}
-                  // Auto-grow when prefilled so the user can see the
-                  // whole prompt without scrolling inside the textarea.
-                  rows={input.length > 80 ? 4 : 1}
-                  placeholder={
-                    pendingImage
-                      ? "What do you want to know?"
-                      : "Ask anything…"
-                  }
-                  className="flex-1 resize-none rounded-xl px-3 py-2.5 text-[15px] max-h-48 focus:outline-none"
-                  style={{
-                    background: "var(--surface-alt)",
-                    color: "var(--foreground)",
-                    border: "1px solid var(--border)",
-                    minHeight: "42px",
-                  }}
-                />
+                    className="w-full resize-none rounded-xl px-3 py-2.5 text-[15px] max-h-48 focus:outline-none"
+                    style={{
+                      background: "var(--surface-alt)",
+                      color: "var(--foreground)",
+                      border: "1px solid var(--border)",
+                      minHeight: "42px",
+                    }}
+                  />
+                </div>
 
                 <button
                   onClick={handleSend}
