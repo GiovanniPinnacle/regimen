@@ -266,10 +266,14 @@ export default function TodayPage() {
       ongoing: [],
       situational: [],
     };
-    // Separate companions from their parents so we render them nested
+    // Separate companions from their parents so we render them nested.
+    // Build a set of valid parent ids first so we can detect orphan
+    // companions (parent deleted) and surface them as top-level items
+    // rather than letting them silently disappear from /today.
+    const validParentIds = new Set(daily.map((d) => d.id));
     const companionsByParent: Record<string, Item[]> = {};
     for (const item of daily) {
-      if (item.companion_of) {
+      if (item.companion_of && validParentIds.has(item.companion_of)) {
         if (!companionsByParent[item.companion_of]) {
           companionsByParent[item.companion_of] = [];
         }
@@ -277,8 +281,15 @@ export default function TodayPage() {
       }
     }
     for (const item of daily) {
-      // Only push parent items into timing slots (companions render within parents)
-      if (!item.companion_of) map[item.timing_slot].push(item);
+      // Push items into timing slots when they're not nested under a
+      // valid parent. Orphaned companions (companion_of points to a
+      // deleted/missing item) render as top-level so the user can see
+      // and act on them.
+      const isOrphanCompanion =
+        item.companion_of && !validParentIds.has(item.companion_of);
+      if (!item.companion_of || isOrphanCompanion) {
+        map[item.timing_slot].push(item);
+      }
     }
     // Sort within each slot by sort_order (lower = earlier), then name.
     // Sort companions inside each parent the same way.
