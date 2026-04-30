@@ -46,7 +46,6 @@ import {
   DAILY_LOGGABLE_TYPES,
   TIMING_LABELS,
   TIMING_ORDER,
-  daysSincePostOp,
   POSTOP_DATE_ZERO,
   todayISO,
 } from "@/lib/constants";

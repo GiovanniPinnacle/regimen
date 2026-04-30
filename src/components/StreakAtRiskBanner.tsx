@@ -7,7 +7,6 @@
 // every habit app — Duolingo built a $7B company on "Don't break it."
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
 import SwipeDismiss from "@/components/SwipeDismiss";
@@ -25,24 +24,23 @@ export default function StreakAtRiskBanner({
   totalActive,
 }: Props) {
   const [streak, setStreak] = useState<number | null>(null);
-  const [dismissed, setDismissed] = useState(false);
+  // Lazy-init reads localStorage on the first render — no effect-cycle
+  // needed, no cascading-render warning. SSR-safe via the window check.
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return (
+        localStorage.getItem(HIDE_KEY) ===
+        new Date().toISOString().slice(0, 10)
+      );
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
+    if (dismissed) return;
     let alive = true;
-
-    // Honor a same-day dismissal so the banner doesn't keep re-popping
-    // after the user explicitly dismissed it for today.
-    try {
-      const raw = localStorage.getItem(HIDE_KEY);
-      if (raw) {
-        const today = new Date().toISOString().slice(0, 10);
-        if (raw === today) {
-          setDismissed(true);
-          return;
-        }
-      }
-    } catch {}
-
     (async () => {
       try {
         const c = createClient();
@@ -66,7 +64,7 @@ export default function StreakAtRiskBanner({
     return () => {
       alive = false;
     };
-  }, []);
+  }, [dismissed]);
 
   function dismiss() {
     try {

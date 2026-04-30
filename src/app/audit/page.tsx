@@ -40,22 +40,25 @@ export default function AuditPage() {
   const [skipCount, setSkipCount] = useState(0);
 
   useEffect(() => {
-    loadItems();
+    let alive = true;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("items")
+        .select("*")
+        .in("status", ["active", "queued"])
+        .in("item_type", AUDITABLE_TYPES)
+        .is("owned", null)
+        .order("item_type")
+        .order("name");
+      if (!alive) return;
+      setItems((data ?? []) as Item[]);
+      setLoading(false);
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
-
-  async function loadItems() {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("items")
-      .select("*")
-      .in("status", ["active", "queued"])
-      .in("item_type", AUDITABLE_TYPES)
-      .is("owned", null)
-      .order("item_type")
-      .order("name");
-    setItems((data ?? []) as Item[]);
-    setLoading(false);
-  }
 
   async function mark(item: Item, choice: "have" | "need" | "skip") {
     setSaving((s) => ({ ...s, [item.id]: true }));
