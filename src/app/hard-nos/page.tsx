@@ -46,10 +46,51 @@ export default function HardNosPage() {
     name: "",
     reason: "",
   });
+  /** Catalog suggestions for the name input — debounced fetch keyed
+   *  off the active draft.name. Renders as a datalist so the browser
+   *  handles dropdown + keyboard nav for free. */
+  const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
     void load();
   }, []);
+
+  // Live catalog autocomplete for the hard-no name input. Debounced so
+  // a fast typist doesn't fire a request per keystroke.
+  useEffect(() => {
+    if (!adding) return;
+    const q = draft.name.trim();
+    if (q.length < 2) {
+      setNameSuggestions([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(
+          `/api/catalog/search?q=${encodeURIComponent(q)}`,
+        );
+        if (!r.ok) return;
+        const j = (await r.json()) as { items?: { name: string }[] };
+        const names = (j.items ?? [])
+          .map((i) => i.name)
+          .filter((n) => n && n.length > 0);
+        // Dedupe + cap
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const n of names) {
+          const k = n.toLowerCase();
+          if (seen.has(k)) continue;
+          seen.add(k);
+          out.push(n);
+          if (out.length >= 12) break;
+        }
+        setNameSuggestions(out);
+      } catch {
+        // silent
+      }
+    }, 220);
+    return () => clearTimeout(t);
+  }, [draft.name, adding]);
 
   async function load() {
     const client = createClient();
@@ -284,6 +325,7 @@ export default function HardNosPage() {
                       setDraft((d) => ({ ...d, name: e.target.value }))
                     }
                     placeholder={`Name (${cat.example})`}
+                    list="hard-nos-catalog-suggestions"
                     className="w-full rounded-lg px-3 py-2 text-[14px]"
                     style={{
                       background: "var(--surface)",
@@ -291,6 +333,13 @@ export default function HardNosPage() {
                       color: "var(--foreground)",
                     }}
                   />
+                  {nameSuggestions.length > 0 && (
+                    <datalist id="hard-nos-catalog-suggestions">
+                      {nameSuggestions.map((n) => (
+                        <option key={n} value={n} />
+                      ))}
+                    </datalist>
+                  )}
                   <input
                     type="text"
                     value={draft.reason}

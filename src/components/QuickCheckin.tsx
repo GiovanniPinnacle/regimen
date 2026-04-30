@@ -107,6 +107,9 @@ export default function QuickCheckin({ date }: { date: string }) {
   const [data, setData] = useState<CheckinData>({});
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  /** Frequent meal suggestions, populated lazily so the meal_text
+   *  input gets native browser autocomplete via <datalist>. */
+  const [frequentMeals, setFrequentMeals] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -122,6 +125,29 @@ export default function QuickCheckin({ date }: { date: string }) {
         setSaved(true);
       }
       setLoaded(true);
+    })();
+    // Pull frequent meals + recent meal_text values for autocomplete.
+    // Two sources to maximize hit-rate: last 30d of intake_log + last
+    // 14d of daily_checkins.meal_text.
+    (async () => {
+      try {
+        const r = await fetch("/api/intake/frequent", {
+          credentials: "include",
+        });
+        if (!r.ok) return;
+        const j = (await r.json()) as {
+          meals?: { content: string }[];
+        };
+        if (j.meals) {
+          setFrequentMeals(
+            j.meals
+              .map((m) => m.content)
+              .filter((c) => c && c.length > 0),
+          );
+        }
+      } catch {
+        // silent
+      }
     })();
   }, [date, w]);
 
@@ -211,24 +237,38 @@ export default function QuickCheckin({ date }: { date: string }) {
               </div>
             );
           }
+          // Wire frequent-meal autocomplete only on meal_text inputs.
+          // Native <datalist> does the dropdown — keyboard-accessible,
+          // free + no extra state management.
+          const isMealField = q.key === "meal_text";
+          const datalistId = isMealField ? `meal-suggestions-${w}` : undefined;
           return (
-            <input
-              key={String(q.key)}
-              type="text"
-              defaultValue={(data[q.key] as string | null) ?? ""}
-              onBlur={(e) => {
-                const v = e.target.value.trim();
-                if (v !== ((data[q.key] as string | null) ?? "")) {
-                  save({ [q.key]: v || null });
-                }
-              }}
-              placeholder={q.placeholder}
-              className="w-full border-hair rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-hair-strong"
-              style={{
-                background: "var(--background)",
-                color: "var(--foreground)",
-              }}
-            />
+            <div key={String(q.key)}>
+              <input
+                type="text"
+                list={datalistId}
+                defaultValue={(data[q.key] as string | null) ?? ""}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v !== ((data[q.key] as string | null) ?? "")) {
+                    save({ [q.key]: v || null });
+                  }
+                }}
+                placeholder={q.placeholder}
+                className="w-full border-hair rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-hair-strong"
+                style={{
+                  background: "var(--background)",
+                  color: "var(--foreground)",
+                }}
+              />
+              {isMealField && frequentMeals.length > 0 && (
+                <datalist id={datalistId}>
+                  {frequentMeals.map((m) => (
+                    <option key={m} value={m} />
+                  ))}
+                </datalist>
+              )}
+            </div>
           );
         })}
       </div>
