@@ -1078,11 +1078,12 @@ export default function TodayPage() {
                             },
                           );
                         }}
-                        className="text-[12px] px-3 py-1.5 rounded-full"
+                        className="text-[13px] px-3.5 py-2 rounded-lg"
                         style={{
                           background: "var(--olive)",
                           color: "#FBFAF6",
-                          fontWeight: 500,
+                          fontWeight: 700,
+                          minHeight: 36,
                         }}
                       >
                         Mark all {todo.length}

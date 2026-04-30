@@ -244,12 +244,13 @@ export default function PatternCard() {
             onPrimary();
           }}
           disabled={state === "pending"}
-          className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+          className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
           style={{
             background: buttonAccent,
             color: "#FBFAF6",
-            fontWeight: 600,
+            fontWeight: 700,
             opacity: state === "pending" ? 0.6 : 1,
+            minHeight: 36,
           }}
         >
           {state === "pending" ? (
@@ -266,10 +267,12 @@ export default function PatternCard() {
             e.stopPropagation();
             discuss(p);
           }}
-          className="text-[12.5px] px-3 py-1.5 rounded-lg"
+          className="text-[13px] px-3.5 py-2 rounded-lg"
           style={{
             background: "var(--surface-alt)",
-            color: "var(--foreground-soft)",
+            color: "var(--foreground)",
+            fontWeight: 600,
+            minHeight: 36,
           }}
         >
           Tell me more

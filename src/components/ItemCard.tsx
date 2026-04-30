@@ -233,15 +233,20 @@ export default function ItemCard({
 
         {/* Inline action links (compact, only when not yet acted on) */}
         {compact && interactive && !taken && !skipped && (
-          <div className="flex gap-3 mt-1">
+          <div className="flex gap-2 mt-1.5">
             {isFood && onSwap && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onSwap(item);
                 }}
-                className="text-[10px]"
-                style={{ color: "var(--olive)", opacity: 0.85 }}
+                className="text-[12px] px-2.5 py-1.5 rounded-md"
+                style={{
+                  color: "var(--olive)",
+                  background: "var(--surface-alt)",
+                  fontWeight: 600,
+                  minHeight: 32,
+                }}
               >
                 ↔ swap
               </button>
@@ -252,8 +257,13 @@ export default function ItemCard({
                   e.stopPropagation();
                   onSkip(item);
                 }}
-                className="text-[10px]"
-                style={{ color: "var(--muted)", opacity: 0.7 }}
+                className="text-[12px] px-2.5 py-1.5 rounded-md"
+                style={{
+                  color: "var(--foreground-soft)",
+                  background: "var(--surface-alt)",
+                  fontWeight: 600,
+                  minHeight: 32,
+                }}
               >
                 skip
               </button>

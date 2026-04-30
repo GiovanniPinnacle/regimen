@@ -163,14 +163,14 @@ function Pill({
       aria-pressed={active}
     >
       <div
-        className="text-[10px] uppercase tracking-wider"
+        className="text-[11px] uppercase tracking-wider"
         style={{
           color: active
-            ? "rgba(251, 250, 246, 0.78)"
+            ? "#FBFAF6"
             : now
               ? "var(--olive)"
-              : "var(--muted)",
-          fontWeight: now && !active ? 600 : 500,
+              : "var(--foreground-soft)",
+          fontWeight: now || active ? 700 : 600,
           letterSpacing: "0.06em",
         }}
       >

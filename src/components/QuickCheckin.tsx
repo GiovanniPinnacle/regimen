@@ -211,22 +211,23 @@ export default function QuickCheckin({ date }: { date: string }) {
                 >
                   {q.placeholder}
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1.5">
                   {[1, 2, 3, 4, 5].map((n) => {
                     const active = current === n;
                     return (
                       <button
                         key={n}
                         onClick={() => save({ [q.key]: n })}
-                        className="flex-1 py-1.5 rounded-md border-hair text-[13px]"
+                        className="flex-1 rounded-lg border-hair text-[14px]"
                         style={{
                           background: active
                             ? "var(--foreground)"
                             : "var(--background)",
                           color: active
                             ? "var(--background)"
-                            : "var(--muted)",
-                          fontWeight: active ? 500 : 400,
+                            : "var(--foreground-soft)",
+                          fontWeight: active ? 600 : 500,
+                          minHeight: 44,
                         }}
                       >
                         {n}

@@ -180,11 +180,15 @@ export default function NextStep({
             (step.secondary.type === "link" && step.secondary.href ? (
               <Link
                 href={step.secondary.href}
-                className="text-[13px] px-3 py-2 rounded-lg"
+                className="text-[13px] px-3.5 py-2.5 rounded-lg"
                 style={{
-                  background: "rgba(251, 250, 246, 0.18)",
+                  background: "rgba(251, 250, 246, 0.32)",
                   color: "#FBFAF6",
                   fontWeight: 600,
+                  border: "1px solid rgba(251, 250, 246, 0.38)",
+                  minHeight: 40,
+                  display: "inline-flex",
+                  alignItems: "center",
                 }}
               >
                 {step.secondary.label}
@@ -195,11 +199,13 @@ export default function NextStep({
                   step.secondary?.coachPrompt &&
                   fireCoach(step.secondary.coachPrompt)
                 }
-                className="text-[13px] px-3 py-2 rounded-lg"
+                className="text-[13px] px-3.5 py-2.5 rounded-lg"
                 style={{
-                  background: "rgba(251, 250, 246, 0.18)",
+                  background: "rgba(251, 250, 246, 0.32)",
                   color: "#FBFAF6",
                   fontWeight: 600,
+                  border: "1px solid rgba(251, 250, 246, 0.38)",
+                  minHeight: 40,
                 }}
               >
                 {step.secondary.label}
