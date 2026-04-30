@@ -528,6 +528,39 @@ export default function Coach() {
             }}
           >
             <div className="max-w-lg mx-auto">
+              {/* Suggested follow-ups — only when there's a Coach reply
+                  to follow up on AND the user hasn't started typing yet.
+                  Hidden during streaming. */}
+              {messages.length > 0 &&
+                messages[messages.length - 1].role === "assistant" &&
+                !loading &&
+                !input.trim() &&
+                !pendingImage && (
+                  <FollowUpChips
+                    lastAssistant={
+                      typeof messages[messages.length - 1].content === "string"
+                        ? (messages[messages.length - 1].content as string)
+                        : ""
+                    }
+                    onPick={(text, sendIt) => {
+                      if (sendIt) {
+                        const next: Msg[] = [
+                          ...messages,
+                          { role: "user", content: text },
+                        ];
+                        setMessages(next);
+                        void sendNow(next);
+                      } else {
+                        setInput(text);
+                        setTimeout(
+                          () => textareaRef.current?.focus(),
+                          50,
+                        );
+                      }
+                    }}
+                  />
+                )}
+
               {/* Pending image preview */}
               {pendingImage && (
                 <div className="flex items-center gap-2 mb-2 px-1">
@@ -1231,6 +1264,122 @@ function ProposalCard({
             </button>
           </>
       </div>
+    </div>
+  );
+}
+
+/** Smart follow-up suggestion chips, rendered just above the Coach
+ *  input when the last message is from Coach and the user hasn't
+ *  started typing yet. The first chip auto-sends; the others pre-fill
+ *  the input so the user can append context first. */
+function FollowUpChips({
+  lastAssistant,
+  onPick,
+}: {
+  lastAssistant: string;
+  onPick: (text: string, sendIt: boolean) => void;
+}) {
+  const lower = lastAssistant.toLowerCase();
+  const hasProposal = /<<<proposal|proposal>>>/i.test(lastAssistant);
+  const endsWithQuestion = /\?\s*$/.test(lastAssistant.trim());
+  const mentionsAdd = /\b(add|queue|try|consider)\b/i.test(lower);
+  const mentionsDrop = /\b(drop|retire|remove|stop)\b/i.test(lower);
+
+  // Compose 3-4 context-aware suggestions.
+  type Chip = { label: string; text: string; send: boolean };
+  const chips: Chip[] = [];
+
+  if (hasProposal) {
+    chips.push({
+      label: "Why this one?",
+      text: "Why this specific item over alternatives? What's the evidence + the trade-offs?",
+      send: true,
+    });
+    chips.push({
+      label: "Show alternatives",
+      text: "What are 2-3 alternatives I should compare against this proposal — different brand, dose, or mechanism?",
+      send: true,
+    });
+    chips.push({
+      label: "What about my…",
+      text: "What about my ",
+      send: false,
+    });
+  } else if (endsWithQuestion) {
+    chips.push({ label: "Yes", text: "Yes", send: true });
+    chips.push({ label: "No", text: "No", send: true });
+    chips.push({
+      label: "Tell me more first",
+      text: "Tell me more before I answer — what's the trade-off?",
+      send: true,
+    });
+  } else if (mentionsAdd) {
+    chips.push({
+      label: "Find a tighter version",
+      text: "Is there a tighter version — lower dose, different timing, cheaper brand — that fits better?",
+      send: true,
+    });
+    chips.push({
+      label: "Pair with what I have?",
+      text: "What in my current stack should I pair this with for max effect?",
+      send: true,
+    });
+    chips.push({
+      label: "Skip — why not?",
+      text: "Make the case for NOT adding this. Where could it go wrong?",
+      send: true,
+    });
+  } else if (mentionsDrop) {
+    chips.push({
+      label: "Drop now",
+      text: "Yes, drop it — emit the proposal.",
+      send: true,
+    });
+    chips.push({
+      label: "Reframe instead",
+      text: "Before I drop it, what's the smallest behavior change that would make it stick?",
+      send: true,
+    });
+    chips.push({
+      label: "What replaces it?",
+      text: "If I drop it, what do I replace the function of this item with?",
+      send: true,
+    });
+  } else {
+    chips.push({
+      label: "Why?",
+      text: "Why? Walk me through the reasoning.",
+      send: true,
+    });
+    chips.push({
+      label: "What's next?",
+      text: "Given my stack + recent data, what's the single highest-leverage next move?",
+      send: true,
+    });
+    chips.push({
+      label: "Add my context",
+      text: "",
+      send: false,
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5 mb-2.5">
+      {chips.map((c) => (
+        <button
+          key={c.label}
+          onClick={() => onPick(c.text, c.send)}
+          className="text-[11.5px] px-2.5 py-1.5 rounded-full active:scale-[0.97] transition-transform"
+          style={{
+            background: "var(--surface-alt)",
+            color: "var(--foreground-soft)",
+            border: "1px solid var(--border)",
+            fontWeight: 500,
+          }}
+        >
+          {c.label}
+        </button>
+      ))}
     </div>
   );
 }

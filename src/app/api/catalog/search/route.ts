@@ -19,8 +19,36 @@ import type { NormalizedCatalogRecord } from "@/lib/catalog/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const LOCAL_LIMIT = 8;
+const LOCAL_LIMIT = 12;
 const EXTERNAL_PER_SOURCE = 4;
+
+/** Rank score for a local catalog hit. Higher = better match.
+ *
+ *  Composite: exact-name match dominates, then starts-with, then
+ *  has-coach-enrichment (summary set), then evidence-grade A/B. The
+ *  goal is "the obvious right answer first" — a search for
+ *  "magnesium" should land Magnesium Glycinate before Magnesium
+ *  Citrate Bath Salts. */
+function scoreLocalHit(
+  hit: { name: string; coach_summary?: string | null; evidence_grade?: string | null },
+  q: string,
+): number {
+  const name = hit.name.toLowerCase();
+  const ql = q.toLowerCase();
+  let score = 0;
+  if (name === ql) score += 1000;
+  if (name.startsWith(ql + " ") || name.startsWith(ql + ",")) score += 500;
+  if (name.startsWith(ql)) score += 300;
+  if (name.split(/\s+/).includes(ql)) score += 100; // word-boundary match
+  if (hit.coach_summary && hit.coach_summary.length > 0) score += 50;
+  if (hit.evidence_grade === "A") score += 40;
+  else if (hit.evidence_grade === "B") score += 20;
+  // Shorter names beat longer ones at the same prefix tier — usually
+  // the simpler product wins (e.g. "Magnesium Glycinate" > "Magnesium
+  // Glycinate 200mg with B6 — 120 caps").
+  score -= Math.min(20, name.length / 5);
+  return score;
+}
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -31,6 +59,9 @@ export async function GET(request: Request) {
   // 1. Local catalog hits (fast, prefer these — already enriched if any
   // user has used them). catalog_items isn't in Supabase generated types
   // yet so we cast through unknown.
+  // Pull a wider initial slice from the DB so the client-side ranker
+  // has more candidates to choose from. We over-fetch by 2.5× then
+  // truncate to LOCAL_LIMIT after composite-scoring.
   const { data: localRaw } = await supabase
     .from("catalog_items")
     .select(
@@ -38,9 +69,9 @@ export async function GET(request: Request) {
         "calories, protein_g, fat_g, carbs_g, micros, active_ingredients, " +
         "serving_size, coach_summary, evidence_grade",
     )
-    .ilike("name", `%${q}%`)
+    .or(`name.ilike.%${q}%,brand.ilike.%${q}%`)
     .order("enriched_at", { ascending: false, nullsFirst: false })
-    .limit(LOCAL_LIMIT);
+    .limit(LOCAL_LIMIT * 3);
 
   type LocalRow = {
     id: string;
@@ -65,10 +96,15 @@ export async function GET(request: Request) {
   };
   type LocalHit = LocalRow & { _local: true };
   const localList = (localRaw ?? []) as unknown as LocalRow[];
-  const localHits: LocalHit[] = localList.map((r) => ({
-    ...r,
-    _local: true,
-  }));
+  // Score + sort by composite relevance, then truncate.
+  const localHits: LocalHit[] = localList
+    .map((r) => ({
+      hit: { ...r, _local: true } as LocalHit,
+      score: scoreLocalHit(r, q),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, LOCAL_LIMIT)
+    .map((x) => x.hit);
 
   let externalHits: NormalizedCatalogRecord[] = [];
 
