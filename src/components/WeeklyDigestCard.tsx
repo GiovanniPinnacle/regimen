@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import SwipeDismiss from "@/components/SwipeDismiss";
 
 type Digest = {
   generated_at: string;
@@ -136,6 +137,7 @@ export default function WeeklyDigestCard() {
   const trendIcon: "trend-up" | "trend-down" = trendUp ? "trend-up" : "trend-down";
 
   return (
+    <SwipeDismiss onDismiss={dismiss}>
     <section
       className="rounded-2xl card-glass mb-5 overflow-hidden"
       style={{ borderColor: "rgba(168, 85, 247, 0.30)" }}
@@ -261,6 +263,7 @@ export default function WeeklyDigestCard() {
         </div>
       </div>
     </section>
+    </SwipeDismiss>
   );
 }
 

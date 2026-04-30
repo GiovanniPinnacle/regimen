@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import SwipeDismiss from "@/components/SwipeDismiss";
 import type { IngredientStackResult, IngredientWarning } from "@/lib/ingredient-stack";
 
 const HIDE_KEY_BASE = "regimen.stackwarn.dismissed_today.v1";
@@ -117,6 +118,7 @@ export default function StackWarningsBanner({
       : `${data.warnings.length} ingredient${data.warnings.length === 1 ? "" : "s"} approaching UL`;
 
   return (
+    <SwipeDismiss onDismiss={dismiss} disabled={persistent}>
     <section
       className="rounded-2xl mb-5 overflow-hidden relative"
       style={{
@@ -268,5 +270,6 @@ export default function StackWarningsBanner({
         })}
       </div>
     </section>
+    </SwipeDismiss>
   );
 }

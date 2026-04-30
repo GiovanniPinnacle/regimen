@@ -16,6 +16,7 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import SwipeDismiss from "@/components/SwipeDismiss";
 import type { SymptomCorrelation } from "@/lib/symptom-correlate";
 
 const DISMISS_KEY_PREFIX = "regimen.symptom_correlation.dismissed.v1.";
@@ -98,6 +99,7 @@ export default function SymptomCorrelationCard() {
   if (!showing || !top) return null;
 
   return (
+    <SwipeDismiss onDismiss={dismiss}>
     <section
       className="rounded-2xl mb-5 overflow-hidden relative"
       style={{
@@ -205,5 +207,6 @@ export default function SymptomCorrelationCard() {
         </div>
       </div>
     </section>
+    </SwipeDismiss>
   );
 }

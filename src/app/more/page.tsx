@@ -38,6 +38,12 @@ const SECTIONS: Section[] = [
         icon: "plus",
       },
       {
+        href: "/dedupe",
+        label: "Clean up duplicates",
+        desc: "Merge same-named or same-catalog items in your stack",
+        icon: "trash",
+      },
+      {
         href: "/audit",
         label: "Stack audit",
         desc: "What you have vs need to order — fast, one-tap",

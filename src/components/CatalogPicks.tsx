@@ -19,6 +19,7 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import SwipeDismiss from "@/components/SwipeDismiss";
 
 type Pick = {
   catalog_item_id: string;
@@ -142,6 +143,7 @@ export default function CatalogPicks() {
     grade === "A" ? "var(--accent)" : "var(--premium)";
 
   return (
+    <SwipeDismiss onDismiss={() => dismiss(visible)}>
     <section
       className="rounded-2xl card-glass mb-5 overflow-hidden"
       style={{ borderColor: gradeColor + "33" }}
@@ -240,5 +242,6 @@ export default function CatalogPicks() {
         </div>
       </div>
     </section>
+    </SwipeDismiss>
   );
 }

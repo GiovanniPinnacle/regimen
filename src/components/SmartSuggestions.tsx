@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import SwipeDismiss from "@/components/SwipeDismiss";
 
 type Suggestion = {
   id: string;
@@ -110,6 +111,7 @@ export default function SmartSuggestions() {
   const accent = KIND_ACCENT[s.kind];
 
   return (
+    <SwipeDismiss onDismiss={dismiss}>
     <section className="rounded-2xl card-glass mb-5 overflow-hidden">
       <div className="px-4 py-3.5 flex items-start gap-3">
         <span
@@ -183,5 +185,6 @@ export default function SmartSuggestions() {
         </button>
       </div>
     </section>
+    </SwipeDismiss>
   );
 }

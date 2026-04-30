@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
+import SwipeDismiss from "@/components/SwipeDismiss";
 
 const HIDE_KEY = "regimen.streak.dismissed_today.v1";
 
@@ -84,6 +85,7 @@ export default function StreakAtRiskBanner({
   if (!atRisk) return null;
 
   return (
+    <SwipeDismiss onDismiss={dismiss}>
     <section
       className="rounded-2xl mb-5 overflow-hidden relative"
       style={{
@@ -135,6 +137,7 @@ export default function StreakAtRiskBanner({
         </button>
       </div>
     </section>
+    </SwipeDismiss>
   );
 }
 

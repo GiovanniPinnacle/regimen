@@ -339,6 +339,25 @@ export default function Coach() {
     }
   }, [open]);
 
+  // ESC closes the overlay so the user isn't trapped. Also closes when
+  // the navigation route changes — see below.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // Close on route change — if the user navigates away from /today via
+  // browser back or a tab tap while Coach is open, dismiss the overlay
+  // instead of leaving it stuck on top of the new page.
+  useEffect(() => {
+    setOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   // Cross-app trigger: anyone can dispatch `regimen:ask` to seed Coach with text
   useEffect(() => {
     function onAsk(e: Event) {
@@ -436,10 +455,14 @@ export default function Coach() {
               )}
               <button
                 onClick={() => setOpen(false)}
-                className="text-[13px] px-3 py-1.5"
-                style={{ color: "var(--muted)" }}
+                className="h-9 w-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                style={{
+                  background: "var(--surface-alt)",
+                  color: "var(--foreground)",
+                }}
+                aria-label="Close Coach"
               >
-                Close
+                <Icon name="plus" size={16} className="rotate-45" strokeWidth={2.2} />
               </button>
             </div>
           </header>

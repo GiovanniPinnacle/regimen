@@ -55,43 +55,85 @@ export async function POST(request: NextRequest) {
   const itemType: ItemType = body.item_type ?? "food";
   const category: Category = body.category ?? "permanent";
 
-  const insertRow: Record<string, unknown> = {
-    user_id: user.id,
-    name: body.name.trim(),
-    item_type: itemType,
-    timing_slot: body.timing_slot,
-    category,
-    status: "active",
-    goals: [],
-    schedule_rule: { frequency: "daily" },
-    started_on: todayISO(),
-    dose: body.dose?.trim() || null,
-  };
-
-  if (body.parent_id) {
-    insertRow.companion_of = body.parent_id;
-    if (body.companion_instruction?.trim()) {
-      insertRow.companion_instruction = body.companion_instruction.trim();
-    }
-  }
-
-  const { data, error } = await supabase
+  // Dedupe: if user already has an item with this name (any status),
+  // re-activate + adjust it rather than inserting a duplicate. Closes
+  // the most common path that was producing duplicates in the user's
+  // stack (typing "vitamin d" twice on different days).
+  const { data: existing } = await supabase
     .from("items")
-    .insert(insertRow)
-    .select("id, name, timing_slot, companion_of")
-    .single();
+    .select("id, name, status")
+    .eq("user_id", user.id)
+    .ilike("name", body.name.trim())
+    .limit(1)
+    .maybeSingle();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  let data: { id: string; name: string; timing_slot: string; companion_of: string | null };
+  let isReactivate = false;
+
+  if (existing) {
+    isReactivate = true;
+    const updates: Record<string, unknown> = {
+      status: "active",
+      timing_slot: body.timing_slot,
+      started_on: todayISO(),
+    };
+    if (body.dose?.trim()) updates.dose = body.dose.trim();
+    if (body.parent_id) {
+      updates.companion_of = body.parent_id;
+      if (body.companion_instruction?.trim()) {
+        updates.companion_instruction = body.companion_instruction.trim();
+      }
+    }
+    const { data: updated, error: upErr } = await supabase
+      .from("items")
+      .update(updates)
+      .eq("id", existing.id)
+      .eq("user_id", user.id)
+      .select("id, name, timing_slot, companion_of")
+      .single();
+    if (upErr) {
+      return NextResponse.json({ error: upErr.message }, { status: 500 });
+    }
+    data = updated;
+  } else {
+    const insertRow: Record<string, unknown> = {
+      user_id: user.id,
+      name: body.name.trim(),
+      item_type: itemType,
+      timing_slot: body.timing_slot,
+      category,
+      status: "active",
+      goals: [],
+      schedule_rule: { frequency: "daily" },
+      started_on: todayISO(),
+      dose: body.dose?.trim() || null,
+    };
+    if (body.parent_id) {
+      insertRow.companion_of = body.parent_id;
+      if (body.companion_instruction?.trim()) {
+        insertRow.companion_instruction = body.companion_instruction.trim();
+      }
+    }
+    const { data: inserted, error } = await supabase
+      .from("items")
+      .insert(insertRow)
+      .select("id, name, timing_slot, companion_of")
+      .single();
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    data = inserted;
   }
 
   // Log to changelog so it shows up in /changelog
   await supabase.from("changelog").insert({
     user_id: user.id,
-    change_type: "add",
+    change_type: isReactivate ? "promote" : "add",
     item_id: data.id,
     item_name: data.name,
-    reasoning: body.parent_id
+    reasoning: isReactivate
+      ? `Re-activated existing item via quick-add (deduped — already in stack).`
+      : body.parent_id
       ? `Quick-added as companion to existing item.`
       : `Quick-added to ${body.timing_slot}.`,
     triggered_by: "quick_add",

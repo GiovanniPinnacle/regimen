@@ -1174,7 +1174,9 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
 
   if (ctx.recentSymptoms.length > 0) {
     lines.push(`# RECENT SYMPTOM LOGS (last 7 days)`);
-    for (const s of ctx.recentSymptoms) {
+    // We fetch 21 days for the correlation detector but only render the
+    // most recent 7 in the prompt to keep token count sane.
+    for (const s of ctx.recentSymptoms.slice(0, 7)) {
       lines.push(
         `- ${s.date}: feel=${s.feel_score ?? "—"}, sleep=${s.sleep_quality ?? "—"}, seb_derm=${s.seb_derm_score ?? "—"}, stress=${s.stress ?? "—"}, energy_pm=${s.energy_pm ?? "—"}${s.notes ? ` · ${s.notes}` : ""}`,
       );

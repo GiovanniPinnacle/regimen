@@ -132,18 +132,61 @@ export async function POST(request: NextRequest) {
     };
   });
 
-  // Skip items already inserted from this protocol (in case of re-enroll)
+  // Dedupe: don't create duplicates of items the user already has.
+  // Two checks:
+  //   1. from_protocol_item_key — handles re-enrollment in this protocol
+  //   2. lowercased name — handles overlap with manually-added items
+  //      OR items from other protocols. We tag the existing row with
+  //      this protocol's slug + key so the protocol view treats it as
+  //      part of the enrollment, but we don't insert a duplicate.
   const { data: existingItems } = await supabase
     .from("items")
-    .select("from_protocol_item_key")
-    .eq("user_id", user.id)
-    .eq("from_protocol_slug", protocol.slug);
-  const existingKeys = new Set(
-    (existingItems ?? []).map((i) => i.from_protocol_item_key),
+    .select("id, name, from_protocol_item_key")
+    .eq("user_id", user.id);
+  const existingByKey = new Set(
+    (existingItems ?? [])
+      .filter(
+        (i) =>
+          (i as { from_protocol_slug?: string }).from_protocol_slug ===
+          protocol.slug,
+      )
+      .map((i) => i.from_protocol_item_key),
   );
-  const newItems = itemsToInsert.filter(
-    (i) => !existingKeys.has(i.from_protocol_item_key),
-  );
+  const existingByName = new Map<string, string>();
+  for (const i of existingItems ?? []) {
+    existingByName.set(
+      (i as { name: string }).name.toLowerCase().trim(),
+      (i as { id: string }).id,
+    );
+  }
+
+  const newItems: typeof itemsToInsert = [];
+  const adoptions: { id: string; key: string }[] = [];
+  for (const it of itemsToInsert) {
+    if (existingByKey.has(it.from_protocol_item_key)) continue;
+    const nameKey = it.name.toLowerCase().trim();
+    const existingId = existingByName.get(nameKey);
+    if (existingId) {
+      // Adopt the existing row into this protocol enrollment.
+      adoptions.push({ id: existingId, key: it.from_protocol_item_key });
+      continue;
+    }
+    newItems.push(it);
+  }
+
+  if (adoptions.length > 0) {
+    // Tag each existing item with this protocol's slug + key.
+    for (const a of adoptions) {
+      await supabase
+        .from("items")
+        .update({
+          from_protocol_slug: protocol.slug,
+          from_protocol_item_key: a.key,
+        })
+        .eq("id", a.id)
+        .eq("user_id", user.id);
+    }
+  }
 
   if (newItems.length > 0) {
     const { error: insertErr } = await supabase.from("items").insert(newItems);
