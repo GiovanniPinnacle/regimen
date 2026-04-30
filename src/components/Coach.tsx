@@ -239,6 +239,10 @@ export default function Coach() {
             detail: { kind: "success", text: `Applied: ${proposal.item_name}` },
           }),
         );
+        // Tell every page that lists items to refresh — closes the gap
+        // where a user approves "add Vitamin K2" in Coach but /today
+        // doesn't show the new item until manual reload.
+        window.dispatchEvent(new CustomEvent("regimen:items-changed"));
       } else {
         setExecuted((m) => ({ ...m, [proposal.id]: "error" }));
         setMessages((m) => [

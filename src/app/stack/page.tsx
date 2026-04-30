@@ -87,7 +87,21 @@ export default function StackPage() {
   const [groupByType, setGroupByType] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  // Fetch counts for all tabs once
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // Listen for cross-component "items changed" events fired after Coach
+  // approves a proposal, after dedupe, etc. Bumping reloadKey re-runs
+  // the fetches below.
+  useEffect(() => {
+    function onChange() {
+      setReloadKey((k) => k + 1);
+    }
+    window.addEventListener("regimen:items-changed", onChange);
+    return () =>
+      window.removeEventListener("regimen:items-changed", onChange);
+  }, []);
+
+  // Fetch counts for all tabs whenever items change
   useEffect(() => {
     (async () => {
       const [a, q, b] = await Promise.all([
@@ -101,9 +115,9 @@ export default function StackPage() {
         backburner: b.length,
       });
     })();
-  }, []);
+  }, [reloadKey]);
 
-  // Refetch on status tab change
+  // Refetch on status tab change OR items-changed event
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -119,7 +133,7 @@ export default function StackPage() {
       }
       setLoading(false);
     })();
-  }, [statusTab]);
+  }, [statusTab, reloadKey]);
 
   // Nest companions under their parents — fixes the duplicate-display bug
   // where a child + parent both appeared as separate cards on /stack.

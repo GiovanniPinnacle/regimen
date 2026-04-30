@@ -89,6 +89,8 @@ export default function QuickAddInline({
           },
         }),
       );
+      // Tell every page that lists items to refresh.
+      window.dispatchEvent(new CustomEvent("regimen:items-changed"));
       onAdded?.();
     } catch (e) {
       setErr((e as Error).message);

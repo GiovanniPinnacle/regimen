@@ -65,6 +65,9 @@ export default function SwapSheet({
     setText("");
     setAnalyzed(null);
     onSwapped();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("regimen:items-changed"));
+    }
     onClose();
   }
 

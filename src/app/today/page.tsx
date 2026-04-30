@@ -164,19 +164,41 @@ export default function TodayPage() {
     setReloadKey((k) => k + 1);
   }
 
+  // Listen for cross-component "items changed" events fired after Coach
+  // approves a proposal, after a quick-add, etc. Bumping reloadKey
+  // re-runs the items+takenMap fetch effect below so the user sees
+  // their new/updated items without manually refreshing.
   useEffect(() => {
+    function onChange() {
+      setReloadKey((k) => k + 1);
+    }
+    window.addEventListener("regimen:items-changed", onChange);
+    return () =>
+      window.removeEventListener("regimen:items-changed", onChange);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
     (async () => {
       const [active, map, ouraData] = await Promise.all([
         getItemsByStatus("active"),
         getTakenMap(today),
         getOuraToday(today),
       ]);
+      if (!alive) return;
       setItems(active);
       setTakenState(map);
       setOura(ouraData);
       await refreshLogs();
       setLoading(false);
     })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today, reloadKey]);
+
+  useEffect(() => {
     (async () => {
       const client = createClient();
       const { data: profile } = await client

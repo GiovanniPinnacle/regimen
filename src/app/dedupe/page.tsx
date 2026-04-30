@@ -72,6 +72,9 @@ export default function DedupePage() {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = (await r.json()) as { merged_count: number };
       setDone({ count: j.merged_count });
+      // Tell every page that lists items to refresh — they should now
+      // show the deduped state.
+      window.dispatchEvent(new CustomEvent("regimen:items-changed"));
     } catch (e) {
       setErr((e as Error).message);
     } finally {

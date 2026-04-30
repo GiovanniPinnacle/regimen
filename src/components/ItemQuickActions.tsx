@@ -38,6 +38,17 @@ export default function ItemQuickActions({
   if (!open || !item) return null;
   const isFood = item.item_type === "food";
 
+  /** Centralized "items changed" notifier — fires the cross-page event
+   *  AND calls the parent onChanged callback. Drop-in replacement for
+   *  scattered onChanged?.() calls so every mutation reliably refreshes
+   *  every list page. */
+  function notifyItemsChanged() {
+    notifyItemsChanged();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("regimen:items-changed"));
+    }
+  }
+
   function snooze(minutes: number) {
     if (!item) return;
     const until = Date.now() + minutes * 60 * 1000;
@@ -54,10 +65,10 @@ export default function ItemQuickActions({
         try {
           localStorage.removeItem(`regimen.snooze.${item!.id}`);
         } catch {}
-        onChanged?.();
+        notifyItemsChanged();
       },
     });
-    onChanged?.();
+    notifyItemsChanged();
   }
 
   async function markDepleted() {
@@ -81,7 +92,7 @@ export default function ItemQuickActions({
         onClick: () => router.push("/purchases"),
       },
     });
-    onChanged?.();
+    notifyItemsChanged();
   }
 
   async function retireFromProtocol() {
@@ -102,10 +113,10 @@ export default function ItemQuickActions({
       undo: async () => {
         const c = createClient();
         await c.from("items").update({ status: "active" }).eq("id", item.id);
-        onChanged?.();
+        notifyItemsChanged();
       },
     });
-    onChanged?.();
+    notifyItemsChanged();
   }
 
   return (
