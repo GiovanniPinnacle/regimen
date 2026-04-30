@@ -13,7 +13,35 @@ export default function ToastHost() {
 
   useEffect(() => {
     function onShow(e: Event) {
-      const detail = (e as CustomEvent<ToastDetail>).detail;
+      // Accept BOTH the canonical shape ({ id, message, tone }) AND the
+      // legacy shape ({ kind, text }) that some components still use.
+      // Without this normalization, those toasts had `t.message` undefined
+      // and rendered blank — effectively invisible.
+      const raw = (e as CustomEvent<Record<string, unknown>>).detail ?? {};
+      const detail: ToastDetail = {
+        id:
+          (raw.id as string | undefined) ??
+          (typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `t-${Date.now()}-${Math.random()}`),
+        message:
+          (raw.message as string | undefined) ??
+          (raw.text as string | undefined) ??
+          "",
+        tone:
+          (raw.tone as ToastDetail["tone"] | undefined) ??
+          (raw.kind === "success"
+            ? "success"
+            : raw.kind === "error"
+              ? "error"
+              : raw.kind === "warn"
+                ? "warn"
+                : "default"),
+        duration: raw.duration as number | undefined,
+        undo: raw.undo as ToastDetail["undo"],
+        action: raw.action as ToastDetail["action"],
+      };
+      if (!detail.message) return; // Drop noise events with no text.
       const duration = detail.duration ?? 4500;
       setToasts((prev) => [...prev, detail]);
       if (duration > 0) {
