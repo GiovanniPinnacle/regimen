@@ -482,16 +482,17 @@ export default function StackPage() {
             <button
               key={f.value}
               onClick={() => setTypeFilter(f.value)}
-              className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap flex items-center gap-1.5 transition-all"
+              className="text-[13px] px-3.5 py-2 rounded-full whitespace-nowrap flex items-center gap-1.5 transition-all"
               style={{
                 background: active ? "var(--olive)" : "var(--surface-glass)",
-                color: active ? "#FBFAF6" : "var(--muted)",
-                fontWeight: active ? 600 : 400,
+                color: active ? "#FBFAF6" : "var(--foreground-soft)",
+                fontWeight: active ? 700 : 500,
                 border: active
                   ? "1px solid var(--olive)"
                   : "1px solid var(--border)",
                 backdropFilter: active ? undefined : "blur(8px)",
                 WebkitBackdropFilter: active ? undefined : "blur(8px)",
+                minHeight: 34,
               }}
             >
               <span>{f.label}</span>

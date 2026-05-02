@@ -162,23 +162,25 @@ export default function SmartSuggestions() {
       >
         <button
           onClick={apply}
-          className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+          className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
           style={{
             background: accent,
             color: "#FBFAF6",
             fontWeight: 700,
+            minHeight: 36,
           }}
         >
-          <Icon name="check-circle" size={12} strokeWidth={2.2} />
+          <Icon name="check-circle" size={13} strokeWidth={2.2} />
           Yes, apply
         </button>
         <button
           onClick={discuss}
-          className="text-[12.5px] px-3 py-1.5 rounded-lg"
+          className="text-[13px] px-3.5 py-2 rounded-lg"
           style={{
             background: "var(--surface-alt)",
-            color: "var(--foreground-soft)",
+            color: "var(--foreground)",
             fontWeight: 600,
+            minHeight: 36,
           }}
         >
           Tell me more

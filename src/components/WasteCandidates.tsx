@@ -136,11 +136,12 @@ export default function WasteCandidates({
             <div className="flex gap-2 mt-3">
               <button
                 onClick={() => fireDrop(c)}
-                className="flex-1 text-[12.5px] px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5"
+                className="flex-1 text-[13px] px-3.5 py-2 rounded-lg flex items-center justify-center gap-1.5"
                 style={{
                   background: "var(--error)",
                   color: "#FBFAF6",
                   fontWeight: 700,
+                  minHeight: 36,
                 }}
               >
                 <Icon name="trash" size={12} strokeWidth={2.2} />
@@ -148,11 +149,12 @@ export default function WasteCandidates({
               </button>
               <button
                 onClick={() => fireReframe(c)}
-                className="flex-1 text-[12.5px] px-3 py-1.5 rounded-lg"
+                className="flex-1 text-[13px] px-3.5 py-2 rounded-lg"
                 style={{
                   background: "var(--surface-alt)",
-                  color: "var(--foreground-soft)",
+                  color: "var(--foreground)",
                   fontWeight: 600,
+                  minHeight: 36,
                 }}
               >
                 Make it stick

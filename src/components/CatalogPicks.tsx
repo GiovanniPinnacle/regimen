@@ -221,24 +221,26 @@ export default function CatalogPicks() {
           <button
             onClick={() => queueIt(visible)}
             disabled={pendingId === visible.catalog_item_id}
-            className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5 active:scale-[0.98] transition-transform"
+            className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5 active:scale-[0.98] transition-transform"
             style={{
               background: gradeColor,
               color: "#FBFAF6",
               fontWeight: 700,
               opacity: pendingId === visible.catalog_item_id ? 0.6 : 1,
+              minHeight: 36,
             }}
           >
-            <Icon name="check-circle" size={12} strokeWidth={2.2} />
+            <Icon name="check-circle" size={13} strokeWidth={2.2} />
             Queue it
           </button>
           <button
             onClick={() => tellMeWhy(visible)}
-            className="text-[12.5px] px-3 py-1.5 rounded-lg"
+            className="text-[13px] px-3.5 py-2 rounded-lg"
             style={{
               background: "var(--surface-alt)",
-              color: "var(--foreground-soft)",
+              color: "var(--foreground)",
               fontWeight: 600,
+              minHeight: 36,
             }}
           >
             Tell me why

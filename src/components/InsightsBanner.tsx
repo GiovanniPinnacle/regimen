@@ -188,26 +188,28 @@ export default function InsightsBanner() {
                     >
                       {i.body}
                     </div>
-                    <div className="flex gap-1.5 mt-2">
+                    <div className="flex gap-2 mt-2.5">
                       <button
                         onClick={() => applyInsight(i)}
-                        className="text-[11.5px] px-2.5 py-1 rounded-lg flex items-center gap-1"
+                        className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                         style={{
                           background: meta.accent,
                           color: "#FBFAF6",
                           fontWeight: 700,
+                          minHeight: 32,
                         }}
                       >
-                        <Icon name="check-circle" size={10} strokeWidth={2.4} />
+                        <Icon name="check-circle" size={11} strokeWidth={2.4} />
                         {meta.verb}
                       </button>
                       <button
                         onClick={() => discussInsight(i)}
-                        className="text-[11.5px] px-2.5 py-1 rounded-lg"
+                        className="text-[12.5px] px-3 py-1.5 rounded-lg"
                         style={{
                           background: "var(--surface-alt)",
-                          color: "var(--foreground-soft)",
+                          color: "var(--foreground)",
                           fontWeight: 600,
+                          minHeight: 32,
                         }}
                       >
                         More
@@ -300,23 +302,25 @@ function SingleNote({
       <div className="flex gap-2 mt-3 ml-9">
         <button
           onClick={onApply}
-          className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+          className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
           style={{
             background: meta.accent,
             color: "#FBFAF6",
             fontWeight: 700,
+            minHeight: 36,
           }}
         >
-          <Icon name="check-circle" size={11} strokeWidth={2.4} />
+          <Icon name="check-circle" size={13} strokeWidth={2.4} />
           {meta.verb}
         </button>
         <button
           onClick={onDiscuss}
-          className="text-[12.5px] px-3 py-1.5 rounded-lg"
+          className="text-[13px] px-3.5 py-2 rounded-lg"
           style={{
             background: "var(--surface-alt)",
-            color: "var(--foreground-soft)",
+            color: "var(--foreground)",
             fontWeight: 600,
+            minHeight: 36,
           }}
         >
           Tell me more
