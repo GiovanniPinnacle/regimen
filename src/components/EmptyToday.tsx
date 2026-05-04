@@ -1,20 +1,52 @@
 "use client";
 
 // EmptyToday — first-run experience for users who have no active items yet.
-// Three clear paths: enroll in a protocol, add an item manually, or scan
-// what's in front of them. Replaces the silent "no items" empty state.
+// New v2 (May 2026): leads with the inline starter pack (tap-to-add
+// evidence-A items) so the user gets to a non-empty stack in 30
+// seconds without leaving the page. Three "deeper paths" stay below
+// for users who want more structure (protocol enroll, manual add,
+// scan a label).
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
+import StarterPack from "@/components/StarterPack";
+import { createClient } from "@/lib/supabase/client";
 
 export default function EmptyToday({
   displayName,
 }: {
   displayName?: string | null;
 }) {
+  // Pull the user's onboarding focus (if they completed /onboard) so
+  // we can bias the starter-pack toward what they care about. Falls
+  // back to "general" if no focus is set yet.
+  const [focus, setFocus] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const client = createClient();
+        const { data } = await client
+          .from("profiles")
+          .select("about_me")
+          .maybeSingle();
+        if (!alive) return;
+        const aboutMe = (data?.about_me ?? {}) as Record<string, string>;
+        const goals = aboutMe.top_goals ?? "";
+        const m = goals.match(/Focus:\s*(\w+)/);
+        if (m) setFocus(m[1]);
+      } catch {}
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <section className="pb-12">
-      <div className="text-center max-w-md mx-auto pt-2 mb-8">
+      <div className="text-center max-w-md mx-auto pt-2 mb-6">
         <div
           className="text-[11px] uppercase tracking-wider mb-2"
           style={{
@@ -36,8 +68,28 @@ export default function EmptyToday({
           className="text-[13px] leading-relaxed"
           style={{ color: "var(--muted)" }}
         >
-          Pick how you want to start. You can mix and match anytime.
+          Tap the items below you take or want to try. Coach refines from there.
         </p>
+      </div>
+
+      {/* Inline tap-to-add picker — the fastest path from empty to a
+          working stack. After at least one add, /today re-renders with
+          actual items and EmptyToday goes away. */}
+      <div className="max-w-md mx-auto">
+        <StarterPack focus={focus} count={10} />
+      </div>
+
+      <div className="text-center mb-3 mt-1">
+        <span
+          className="text-[11px] uppercase tracking-wider"
+          style={{
+            color: "var(--muted)",
+            fontWeight: 600,
+            letterSpacing: "0.06em",
+          }}
+        >
+          Or take a deeper path
+        </span>
       </div>
 
       <div className="flex flex-col gap-2 max-w-md mx-auto mb-8">

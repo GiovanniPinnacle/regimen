@@ -9,10 +9,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Icon from "@/components/Icon";
+import StarterPack from "@/components/StarterPack";
 import { createClient } from "@/lib/supabase/client";
 import { listProtocols, formatDuration } from "@/lib/protocols";
 
-type Step = "name" | "focus" | "recovery" | "protocol" | "done";
+type Step = "name" | "focus" | "starters" | "recovery" | "protocol" | "done";
 
 const FOCUS_OPTIONS = [
   {
@@ -162,6 +163,7 @@ export default function OnboardPage() {
         >
           {step === "name" && "What should we call you?"}
           {step === "focus" && "What brings you here?"}
+          {step === "starters" && "Pick what you already take"}
           {step === "recovery" &&
             (focus === "recovery"
               ? "When was your procedure?"
@@ -263,7 +265,7 @@ export default function OnboardPage() {
               Back
             </button>
             <button
-              onClick={() => setStep("recovery")}
+              onClick={() => setStep("starters")}
               disabled={!focus}
               className="flex-[2] rounded-xl px-5 py-3 text-[15px]"
               style={{
@@ -271,6 +273,53 @@ export default function OnboardPage() {
                 color: "#FBFAF6",
                 fontWeight: 500,
                 opacity: !focus ? 0.5 : 1,
+              }}
+            >
+              Continue →
+            </button>
+          </div>
+        </section>
+      )}
+
+      {step === "starters" && (
+        <section>
+          <p
+            className="text-[13px] leading-relaxed mb-4"
+            style={{ color: "var(--muted)" }}
+          >
+            We pre-pulled foundational items based on your focus. Tap the ones
+            you already take or want to try. Skip if you&apos;d rather pick a
+            full protocol next.
+          </p>
+          <StarterPack
+            focus={focus}
+            count={10}
+            onAdded={() => setStep("recovery")}
+            onSkip={() => setStep("recovery")}
+            title="Common starters"
+            subtitle={
+              focus === "recovery"
+                ? "Healing-friendly basics — D, magnesium, omega-3, protein."
+                : focus === "sleep"
+                  ? "Magnesium, glycine, theanine — tested sleep stack staples."
+                  : "Foundational picks. Skip anything you don't take or care about."
+            }
+          />
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => setStep("focus")}
+              className="flex-1 rounded-xl px-5 py-3 text-[14px] border-hair"
+              style={{ color: "var(--muted)" }}
+            >
+              Back
+            </button>
+            <button
+              onClick={() => setStep("recovery")}
+              className="flex-[2] rounded-xl px-5 py-3 text-[15px]"
+              style={{
+                background: "var(--olive)",
+                color: "#FBFAF6",
+                fontWeight: 500,
               }}
             >
               Continue →
@@ -309,7 +358,7 @@ export default function OnboardPage() {
           </p>
           <div className="flex gap-2">
             <button
-              onClick={() => setStep("focus")}
+              onClick={() => setStep("starters")}
               className="flex-1 rounded-xl px-5 py-3 text-[14px] border-hair"
               style={{ color: "var(--muted)" }}
             >
@@ -476,7 +525,7 @@ function StepDots({
   step: Step;
   focus: string | null;
 }) {
-  const order: Step[] = ["name", "focus", "recovery", "protocol"];
+  const order: Step[] = ["name", "focus", "starters", "recovery", "protocol"];
   const idx = order.indexOf(step);
   return (
     <div className="flex gap-1.5 mt-4" aria-label="Progress">
