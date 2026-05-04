@@ -6,7 +6,7 @@ import type { Item } from "@/lib/types";
 import CategoryBadge from "./CategoryBadge";
 import ReactionRow, { shouldShowReaction } from "./ReactionRow";
 import ItemQuickActions from "./ItemQuickActions";
-import Icon from "./Icon";
+import SwipeDismiss from "./SwipeDismiss";
 import { GOAL_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
 
 type Props = {
@@ -28,6 +28,10 @@ type Props = {
   /** Compact mode (Today): hide usage_notes, notes, goals; show companions
    * count chip; tap a chevron or the Details summary for inline expand. */
   compact?: boolean;
+  /** Swipe-left to retire callback. When set, the card is wrapped in
+   *  SwipeDismiss and a left-swipe past threshold fires this handler.
+   *  Caller is responsible for the DB mutation + undo toast + reload. */
+  onSwipeRetire?: () => void | Promise<void>;
 };
 
 export default function ItemCard({
@@ -44,6 +48,7 @@ export default function ItemCard({
   adherence = null,
   daysSupplyLeft = null,
   compact = false,
+  onSwipeRetire,
 }: Props) {
   const interactive = typeof onToggle === "function";
   const typeIcon = ITEM_TYPE_ICONS[item.item_type] ?? "";
@@ -59,8 +64,7 @@ export default function ItemCard({
     (item.__companions && item.__companions.length > 0) ||
     (showGoals && item.goals.length > 0);
 
-  return (
-    <>
+  const cardInner = (
     <div
       className={`rounded-xl p-3 flex items-start gap-3 transition-all ${taken ? "" : skipped ? "" : "card-glass"}`}
       style={{
@@ -486,14 +490,30 @@ export default function ItemCard({
         )}
       </div>
     </div>
-    <ItemQuickActions
-      item={item}
-      open={actionsOpen}
-      onClose={() => setActionsOpen(false)}
-      onSkip={onSkip}
-      onSwap={onSwap}
-      onChanged={onChanged}
-    />
+  );
+
+  // Wrap in swipe gesture when caller wants swipe-to-retire. The wrapper
+  // only triggers on left-swipe past threshold; vertical scroll, taps,
+  // and inner buttons all stay native.
+  const card = onSwipeRetire ? (
+    <SwipeDismiss onDismiss={() => void onSwipeRetire()}>
+      {cardInner}
+    </SwipeDismiss>
+  ) : (
+    cardInner
+  );
+
+  return (
+    <>
+      {card}
+      <ItemQuickActions
+        item={item}
+        open={actionsOpen}
+        onClose={() => setActionsOpen(false)}
+        onSkip={onSkip}
+        onSwap={onSwap}
+        onChanged={onChanged}
+      />
     </>
   );
 }

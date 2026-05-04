@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ItemCard from "@/components/ItemCard";
 import { getItemsByStatus, getAdherenceMap } from "@/lib/storage";
-import type { Category, Goal, Item, ItemType } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import { showToast } from "@/lib/toast";
+import type { Category, Goal, Item, ItemType, Status } from "@/lib/types";
 import {
   CATEGORY_COLORS,
   GOAL_LABELS,
@@ -88,6 +90,45 @@ export default function StackPage() {
   const [loading, setLoading] = useState(true);
 
   const [reloadKey, setReloadKey] = useState(0);
+  // Density toggle — when on, item cards render in compact mode (single
+  // row, no inline goals/usage_notes/companions). Persisted in
+  // localStorage so the user's preference sticks across visits. Lazy
+  // initialization keeps the initial render in sync with the saved
+  // pref (no flash from default-off → on after hydration).
+  const [dense, setDense] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem("regimen.stack.dense") === "1";
+    } catch {
+      return false;
+    }
+  });
+  function toggleDense() {
+    setDense((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("regimen.stack.dense", next ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  }
+
+  // One-time hint about the new swipe-left-to-retire gesture. Auto-hides
+  // after first dismissal OR after the user actually retires something.
+  const [showSwipeHint, setShowSwipeHint] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem("regimen.stack.hintSwipeSeen") !== "1";
+    } catch {
+      return false;
+    }
+  });
+  function dismissSwipeHint() {
+    setShowSwipeHint(false);
+    try {
+      localStorage.setItem("regimen.stack.hintSwipeSeen", "1");
+    } catch {}
+  }
 
   // Listen for cross-component "items changed" events fired after Coach
   // approves a proposal, after dedupe, etc. Bumping reloadKey re-runs
@@ -292,10 +333,66 @@ export default function StackPage() {
     setSortMode("default");
   }
 
+  // Swipe-left → retire. Optimistic remove + undo toast. We push the
+  // item to a different status (active → backburner OR queued → backburner)
+  // depending on the current tab, since "Retire" means "stop showing for
+  // now" and the backburner is the natural park.
+  async function retireItem(item: Item) {
+    // First successful swipe also dismisses the hint banner.
+    if (showSwipeHint) dismissSwipeHint();
+    const prevStatus = item.status;
+    const targetStatus: Status =
+      statusTab === "backburner" ? "retired" : "backburner";
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
+    setStatusCounts((prev) => ({
+      ...prev,
+      [statusTab]: Math.max(0, prev[statusTab] - 1),
+    }));
+
+    const client = createClient();
+    const { error } = await client
+      .from("items")
+      .update({ status: targetStatus })
+      .eq("id", item.id);
+
+    if (error) {
+      // Re-insert if the DB rejected
+      setItems((prev) => [...prev, item]);
+      showToast("Couldn't remove — try again?", { tone: "error" });
+      return;
+    }
+
+    showToast(
+      targetStatus === "retired"
+        ? `${item.name} retired`
+        : `${item.name} moved to Parked`,
+      {
+        tone: "default",
+        action:
+          targetStatus !== "retired"
+            ? {
+                label: "View",
+                onClick: () => setStatusTab("backburner"),
+              }
+            : undefined,
+        undo: async () => {
+          const c = createClient();
+          await c
+            .from("items")
+            .update({ status: prevStatus })
+            .eq("id", item.id);
+          window.dispatchEvent(new CustomEvent("regimen:items-changed"));
+        },
+      },
+    );
+    // Cross-page refresh
+    window.dispatchEvent(new CustomEvent("regimen:items-changed"));
+  }
+
   return (
     <div className="pb-28">
-      <header className="mb-4 flex items-start justify-between">
-        <div>
+      <header className="mb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0">
           <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
             Stack
           </h1>
@@ -307,17 +404,55 @@ export default function StackPage() {
             {STATUS_TABS.find((t) => t.value === statusTab)?.label.toLowerCase()}
           </div>
         </div>
-        <Link
-          href="/items/new"
-          className="shrink-0 px-3 py-2 rounded-lg text-[13px]"
-          style={{
-            background: "var(--foreground)",
-            color: "var(--background)",
-            fontWeight: 500,
-          }}
-        >
-          + Add
-        </Link>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={toggleDense}
+            aria-pressed={dense}
+            aria-label={dense ? "Switch to comfortable view" : "Switch to compact view"}
+            className="h-9 w-9 rounded-lg flex items-center justify-center"
+            style={{
+              background: dense ? "var(--foreground)" : "var(--surface-alt)",
+              color: dense ? "var(--background)" : "var(--muted)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              {dense ? (
+                <>
+                  <path d="M3 6h18M3 12h18M3 18h18" />
+                </>
+              ) : (
+                <>
+                  <rect x="3" y="4" width="18" height="6" rx="1.5" />
+                  <rect x="3" y="14" width="18" height="6" rx="1.5" />
+                </>
+              )}
+            </svg>
+          </button>
+          <Link
+            href="/items/new"
+            className="px-3 py-2 rounded-lg text-[13px] flex items-center"
+            style={{
+              background: "var(--foreground)",
+              color: "var(--background)",
+              fontWeight: 500,
+              minHeight: 36,
+            }}
+          >
+            + Add
+          </Link>
+        </div>
       </header>
 
       {/* Status tabs — Active / Queued / Parked */}
@@ -454,24 +589,32 @@ export default function StackPage() {
         </details>
       )}
 
-      {/* Search */}
-      <div className="mb-3">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, brand, or notes…"
-          className="w-full rounded-xl px-4 py-2.5 text-[14px]"
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            color: "var(--foreground)",
-          }}
-        />
-      </div>
-
-      {/* Type filter */}
-      <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-2">
+      {/* Sticky search + type filter — keeps the filter affordances in
+          reach when the user scrolls a long list. The -mx-5/px-5 trick
+          extends the sticky background bar across the full viewport
+          width while letting children align to the page gutter. */}
+      <div
+        className="sticky top-0 z-10 -mx-5 px-5 pt-1 pb-2 mb-2"
+        style={{
+          background:
+            "linear-gradient(to bottom, var(--background) 0%, var(--background) 88%, transparent 100%)",
+        }}
+      >
+        <div className="mb-2">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, brand, or notes…"
+            className="w-full rounded-xl px-4 py-2.5 text-[14px]"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              color: "var(--foreground)",
+            }}
+          />
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-5 px-5">
         {TYPE_FILTERS.map((f) => {
           const active = typeFilter === f.value;
           const count =
@@ -513,6 +656,7 @@ export default function StackPage() {
             </button>
           );
         })}
+        </div>
       </div>
 
       {/* Sort + secondary filters */}
@@ -663,6 +807,51 @@ export default function StackPage() {
         </div>
       </details>
 
+      {/* Swipe-to-retire hint — shown once per device. Auto-dismisses on
+          first successful retire OR when user taps the X. */}
+      {showSwipeHint && parentItems.length > 0 && (
+        <div
+          className="rounded-xl mb-3 px-3 py-2 flex items-center gap-2.5"
+          style={{
+            background: "var(--olive-tint)",
+            border: "1px solid var(--accent-glow)",
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ color: "var(--olive)", flexShrink: 0 }}
+            aria-hidden
+          >
+            <path d="M14 5l-7 7 7 7" />
+            <path d="M21 12H7" opacity="0.5" />
+          </svg>
+          <span
+            className="text-[12px] flex-1 leading-snug"
+            style={{ color: "var(--foreground-soft)" }}
+          >
+            <strong>New:</strong> swipe left on any card to retire it. Undo
+            stays available for 5 seconds.
+          </span>
+          <button
+            onClick={dismissSwipeHint}
+            className="shrink-0 leading-none px-1.5 py-1"
+            style={{ color: "var(--muted)" }}
+            aria-label="Dismiss tip"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 5l14 14M19 5L5 19" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* List */}
       {grouped ? (
         <div className="flex flex-col gap-3">
@@ -704,6 +893,10 @@ export default function StackPage() {
                       item={item}
                       adherence={adherenceMap[item.id] ?? null}
                       daysSupplyLeft={supplyMap[item.id]}
+                      onSwipeRetire={() => retireItem(item)}
+                      compact={dense}
+                      showGoals={!dense}
+                      showTypeIcon={!dense}
                     />
                   ))}
                 </div>
@@ -712,13 +905,17 @@ export default function StackPage() {
           })}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className={`flex flex-col ${dense ? "gap-1" : "gap-2"}`}>
           {sorted.map((item) => (
             <ItemCard
               key={item.id}
               item={item}
               adherence={adherenceMap[item.id] ?? null}
               daysSupplyLeft={supplyMap[item.id]}
+              onSwipeRetire={() => retireItem(item)}
+              compact={dense}
+              showGoals={!dense}
+              showTypeIcon={!dense}
             />
           ))}
         </div>

@@ -18,6 +18,7 @@ import {
   TIMING_LABELS,
 } from "@/lib/constants";
 import CatalogAutocomplete from "@/components/CatalogAutocomplete";
+import CostStepper from "@/components/CostStepper";
 
 const ITEM_TYPES: ItemType[] = [
   "supplement",
@@ -584,6 +585,7 @@ export default function ItemForm({ initial, onSaved }: Props) {
               <input
                 type="number"
                 min="1"
+                inputMode="numeric"
                 value={daysSupply}
                 onChange={(e) => setDaysSupply(e.target.value)}
                 placeholder="60"
@@ -591,25 +593,33 @@ export default function ItemForm({ initial, onSaved }: Props) {
                 style={{ background: "var(--background)", color: "var(--foreground)" }}
               />
             </Field>
-            <Field label="Unit cost ($)">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={unitCost}
-                onChange={(e) => setUnitCost(e.target.value)}
-                placeholder="29.95"
-                className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-                style={{ background: "var(--background)", color: "var(--foreground)" }}
-              />
+            <Field label="Unit cost">
+              <div className="flex items-center">
+                <CostStepper
+                  value={unitCost ? parseFloat(unitCost) : null}
+                  onChange={(n) => setUnitCost(n != null ? String(n) : "")}
+                  size="md"
+                  placeholder="29"
+                />
+              </div>
             </Field>
           </div>
           {daysSupply && unitCost && (
             <div
-              className="text-[11px] -mt-3"
+              className="text-[11px] -mt-3 flex items-center gap-2"
               style={{ color: "var(--muted)" }}
             >
-              ≈ ${((parseFloat(unitCost) / parseInt(daysSupply, 10)) * 30).toFixed(2)}/mo
+              <span>
+                ≈ ${((parseFloat(unitCost) / parseInt(daysSupply, 10)) * 30).toFixed(2)}/mo
+              </span>
+              <span style={{ color: "var(--border-strong)" }}>·</span>
+              <span>
+                ${(parseFloat(unitCost) / parseInt(daysSupply, 10)).toFixed(2)}/day
+              </span>
+              <span style={{ color: "var(--border-strong)" }}>·</span>
+              <span>
+                ${((parseFloat(unitCost) / parseInt(daysSupply, 10)) * 365).toFixed(0)}/yr
+              </span>
             </div>
           )}
 

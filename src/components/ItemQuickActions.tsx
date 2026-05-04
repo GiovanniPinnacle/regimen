@@ -41,9 +41,11 @@ export default function ItemQuickActions({
   /** Centralized "items changed" notifier — fires the cross-page event
    *  AND calls the parent onChanged callback. Drop-in replacement for
    *  scattered onChanged?.() calls so every mutation reliably refreshes
-   *  every list page. */
+   *  every list page. (Earlier version had a self-call that caused
+   *  infinite recursion + a tab crash on every snooze/retire/deplete —
+   *  Apr 2026 regression.) */
   function notifyItemsChanged() {
-    notifyItemsChanged();
+    onChanged?.();
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("regimen:items-changed"));
     }
