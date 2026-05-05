@@ -145,10 +145,6 @@ export default function CoachPulse({
     0,
   );
 
-  // If literally nothing has anything to say, don't render at all.
-  // Saves the user an empty "Coach has 0" badge and keeps Today clean.
-  if (total === 0) return null;
-
   const activeBuckets = BUCKET_ORDER.filter((b) => counts[b] > 0);
 
   function toggle() {
@@ -156,8 +152,15 @@ export default function CoachPulse({
     setOpen((v) => !v);
   }
 
+  // CRITICAL: children must always be mounted (just visually hidden
+  // when there's nothing to show) so their useEffects can call
+  // usePulseCount and populate `counts`. If we returned null here on
+  // first render (counts all 0), children would never mount, never
+  // register, and `total` would stay 0 forever — the bug that made
+  // Coach's memory + notes vanish entirely.
   return (
-    <section className="mb-4">
+    <section className={total > 0 ? "mb-4" : ""}>
+      {total > 0 && (
       <button
         onClick={toggle}
         className="w-full rounded-2xl card-glass overflow-hidden text-left transition-all"
@@ -221,19 +224,19 @@ export default function CoachPulse({
           />
         </div>
       </button>
+      )}
 
-      {/* Children stay mounted even when collapsed so their
-          useEffects keep registering counts via usePulseCount. We
-          just hide them visually. Without this, collapsing the Pulse
-          would unmount children → they'd dispatch count=0 → header
-          badges would zero out → user reopens to find them missing.
-          aria-hidden + display:none keeps assistive tech in sync. */}
+      {/* Children stay mounted even when the Pulse header is hidden
+          (total=0) or collapsed (total>0 but user hasn't expanded).
+          They keep registering counts via usePulseCount so the moment
+          something has data the Pulse header pops up. Without this,
+          first render shows total=0 → return null → children never
+          mount → counts stay 0 forever (the bug that made Coach's
+          memory + notes disappear after the deploy). */}
       <div
-        className={`mt-1 px-0.5 pt-1 flex flex-col gap-2 ${
-          open ? "" : "sr-only"
-        }`}
-        style={open ? undefined : { display: "none" }}
-        aria-hidden={!open}
+        className={`${total > 0 && open ? "mt-1 px-0.5 pt-1 flex flex-col gap-2" : ""}`}
+        style={total > 0 && open ? undefined : { display: "none" }}
+        aria-hidden={!(total > 0 && open)}
       >
         {children}
       </div>
