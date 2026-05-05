@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import { usePulseCount } from "@/components/CoachPulse";
 import StepIndicator from "@/components/StepIndicator";
+import CoachCardStack from "@/components/CoachCardStack";
 
 type PatternKind =
   | "worse"
@@ -294,65 +295,93 @@ export default function PatternCard() {
   }
 
   return (
-    <section className="rounded-2xl card-glass mb-6 overflow-hidden">
-      <div className="flex items-baseline justify-between px-4 pt-3.5 pb-1">
-        <span
-          className="text-[10px] uppercase tracking-wider"
-          style={{
-            color: topStyle.accent,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          {topStyle.label}
-        </span>
-        {visible.length > 1 && (
-          <StepIndicator
-            current={cursor}
-            total={visible.length}
-            color={topStyle.accent}
-          />
-        )}
-      </div>
-      <div className="px-4 pt-1 pb-3 flex items-start gap-3">
-        <span
-          className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
-          style={{
-            background: `${topStyle.accent}1F`,
-            color: topStyle.accent,
-          }}
-        >
-          <Icon name={topStyle.icon} size={14} strokeWidth={1.8} />
-        </span>
-        <div className="flex-1 min-w-0">
-          <div
-            className="text-[14px] leading-snug"
-            style={{ fontWeight: 600 }}
+    <section className="mb-6">
+      {visible.length > 1 && (
+        <div className="flex items-baseline justify-between mb-2 px-0.5">
+          <span
+            className="text-[10px] uppercase tracking-wider"
+            style={{
+              color: topStyle.accent,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+            }}
           >
-            {top.headline}
-          </div>
-          <div
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            {top.detail}
+            Patterns
+          </span>
+          <div className="flex items-center gap-2">
+            <StepIndicator
+              current={cursor}
+              total={visible.length}
+              color={topStyle.accent}
+            />
+            <span
+              className="text-[10px]"
+              style={{ color: "var(--muted)", opacity: 0.7 }}
+            >
+              swipe ↤
+            </span>
           </div>
         </div>
-      </div>
-      <div className="px-4 pb-3 ml-10 flex items-center gap-3 flex-wrap">
-        {topState !== "done" && renderActionButtons(top, topAction, true)}
-        {/* Skip — advance to next pattern without acting. Only shown
-            if there's another one queued. */}
-        {visible.length > 1 && cursor < visible.length - 1 && (
-          <button
-            onClick={() => setCursor((c) => c + 1)}
-            className="text-[12px] underline"
-            style={{ color: "var(--muted)" }}
-          >
-            Skip — show next
-          </button>
-        )}
-      </div>
+      )}
+      <CoachCardStack
+        current={cursor}
+        total={visible.length}
+        onAdvance={() => setCursor((c) => c + 1)}
+        accent={topStyle.accent}
+        swipeDisabled={topState === "done" || topState === "pending"}
+      >
+        <div className="rounded-2xl card-glass overflow-hidden">
+          <div className="flex items-baseline justify-between px-4 pt-3.5 pb-1">
+            <span
+              className="text-[10px] uppercase tracking-wider"
+              style={{
+                color: topStyle.accent,
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              {topStyle.label}
+            </span>
+          </div>
+          <div className="px-4 pt-1 pb-3 flex items-start gap-3">
+            <span
+              className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
+              style={{
+                background: `${topStyle.accent}1F`,
+                color: topStyle.accent,
+              }}
+            >
+              <Icon name={topStyle.icon} size={14} strokeWidth={1.8} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <div
+                className="text-[14px] leading-snug"
+                style={{ fontWeight: 600 }}
+              >
+                {top.headline}
+              </div>
+              <div
+                className="text-[12.5px] mt-1 leading-relaxed"
+                style={{ color: "var(--muted)" }}
+              >
+                {top.detail}
+              </div>
+            </div>
+          </div>
+          <div className="px-4 pb-3 ml-10 flex items-center gap-3 flex-wrap">
+            {topState !== "done" && renderActionButtons(top, topAction, true)}
+            {visible.length > 1 && cursor < visible.length - 1 && (
+              <button
+                onClick={() => setCursor((c) => c + 1)}
+                className="text-[12px] underline"
+                style={{ color: "var(--muted)" }}
+              >
+                Skip
+              </button>
+            )}
+          </div>
+        </div>
+      </CoachCardStack>
     </section>
   );
 }

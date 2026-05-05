@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
 import { usePulseCount } from "@/components/CoachPulse";
 import StepIndicator from "@/components/StepIndicator";
+import CoachCardStack from "@/components/CoachCardStack";
 
 type Insight = {
   id: string;
@@ -141,20 +142,47 @@ export default function InsightsBanner() {
           Coach&apos;s notes
         </h2>
         {visible.length > 1 && (
-          <StepIndicator
-            current={0}
-            total={visible.length}
-            color="var(--accent)"
-          />
+          <div className="flex items-center gap-2">
+            <StepIndicator
+              current={0}
+              total={visible.length}
+              color="var(--accent)"
+            />
+            <span
+              className="text-[10px]"
+              style={{ color: "var(--muted)", opacity: 0.7 }}
+            >
+              swipe ↤
+            </span>
+          </div>
         )}
       </div>
 
-      <SingleNote
-        insight={current}
-        onApply={() => applyInsight(current)}
-        onDiscuss={() => discussInsight(current)}
-        onDismiss={(e) => dismiss(e, current.id)}
-      />
+      <CoachCardStack
+        current={0}
+        total={visible.length}
+        onAdvance={() => {
+          // Treat swipe-left on a Coach note as a soft dismiss — same
+          // as tapping the X on the SingleNote. Marks it dismissed
+          // server-side so it doesn't come back.
+          void (async () => {
+            const client = createClient();
+            await client
+              .from("insights")
+              .update({ status: "dismissed" })
+              .eq("id", current.id);
+            setInsights((prev) => prev.filter((i) => i.id !== current.id));
+          })();
+        }}
+        accent="var(--accent)"
+      >
+        <SingleNote
+          insight={current}
+          onApply={() => applyInsight(current)}
+          onDiscuss={() => discussInsight(current)}
+          onDismiss={(e) => dismiss(e, current.id)}
+        />
+      </CoachCardStack>
     </section>
   );
 }

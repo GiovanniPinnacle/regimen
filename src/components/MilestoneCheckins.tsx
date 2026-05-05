@@ -17,6 +17,7 @@ import { setReaction } from "@/lib/storage";
 import { showToast } from "@/lib/toast";
 import { usePulseCount } from "@/components/CoachPulse";
 import StepIndicator from "@/components/StepIndicator";
+import CoachCardStack from "@/components/CoachCardStack";
 import {
   REACTION_EMOJI,
   REACTION_LABELS,
@@ -158,8 +159,25 @@ export default function MilestoneCheckins() {
         >
           Coach&apos;s memory
         </h2>
-        {total > 1 && <StepIndicator current={cursor} total={total} />}
+        {total > 1 && (
+          <div className="flex items-center gap-2">
+            <StepIndicator current={cursor} total={total} />
+            <span
+              className="text-[10px]"
+              style={{ color: "var(--muted)", opacity: 0.7 }}
+            >
+              swipe ↤
+            </span>
+          </div>
+        )}
       </div>
+      <CoachCardStack
+        current={cursor}
+        total={total}
+        onAdvance={advance}
+        accent="var(--accent)"
+        swipeDisabled={userReacted}
+      >
       <div
         className="rounded-2xl card-glass p-3.5"
         style={{
@@ -233,7 +251,7 @@ export default function MilestoneCheckins() {
         </div>
         {/* Skip without committing — moves to next without storing a
             reaction. Useful when the answer is "I don't know yet" and
-            the user wants to revisit later. */}
+            the user wants to revisit later. Same as swipe-left. */}
         {total > 1 && !userReacted && (
           <button
             onClick={advance}
@@ -244,6 +262,7 @@ export default function MilestoneCheckins() {
           </button>
         )}
       </div>
+      </CoachCardStack>
     </section>
   );
 }
