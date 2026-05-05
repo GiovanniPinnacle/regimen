@@ -52,8 +52,50 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const itemType: ItemType = body.item_type ?? "food";
-  const category: Category = body.category ?? "permanent";
+  // Defensively coerce enums to known values so we never leak an
+  // invalid timing_slot/item_type/category into the DB. A wonky Coach
+  // proposal that emits "anytime" or "snack-time" gets routed to the
+  // safe defaults instead of crashing /today's grouped memo when the
+  // page renders.
+  const VALID_TIMING_SLOTS: ReadonlySet<TimingSlot> = new Set([
+    "pre_breakfast",
+    "breakfast",
+    "pre_workout",
+    "lunch",
+    "dinner",
+    "pre_bed",
+    "situational",
+    "ongoing",
+  ]);
+  const VALID_TYPES: ReadonlySet<ItemType> = new Set([
+    "supplement",
+    "topical",
+    "device",
+    "procedure",
+    "practice",
+    "food",
+    "gear",
+    "test",
+  ]);
+  const VALID_CATEGORIES: ReadonlySet<Category> = new Set([
+    "permanent",
+    "temporary",
+    "cycled",
+    "situational",
+    "condition_linked",
+  ]);
+  const itemType: ItemType =
+    body.item_type && VALID_TYPES.has(body.item_type)
+      ? body.item_type
+      : "food";
+  const category: Category =
+    body.category && VALID_CATEGORIES.has(body.category)
+      ? body.category
+      : "permanent";
+  const timingSlot: TimingSlot =
+    body.timing_slot && VALID_TIMING_SLOTS.has(body.timing_slot)
+      ? body.timing_slot
+      : "ongoing";
 
   // Dedupe: if user already has an item with this name (any status),
   // re-activate + adjust it rather than inserting a duplicate. Closes
@@ -74,7 +116,7 @@ export async function POST(request: NextRequest) {
     isReactivate = true;
     const updates: Record<string, unknown> = {
       status: "active",
-      timing_slot: body.timing_slot,
+      timing_slot: timingSlot,
       started_on: todayISO(),
     };
     if (body.dose?.trim()) updates.dose = body.dose.trim();
@@ -100,7 +142,7 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       name: body.name.trim(),
       item_type: itemType,
-      timing_slot: body.timing_slot,
+      timing_slot: timingSlot,
       category,
       status: "active",
       goals: [],

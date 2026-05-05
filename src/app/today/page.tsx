@@ -290,7 +290,25 @@ export default function TodayPage() {
       const isOrphanCompanion =
         item.companion_of && !validParentIds.has(item.companion_of);
       if (!item.companion_of || isOrphanCompanion) {
-        map[item.timing_slot].push(item);
+        // Defensive fallback: an item with a timing_slot value outside
+        // the predefined union (e.g. Coach proposing "anytime", a
+        // hand-edited DB row) would otherwise crash the entire /today
+        // page since map[invalid] is undefined and .push throws. Route
+        // anything unexpected to "ongoing" so the user still sees it
+        // instead of a blank error screen.
+        const slot = (
+          map as unknown as Record<string, Item[]>
+        )[item.timing_slot]
+          ? item.timing_slot
+          : "ongoing";
+        if (slot !== item.timing_slot) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[today] item ${item.id} (${item.name}) has unknown timing_slot ` +
+              `"${item.timing_slot}" — routing to "ongoing"`,
+          );
+        }
+        map[slot].push(item);
       }
     }
     // Sort within each slot by sort_order (lower = earlier), then name.

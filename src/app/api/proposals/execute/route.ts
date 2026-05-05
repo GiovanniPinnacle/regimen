@@ -31,6 +31,50 @@ function parseGoals(s?: string): string[] | undefined {
     .filter(Boolean);
 }
 
+const VALID_TIMING_SLOTS = new Set([
+  "pre_breakfast",
+  "breakfast",
+  "pre_workout",
+  "lunch",
+  "dinner",
+  "pre_bed",
+  "situational",
+  "ongoing",
+]);
+const VALID_ITEM_TYPES = new Set([
+  "supplement",
+  "topical",
+  "device",
+  "procedure",
+  "practice",
+  "food",
+  "gear",
+  "test",
+]);
+const VALID_CATEGORIES = new Set([
+  "permanent",
+  "temporary",
+  "cycled",
+  "situational",
+  "condition_linked",
+]);
+
+/** Coalesce a user/Coach-supplied value down to a known enum, falling
+ *  back to a sensible default. Prevents the entire /today page from
+ *  crashing when Coach emits "anytime" or some other near-miss. */
+function safeTimingSlot(v: unknown): string {
+  if (typeof v === "string" && VALID_TIMING_SLOTS.has(v)) return v;
+  return "ongoing";
+}
+function safeItemType(v: unknown): string {
+  if (typeof v === "string" && VALID_ITEM_TYPES.has(v)) return v;
+  return "supplement";
+}
+function safeCategory(v: unknown): string {
+  if (typeof v === "string" && VALID_CATEGORIES.has(v)) return v;
+  return "temporary";
+}
+
 /** Build the patch of fields to update on an existing item from the
  *  proposal's `extra` map + reasoning. Used by add (when existing
  *  found) and update/adjust paths. */
@@ -44,10 +88,10 @@ function buildPatch(
   if (extra.brand) updates.brand = extra.brand;
   if (extra.notes) updates.notes = extra.notes;
   else if (reasoning) updates.notes = reasoning;
-  if (extra.timing_slot) updates.timing_slot = extra.timing_slot;
-  if (extra.category) updates.category = extra.category;
+  if (extra.timing_slot) updates.timing_slot = safeTimingSlot(extra.timing_slot);
+  if (extra.category) updates.category = safeCategory(extra.category);
   if (extra.status) updates.status = extra.status;
-  if (extra.item_type) updates.item_type = extra.item_type;
+  if (extra.item_type) updates.item_type = safeItemType(extra.item_type);
   if (extra.goals) updates.goals = parseGoals(extra.goals);
   if (extra.companion_instruction)
     updates.companion_instruction = extra.companion_instruction;
@@ -144,9 +188,9 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         name: body.item_name,
         status: body.action === "queue" ? "queued" : "active",
-        item_type: extra.item_type ?? "supplement",
-        timing_slot: extra.timing_slot ?? "breakfast",
-        category: extra.category ?? "temporary",
+        item_type: safeItemType(extra.item_type),
+        timing_slot: safeTimingSlot(extra.timing_slot),
+        category: safeCategory(extra.category),
         goals: parseGoals(extra.goals) ?? [],
         dose: extra.dose ?? null,
         brand: extra.brand ?? null,
