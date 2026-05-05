@@ -44,6 +44,12 @@ const SECTIONS: Section[] = [
         icon: "trash",
       },
       {
+        href: "/admin/data-health",
+        label: "Data health",
+        desc: "Scan for invalid values + heal them in one tap",
+        icon: "shield",
+      },
+      {
         href: "/audit",
         label: "Stack audit",
         desc: "What you have vs need to order — fast, one-tap",
