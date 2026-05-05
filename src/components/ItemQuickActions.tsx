@@ -11,6 +11,11 @@ import type { Item } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
 import { showToast } from "@/lib/toast";
+import {
+  snoozeItem,
+  clearSnooze,
+  formatExpiry,
+} from "@/lib/snooze";
 
 type Props = {
   item: Item | null;
@@ -53,20 +58,11 @@ export default function ItemQuickActions({
 
   function snooze(minutes: number) {
     if (!item) return;
-    const until = Date.now() + minutes * 60 * 1000;
-    try {
-      localStorage.setItem(`regimen.snooze.${item.id}`, String(until));
-    } catch {}
+    const until = snoozeItem(item.id, minutes);
     onClose();
-    const time = new Date(until).toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    showToast(`${item.name} snoozed until ${time}`, {
+    showToast(`${item.name} snoozed until ${formatExpiry(until)}`, {
       undo: () => {
-        try {
-          localStorage.removeItem(`regimen.snooze.${item!.id}`);
-        } catch {}
+        clearSnooze(item.id);
         notifyItemsChanged();
       },
     });

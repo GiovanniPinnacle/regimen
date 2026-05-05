@@ -354,7 +354,18 @@ export default function TodayPage() {
     // Re-render every minute so snoozed items can come back in view as
     // their snooze period elapses without requiring a manual reload.
     const t = setInterval(() => setSnoozedTick((n) => n + 1), 60_000);
-    return () => clearInterval(t);
+    // Snap re-eval whenever ItemCard or ItemQuickActions fires a
+    // snooze change — the inline Snooze popover dispatches this so
+    // /today instantly hides the snoozed item without waiting for the
+    // 60s tick.
+    function onSnoozeChange() {
+      setSnoozedTick((n) => n + 1);
+    }
+    window.addEventListener("regimen:snooze-changed", onSnoozeChange);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("regimen:snooze-changed", onSnoozeChange);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadKey]);
   const snoozedIds = useMemo(() => {
@@ -1090,50 +1101,105 @@ export default function TodayPage() {
                         </div>
                       )}
                     </div>
-                    {isCheckoff && todo.length > 1 && (
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          const ids = todo.map((i) => i.id);
-                          // Optimistic
-                          setTakenState((prev) => {
-                            const next = { ...prev };
-                            for (const id of ids) next[id] = true;
-                            return next;
-                          });
-                          // Fire all toggles in parallel
-                          await Promise.all(
-                            ids.map((id) => toggleTaken(today, id)),
-                          );
-                          showToast(
-                            `${ids.length} ${TIMING_LABELS[activeSlot].toLowerCase()} items ✓`,
-                            {
-                              tone: "success",
-                              undo: async () => {
-                                setTakenState((prev) => {
-                                  const next = { ...prev };
-                                  for (const id of ids) next[id] = false;
-                                  return next;
-                                });
-                                await Promise.all(
-                                  ids.map((id) =>
-                                    toggleTaken(today, id),
-                                  ),
-                                );
+                    {isCheckoff && todo.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        {todo.length > 1 && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const ids = todo.map((i) => i.id);
+                              // Optimistic
+                              setTakenState((prev) => {
+                                const next = { ...prev };
+                                for (const id of ids) next[id] = true;
+                                return next;
+                              });
+                              // Fire all toggles in parallel
+                              await Promise.all(
+                                ids.map((id) => toggleTaken(today, id)),
+                              );
+                              showToast(
+                                `${ids.length} ${TIMING_LABELS[activeSlot].toLowerCase()} items ✓`,
+                                {
+                                  tone: "success",
+                                  undo: async () => {
+                                    setTakenState((prev) => {
+                                      const next = { ...prev };
+                                      for (const id of ids) next[id] = false;
+                                      return next;
+                                    });
+                                    await Promise.all(
+                                      ids.map((id) =>
+                                        toggleTaken(today, id),
+                                      ),
+                                    );
+                                  },
+                                },
+                              );
+                            }}
+                            className="text-[13px] px-3.5 py-2 rounded-lg"
+                            style={{
+                              background: "var(--olive)",
+                              color: "#FBFAF6",
+                              fontWeight: 700,
+                              minHeight: 36,
+                            }}
+                          >
+                            Mark all {todo.length}
+                          </button>
+                        )}
+                        {/* Slot-level Snooze — pushes everything in this
+                            slot 1 hour. Useful for "I'll get to breakfast
+                            later" without per-item taps. Undo restores. */}
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const ids = todo.map((i) => i.id);
+                            const { snoozeItem, clearSnooze } = await import(
+                              "@/lib/snooze"
+                            );
+                            for (const id of ids) snoozeItem(id, 60);
+                            setSnoozedTick((n) => n + 1);
+                            showToast(
+                              `${ids.length} ${TIMING_LABELS[
+                                activeSlot
+                              ].toLowerCase()} item${ids.length === 1 ? "" : "s"} snoozed 1h`,
+                              {
+                                duration: 4000,
+                                undo: () => {
+                                  for (const id of ids) clearSnooze(id);
+                                  setSnoozedTick((n) => n + 1);
+                                },
                               },
-                            },
-                          );
-                        }}
-                        className="text-[13px] px-3.5 py-2 rounded-lg"
-                        style={{
-                          background: "var(--olive)",
-                          color: "#FBFAF6",
-                          fontWeight: 700,
-                          minHeight: 36,
-                        }}
-                      >
-                        Mark all {todo.length}
-                      </button>
+                            );
+                          }}
+                          aria-label={`Snooze all ${TIMING_LABELS[activeSlot]} items 1 hour`}
+                          className="rounded-lg flex items-center gap-1 px-2.5 py-2 text-[12px]"
+                          style={{
+                            background: "var(--surface-alt)",
+                            color: "var(--foreground-soft)",
+                            fontWeight: 600,
+                            border: "1px solid var(--border)",
+                            minHeight: 36,
+                          }}
+                        >
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden
+                          >
+                            <circle cx="12" cy="12" r="9" />
+                            <path d="M12 7v5l3 2" />
+                          </svg>
+                          Snooze
+                        </button>
+                      </div>
                     )}
                   </div>
                   <div className="px-3 pb-3 pt-3 flex flex-col gap-2">

@@ -8,6 +8,13 @@ import ReactionRow, { shouldShowReaction } from "./ReactionRow";
 import ItemQuickActions from "./ItemQuickActions";
 import SwipeDismiss from "./SwipeDismiss";
 import { GOAL_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
+import {
+  snoozeItem,
+  clearSnooze,
+  formatExpiry,
+  SNOOZE_OPTIONS,
+} from "@/lib/snooze";
+import { showToast } from "@/lib/toast";
 
 type Props = {
   item: Item;
@@ -56,7 +63,27 @@ export default function ItemCard({
   const swapped = skipped && skipReason?.startsWith("Swapped:");
   const [expanded, setExpanded] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [snoozePickerOpen, setSnoozePickerOpen] = useState(false);
   const isFood = item.item_type === "food";
+
+  function handleSnooze(minutes: number) {
+    const until = snoozeItem(item.id, minutes);
+    setSnoozePickerOpen(false);
+    showToast(`${item.name} snoozed til ${formatExpiry(until)}`, {
+      duration: 3500,
+      undo: () => {
+        clearSnooze(item.id);
+        onChanged?.();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("regimen:items-changed"));
+        }
+      },
+    });
+    onChanged?.();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("regimen:items-changed"));
+    }
+  }
 
   const hasInlineMore =
     !!item.usage_notes ||
@@ -235,42 +262,123 @@ export default function ItemCard({
             </div>
           )}
 
-        {/* Inline action links (compact, only when not yet acted on) */}
+        {/* Inline action links (compact, only when not yet acted on).
+            Snooze opens a tiny inline picker rather than firing a
+            default duration — most users want "1 hour" but power users
+            want "til tomorrow." Both are 1-tap from this row. */}
         {compact && interactive && !taken && !skipped && (
-          <div className="flex gap-2 mt-1.5">
-            {isFood && onSwap && (
+          <div className="mt-1.5 relative">
+            <div className="flex gap-1.5 flex-wrap">
+              {isFood && onSwap && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSwap(item);
+                  }}
+                  className="text-[12px] px-2.5 py-1.5 rounded-md"
+                  style={{
+                    color: "var(--olive)",
+                    background: "var(--surface-alt)",
+                    fontWeight: 600,
+                    minHeight: 32,
+                  }}
+                >
+                  ↔ swap
+                </button>
+              )}
+              {onSkip && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSkip(item);
+                  }}
+                  className="text-[12px] px-2.5 py-1.5 rounded-md"
+                  style={{
+                    color: "var(--foreground-soft)",
+                    background: "var(--surface-alt)",
+                    fontWeight: 600,
+                    minHeight: 32,
+                  }}
+                >
+                  skip
+                </button>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onSwap(item);
+                  setSnoozePickerOpen((v) => !v);
                 }}
-                className="text-[12px] px-2.5 py-1.5 rounded-md"
-                style={{
-                  color: "var(--olive)",
-                  background: "var(--surface-alt)",
-                  fontWeight: 600,
-                  minHeight: 32,
-                }}
-              >
-                ↔ swap
-              </button>
-            )}
-            {onSkip && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSkip(item);
-                }}
-                className="text-[12px] px-2.5 py-1.5 rounded-md"
+                aria-expanded={snoozePickerOpen}
+                className="text-[12px] px-2.5 py-1.5 rounded-md flex items-center gap-1"
                 style={{
                   color: "var(--foreground-soft)",
-                  background: "var(--surface-alt)",
+                  background: snoozePickerOpen
+                    ? "var(--olive-tint)"
+                    : "var(--surface-alt)",
                   fontWeight: 600,
                   minHeight: 32,
                 }}
               >
-                skip
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+                snooze
               </button>
+            </div>
+            {snoozePickerOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute left-0 right-0 top-full mt-1.5 z-10 rounded-xl flex flex-wrap gap-1 p-1"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  boxShadow: "0 6px 18px rgba(0,0,0,0.10)",
+                }}
+              >
+                {SNOOZE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.minutes}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSnooze(opt.minutes);
+                    }}
+                    className="flex-1 min-w-[70px] text-[12px] px-2 py-1.5 rounded-md"
+                    style={{
+                      color: "var(--foreground)",
+                      background: "var(--surface-alt)",
+                      fontWeight: 600,
+                      minHeight: 32,
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSnoozePickerOpen(false);
+                  }}
+                  className="text-[12px] px-2 py-1.5 rounded-md"
+                  style={{
+                    color: "var(--muted)",
+                    minHeight: 32,
+                  }}
+                  aria-label="Close snooze picker"
+                >
+                  ×
+                </button>
+              </div>
             )}
           </div>
         )}
