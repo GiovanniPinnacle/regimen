@@ -1,17 +1,26 @@
 "use client";
 
-// Bottom nav — 4 peer destinations + central "+" button for quick actions.
-// Today (engagement) · Stack (manage) · [+] · Insights (patterns) · More
+// Bottom nav — 4 activity-domain destinations + central "+" universal
+// AI capture button.
 //
-// The + button opens QuickActionSheet — a bottom-sheet menu giving users
-// one-tap access to Scan, Add item, Voice memo, Search, Browse protocols,
-// and Ask Coach from anywhere in the app. Drops Protocols from the
-// primary nav (still available via /more + the sheet) to make room.
+//   Today (daily checklist) · Fuel (food/intake) · [+] · Train (movement) · Coach (AI)
+//
+// Restructured from feature-organized (Today/Stack/Insights/More) to
+// activity-domain (Today/Fuel/Train/Coach) so users tap based on what
+// they're DOING, not what kind of data they want to see. Stack +
+// Insights + Profile + everything else lives in /more, accessible via
+// a gear icon top-right of every page (not in the bottom nav).
+//
+// The + button opens UniversalCapture — voice/photo/text in, Claude
+// classifies, routes to the right system. "I just took my magnesium"
+// checks the item off. Photo of meal logs an intake_log row with
+// macros. "Add fish oil" fires a Coach proposal. Same entry from any
+// tab — user never has to think about where to type what.
 
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import QuickActionSheet from "@/components/QuickActionSheet";
+import UniversalCapture from "@/components/UniversalCapture";
 
 type Tab = {
   href: string;
@@ -33,38 +42,42 @@ const TABS: Tab[] = [
     ),
   },
   {
-    href: "/stack",
-    label: "Stack",
+    href: "/fuel",
+    label: "Fuel",
+    matches: ["/recipes"],
     icon: (
+      // Knife & fork — food/eating connotation without the "diet" baggage
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="4" rx="1.5" />
-        <rect x="3" y="10" width="18" height="4" rx="1.5" />
-        <rect x="3" y="16" width="18" height="4" rx="1.5" />
+        <path d="M5 2v8a3 3 0 0 0 6 0V2" />
+        <path d="M8 10v12" />
+        <path d="M16 22V13c-2-1-3-3-3-5V2c4 0 5 2 5 5v8" />
       </svg>
     ),
   },
   {
-    href: "/insights",
-    label: "Insights",
-    matches: ["/refine"],
+    href: "/train",
+    label: "Train",
+    matches: ["/fit"],
     icon: (
+      // Dumbbell
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 20V10" />
-        <path d="M9 20V4" />
-        <path d="M15 20v-7" />
-        <path d="M21 20V8" />
+        <path d="M2 12h2" />
+        <path d="M20 12h2" />
+        <rect x="4" y="8" width="3" height="8" rx="1" />
+        <rect x="17" y="8" width="3" height="8" rx="1" />
+        <rect x="7" y="10" width="10" height="4" rx="1" />
       </svg>
     ),
   },
   {
-    href: "/more",
-    label: "More",
-    matches: ["/protocols"],
+    href: "/coach",
+    label: "Coach",
+    matches: ["/insights", "/refine", "/coach-history"],
     icon: (
+      // Sparkle — same vocabulary as the Coach FAB
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="5" cy="12" r="1.6" />
-        <circle cx="12" cy="12" r="1.6" />
-        <circle cx="19" cy="12" r="1.6" />
+        <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z" />
+        <path d="M19 14l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" />
       </svg>
     ),
   },
@@ -145,7 +158,7 @@ export default function TabNav() {
         </ul>
       </nav>
 
-      <QuickActionSheet
+      <UniversalCapture
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
       />

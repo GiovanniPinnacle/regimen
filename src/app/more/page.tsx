@@ -32,6 +32,18 @@ const SECTIONS: Section[] = [
     blurb: "Items, audits, queues, shopping",
     links: [
       {
+        href: "/stack",
+        label: "Stack",
+        desc: "Every item — active, queued, parked. Filter, sort, dedupe",
+        icon: "list-ordered",
+      },
+      {
+        href: "/insights",
+        label: "Insights & refinement",
+        desc: "Patterns, audit lenses, the deep refine memo",
+        icon: "graph",
+      },
+      {
         href: "/items/new",
         label: "Add item",
         desc: "Manually add supp / topical / practice / food",

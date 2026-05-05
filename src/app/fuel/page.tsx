@@ -1,0 +1,327 @@
+"use client";
+
+// /fuel — diet/intake hub. Replaces food items as a checklist with a
+// "log what you ate" model. Three zones:
+//   1. Today's intake — water + macros progress + meals logged today
+//   2. Quick log — voice / photo / text shortcut to the universal
+//      capture flow, plus frequent-meal chips for one-tap re-logs
+//   3. Foods I aim to eat — items the user has saved as targets,
+//      each with a one-tap "Log this" button
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import IntakeTracker from "@/components/IntakeTracker";
+import Icon from "@/components/Icon";
+import { createClient } from "@/lib/supabase/client";
+import { calcMacros, type MacroTargets } from "@/lib/macros";
+import { POSTOP_DATE_ZERO } from "@/lib/constants";
+import { showToast } from "@/lib/toast";
+import type { Item } from "@/lib/types";
+
+type FrequentMeal = { content: string; count: number };
+
+export default function FuelPage() {
+  const [macros, setMacros] = useState<MacroTargets | null>(null);
+  const [foods, setFoods] = useState<Item[]>([]);
+  const [frequentMeals, setFrequentMeals] = useState<FrequentMeal[]>([]);
+  const [logging, setLogging] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const client = createClient();
+      const [profileRes, foodsRes, mealsRes] = await Promise.all([
+        client
+          .from("profiles")
+          .select(
+            "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date",
+          )
+          .maybeSingle(),
+        client
+          .from("items")
+          .select("*")
+          .eq("item_type", "food")
+          .in("status", ["active", "queued"])
+          .order("name"),
+        fetch("/api/intake/frequent", { credentials: "include" }).then((r) =>
+          r.ok ? r.json() : { meals: [] },
+        ),
+      ]);
+      if (!alive) return;
+
+      const profile = profileRes.data;
+      if (
+        profile?.weight_kg &&
+        profile.height_cm &&
+        profile.age &&
+        profile.biological_sex
+      ) {
+        const postOpDate = profile.postop_date ?? POSTOP_DATE_ZERO;
+        const postOp =
+          new Date(postOpDate).getTime() > Date.now() - 180 * 86400000;
+        setMacros(
+          calcMacros({
+            weight_kg: profile.weight_kg,
+            height_cm: profile.height_cm,
+            age: profile.age,
+            biological_sex: profile.biological_sex,
+            activity_level: profile.activity_level ?? "moderate",
+            body_goal: profile.body_goal ?? "maintain",
+            meals_per_day: profile.meals_per_day ?? 3,
+            post_op: postOp,
+          }),
+        );
+      }
+      setFoods((foodsRes.data ?? []) as Item[]);
+      const mealsJson = (mealsRes ?? {}) as {
+        meals?: { content: string; count?: number }[];
+      };
+      setFrequentMeals(
+        (mealsJson.meals ?? []).slice(0, 6).map((m) => ({
+          content: m.content,
+          count: m.count ?? 1,
+        })),
+      );
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /** One-tap meal log — uses /api/intake with analyze=true so Claude
+   *  infers macros from the meal description. Toast immediately,
+   *  IntakeTracker re-fetches via items-changed. */
+  async function quickLog(content: string) {
+    if (logging) return;
+    setLogging(content);
+    try {
+      const res = await fetch("/api/intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          kind: "meal",
+          content,
+          analyze: true,
+        }),
+      });
+      if (!res.ok) throw new Error("Couldn't log");
+      showToast(`Logged: ${content}`, { tone: "success" });
+      window.dispatchEvent(new CustomEvent("regimen:items-changed"));
+    } catch (e) {
+      showToast((e as Error).message, { tone: "error" });
+    } finally {
+      setLogging(null);
+    }
+  }
+
+  function captureMeal() {
+    // Fire the same global capture sheet the + button uses, pre-tagged
+    // for meal context. The capture API will route to intake_log.
+    window.dispatchEvent(
+      new CustomEvent("regimen:capture", {
+        detail: { hint: "meal" },
+      }),
+    );
+  }
+
+  return (
+    <div className="pb-24">
+      <header className="mb-5">
+        <h1
+          className="text-[32px] leading-tight"
+          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+        >
+          Fuel
+        </h1>
+        <p
+          className="text-[12.5px] mt-1 leading-relaxed"
+          style={{ color: "var(--muted)" }}
+        >
+          What went in today — log a meal in 2 seconds, Coach handles
+          the macros.
+        </p>
+      </header>
+
+      {/* Today's intake — water, macros, meals logged. Same component
+          the old /today page was using, just on its own tab now. */}
+      <IntakeTracker
+        targets={
+          macros
+            ? {
+                calories: macros.calories,
+                protein_g: macros.protein_g,
+                water_oz: 84,
+              }
+            : { water_oz: 84 }
+        }
+      />
+
+      {/* Quick log — three big buttons + frequent-meal chips. Photo
+          and Voice route through UniversalCapture's flow, Type fires
+          the same sheet pre-focused on the text input. */}
+      <section className="mb-5">
+        <h2
+          className="text-[11px] uppercase tracking-wider mb-2 px-0.5"
+          style={{
+            color: "var(--muted)",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+          }}
+        >
+          Quick log
+        </h2>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            onClick={captureMeal}
+            className="rounded-2xl card-glass py-4 flex flex-col items-center justify-center gap-1.5"
+            style={{ minHeight: 84 }}
+          >
+            <Icon name="camera" size={22} strokeWidth={1.7} />
+            <span className="text-[11.5px]" style={{ fontWeight: 600 }}>
+              Photo
+            </span>
+          </button>
+          <button
+            onClick={captureMeal}
+            className="rounded-2xl card-glass py-4 flex flex-col items-center justify-center gap-1.5"
+            style={{ minHeight: 84 }}
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <rect x="9" y="2" width="6" height="12" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0" />
+              <path d="M12 18v3" />
+            </svg>
+            <span className="text-[11.5px]" style={{ fontWeight: 600 }}>
+              Voice
+            </span>
+          </button>
+          <button
+            onClick={captureMeal}
+            className="rounded-2xl card-glass py-4 flex flex-col items-center justify-center gap-1.5"
+            style={{ minHeight: 84 }}
+          >
+            <Icon name="edit" size={22} strokeWidth={1.7} />
+            <span className="text-[11.5px]" style={{ fontWeight: 600 }}>
+              Type
+            </span>
+          </button>
+        </div>
+
+        {frequentMeals.length > 0 && (
+          <div className="mt-3">
+            <div
+              className="text-[10px] uppercase tracking-wider mb-2 px-0.5"
+              style={{
+                color: "var(--muted)",
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+              }}
+            >
+              Frequent
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {frequentMeals.map((m) => (
+                <button
+                  key={m.content}
+                  onClick={() => quickLog(m.content)}
+                  disabled={logging === m.content}
+                  className="text-[12.5px] px-3 py-1.5 rounded-full"
+                  style={{
+                    background: "var(--surface-alt)",
+                    color: "var(--foreground)",
+                    border: "1px solid var(--border)",
+                    fontWeight: 600,
+                    minHeight: 32,
+                    opacity: logging === m.content ? 0.5 : 1,
+                  }}
+                >
+                  {logging === m.content ? "…" : `↻ ${m.content}`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Foods I aim to eat — the user's saved food items as a
+          curated list, NOT a daily checklist. Each row has a one-tap
+          "Log this" so the user can re-log a regular without typing. */}
+      {foods.length > 0 && (
+        <section className="mb-5">
+          <div className="flex items-baseline justify-between mb-2 px-0.5">
+            <h2
+              className="text-[11px] uppercase tracking-wider"
+              style={{
+                color: "var(--muted)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Foods I aim to eat · {foods.length}
+            </h2>
+            <Link
+              href="/recipes"
+              className="text-[11px]"
+              style={{ color: "var(--accent)" }}
+            >
+              Recipes →
+            </Link>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {foods.map((f) => (
+              <div
+                key={f.id}
+                className="rounded-xl card-glass px-3 py-2.5 flex items-center gap-2.5"
+              >
+                <Link
+                  href={`/items/${f.id}`}
+                  className="flex-1 min-w-0"
+                >
+                  <div
+                    className="text-[14px] leading-snug truncate"
+                    style={{ fontWeight: 600 }}
+                  >
+                    {f.name}
+                  </div>
+                  {f.brand && (
+                    <div
+                      className="text-[11.5px] mt-0.5 truncate"
+                      style={{ color: "var(--muted)" }}
+                    >
+                      {f.brand}
+                    </div>
+                  )}
+                </Link>
+                <button
+                  onClick={() => quickLog(f.name)}
+                  disabled={logging === f.name}
+                  className="shrink-0 text-[12px] px-3 py-1.5 rounded-lg"
+                  style={{
+                    background: "var(--olive)",
+                    color: "#FBFAF6",
+                    fontWeight: 700,
+                    minHeight: 32,
+                    opacity: logging === f.name ? 0.5 : 1,
+                  }}
+                >
+                  {logging === f.name ? "…" : "Log"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}

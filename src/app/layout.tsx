@@ -5,6 +5,7 @@ import Coach from "@/components/Coach";
 import SessionKeeper from "@/components/SessionKeeper";
 import ToastHost from "@/components/ToastHost";
 import FeedbackFab from "@/components/FeedbackFab";
+import MoreFab from "@/components/MoreFab";
 
 export const metadata: Metadata = {
   title: "Regimen",
@@ -52,6 +53,7 @@ export default function RootLayout({
         </main>
         <Coach />
         <FeedbackFab />
+        <MoreFab />
         <ToastHost />
         <TabNav />
       </body>
