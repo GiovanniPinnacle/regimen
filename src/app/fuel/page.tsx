@@ -115,16 +115,6 @@ export default function FuelPage() {
     }
   }
 
-  function captureMeal() {
-    // Fire the same global capture sheet the + button uses, pre-tagged
-    // for meal context. The capture API will route to intake_log.
-    window.dispatchEvent(
-      new CustomEvent("regimen:capture", {
-        detail: { hint: "meal" },
-      }),
-    );
-  }
-
   return (
     <div className="pb-24">
       <header className="mb-5">
@@ -157,102 +147,43 @@ export default function FuelPage() {
         }
       />
 
-      {/* Quick log — three big buttons + frequent-meal chips. Photo
-          and Voice route through UniversalCapture's flow, Type fires
-          the same sheet pre-focused on the text input. */}
-      <section className="mb-5">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-2 px-0.5"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          Quick log
-        </h2>
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            onClick={captureMeal}
-            className="rounded-2xl card-glass py-4 flex flex-col items-center justify-center gap-1.5"
-            style={{ minHeight: 84 }}
+      {/* Frequent meals — one-tap re-log of meals you've logged before.
+          Photo / Voice / Type flows live in the global "+" button —
+          no need to duplicate them here. */}
+      {frequentMeals.length > 0 && (
+        <section className="mb-5">
+          <h2
+            className="text-[11px] uppercase tracking-wider mb-2 px-0.5"
+            style={{
+              color: "var(--muted)",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+            }}
           >
-            <Icon name="camera" size={22} strokeWidth={1.7} />
-            <span className="text-[11.5px]" style={{ fontWeight: 600 }}>
-              Photo
-            </span>
-          </button>
-          <button
-            onClick={captureMeal}
-            className="rounded-2xl card-glass py-4 flex flex-col items-center justify-center gap-1.5"
-            style={{ minHeight: 84 }}
-          >
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <rect x="9" y="2" width="6" height="12" rx="3" />
-              <path d="M5 11a7 7 0 0 0 14 0" />
-              <path d="M12 18v3" />
-            </svg>
-            <span className="text-[11.5px]" style={{ fontWeight: 600 }}>
-              Voice
-            </span>
-          </button>
-          <button
-            onClick={captureMeal}
-            className="rounded-2xl card-glass py-4 flex flex-col items-center justify-center gap-1.5"
-            style={{ minHeight: 84 }}
-          >
-            <Icon name="edit" size={22} strokeWidth={1.7} />
-            <span className="text-[11.5px]" style={{ fontWeight: 600 }}>
-              Type
-            </span>
-          </button>
-        </div>
-
-        {frequentMeals.length > 0 && (
-          <div className="mt-3">
-            <div
-              className="text-[10px] uppercase tracking-wider mb-2 px-0.5"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-              }}
-            >
-              Frequent
-            </div>
-            <div className="flex gap-1.5 flex-wrap">
-              {frequentMeals.map((m) => (
-                <button
-                  key={m.content}
-                  onClick={() => quickLog(m.content)}
-                  disabled={logging === m.content}
-                  className="text-[12.5px] px-3 py-1.5 rounded-full"
-                  style={{
-                    background: "var(--surface-alt)",
-                    color: "var(--foreground)",
-                    border: "1px solid var(--border)",
-                    fontWeight: 600,
-                    minHeight: 32,
-                    opacity: logging === m.content ? 0.5 : 1,
-                  }}
-                >
-                  {logging === m.content ? "…" : `↻ ${m.content}`}
-                </button>
-              ))}
-            </div>
+            Frequent meals · 1-tap log
+          </h2>
+          <div className="flex gap-1.5 flex-wrap">
+            {frequentMeals.map((m) => (
+              <button
+                key={m.content}
+                onClick={() => quickLog(m.content)}
+                disabled={logging === m.content}
+                className="text-[12.5px] px-3 py-1.5 rounded-full"
+                style={{
+                  background: "var(--surface-alt)",
+                  color: "var(--foreground)",
+                  border: "1px solid var(--border)",
+                  fontWeight: 600,
+                  minHeight: 32,
+                  opacity: logging === m.content ? 0.5 : 1,
+                }}
+              >
+                {logging === m.content ? "…" : `↻ ${m.content}`}
+              </button>
+            ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Foods I aim to eat — the user's saved food items as a
           curated list, NOT a daily checklist. Each row has a one-tap

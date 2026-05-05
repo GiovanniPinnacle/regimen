@@ -6,8 +6,8 @@ import InsightsBanner from "@/components/InsightsBanner";
 import OnboardingBanner from "@/components/OnboardingBanner";
 import SkipReasonSheet from "@/components/SkipReasonSheet";
 import SwapSheet from "@/components/SwapSheet";
-import QuickCheckin from "@/components/QuickCheckin";
-import DayStrip, { type SlotStat } from "@/components/DayStrip";
+import MoodPing from "@/components/MoodPing";
+import DayStrip, { type SlotStat, SLOT_TIME } from "@/components/DayStrip";
 import PatternCard from "@/components/PatternCard";
 import VoiceMemo from "@/components/VoiceMemo";
 import IntakeTracker from "@/components/IntakeTracker";
@@ -705,8 +705,12 @@ export default function TodayPage() {
       {/* === ALWAYS-VISIBLE TIER ===
           Quick check-in, daily score, intake tracker — small,
           high-utility, used daily. Stay inline above the fold. */}
-      <SectionBoundary label="Check-in" silent>
-        <QuickCheckin date={today} />
+      {/* MoodPing — one row, three emoji, one tap. Replaces the
+          old QuickCheckin window-aware prompts (stress/trigger/flare
+          in the afternoon was heavy). User can still log richer mood
+          via the + button (universal capture handles it). */}
+      <SectionBoundary label="Mood ping" silent>
+        <MoodPing date={today} />
       </SectionBoundary>
 
       <SectionBoundary label="Achievements" silent>
@@ -914,17 +918,29 @@ export default function TodayPage() {
                     className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
                   >
                     <div className="flex items-baseline gap-2.5 min-w-0">
-                      <div
-                        className="text-[15px] leading-none"
-                        style={{
-                          color: allDone
-                            ? "var(--accent)"
-                            : "var(--foreground)",
-                          fontWeight: 700,
-                          letterSpacing: "-0.01em",
-                        }}
-                      >
-                        {TIMING_LABELS[slot]}
+                      <div className="min-w-0">
+                        <div
+                          className="text-[10px] uppercase tracking-wider"
+                          style={{
+                            color: "var(--muted)",
+                            fontWeight: 600,
+                            letterSpacing: "0.06em",
+                          }}
+                        >
+                          {SLOT_TIME[slot] ?? ""}
+                        </div>
+                        <div
+                          className="text-[15px] leading-none mt-0.5"
+                          style={{
+                            color: allDone
+                              ? "var(--accent)"
+                              : "var(--foreground)",
+                            fontWeight: 700,
+                            letterSpacing: "-0.01em",
+                          }}
+                        >
+                          {TIMING_LABELS[slot]}
+                        </div>
                       </div>
                       {!NON_CHECKOFF_SLOTS.includes(slot) && (
                         <div
@@ -1071,47 +1087,111 @@ export default function TodayPage() {
               const slotTaken = list.filter((i) => taken[i.id]).length;
               const slotSnoozed = list.filter((i) => snoozedIds.has(i.id)).length;
               const allDone = isCheckoff && slotTaken === list.length;
+              const slotPct =
+                list.length > 0 && isCheckoff
+                  ? (slotTaken / list.length) * 100
+                  : 0;
+              const isCurrentSlot =
+                slotForHour(new Date().getHours()) === activeSlot;
               return (
                 <section className="rounded-2xl card-glass overflow-hidden">
+                  {/* Slot header — time range + slot name + progress bar.
+                      Cleaner hierarchy than before: time stamp at the top
+                      in caps, slot name big, then a thin progress bar
+                      below the title row that shows percent done. */}
                   <div
-                    className="px-4 py-3 flex items-center justify-between"
+                    className="px-4 pt-3 pb-3"
                     style={{ borderBottom: "1px solid var(--border)" }}
                   >
-                    <div className="flex items-baseline gap-2.5">
-                      <div
-                        className="text-[15px] leading-none"
-                        style={{
-                          color: allDone
-                            ? "var(--accent)"
-                            : "var(--foreground)",
-                          fontWeight: 700,
-                          letterSpacing: "-0.01em",
-                        }}
-                      >
-                        {TIMING_LABELS[activeSlot]}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div
+                          className="text-[10px] uppercase tracking-wider flex items-center gap-1.5"
+                          style={{
+                            color: isCurrentSlot
+                              ? "var(--olive)"
+                              : "var(--muted)",
+                            fontWeight: 700,
+                            letterSpacing: "0.08em",
+                          }}
+                        >
+                          <span>{SLOT_TIME[activeSlot] ?? ""}</span>
+                          {isCurrentSlot && (
+                            <span
+                              className="px-1.5 py-[1px] rounded-full"
+                              style={{
+                                background: "var(--olive)",
+                                color: "#FBFAF6",
+                                fontSize: 9,
+                                letterSpacing: "0.06em",
+                              }}
+                            >
+                              NOW
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="text-[20px] leading-tight mt-0.5"
+                          style={{
+                            color: allDone
+                              ? "var(--accent)"
+                              : "var(--foreground)",
+                            fontWeight: 700,
+                            letterSpacing: "-0.015em",
+                          }}
+                        >
+                          {TIMING_LABELS[activeSlot]}
+                        </div>
                       </div>
                       <div
-                        className="text-[12px] tabular-nums"
+                        className="text-[13px] tabular-nums shrink-0 mt-0.5"
                         style={{
                           color: allDone ? "var(--accent)" : "var(--muted)",
-                          fontWeight: allDone ? 700 : 500,
+                          fontWeight: allDone ? 700 : 600,
                         }}
                       >
                         {!isCheckoff
-                          ? `${list.length} item${list.length === 1 ? "" : "s"}`
+                          ? `${list.length}`
                           : allDone
-                            ? "✓ done"
+                            ? "✓ all done"
                             : `${slotTaken}/${list.length}`}
                       </div>
-                      {slotSnoozed > 0 && (
-                        <div
-                          className="text-[11px]"
-                          style={{ color: "var(--muted)", opacity: 0.7 }}
-                        >
-                          · {slotSnoozed} snoozed
-                        </div>
-                      )}
                     </div>
+                    {/* Progress bar — same idiom as the header progress
+                        line on Today, scaled to this slot. Hidden when
+                        nothing to track. */}
+                    {isCheckoff && list.length > 0 && (
+                      <div
+                        className="mt-2 h-[3px] rounded-full overflow-hidden"
+                        style={{ background: "var(--surface-alt)" }}
+                        aria-label={`${Math.round(slotPct)}% complete`}
+                      >
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${slotPct}%`,
+                            background: allDone
+                              ? "var(--accent)"
+                              : slotPct >= 50
+                                ? "var(--olive)"
+                                : "var(--olive-light)",
+                          }}
+                        />
+                      </div>
+                    )}
+                    {slotSnoozed > 0 && (
+                      <div
+                        className="text-[11px] mt-1.5"
+                        style={{ color: "var(--muted)", opacity: 0.75 }}
+                      >
+                        {slotSnoozed} snoozed
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    className="px-4 pt-3 pb-2 flex items-center justify-end"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
                     {isCheckoff && todo.length > 0 && (
                       <div className="flex items-center gap-1.5">
                         {todo.length > 1 && (
