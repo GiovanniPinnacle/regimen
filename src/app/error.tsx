@@ -54,8 +54,12 @@ export default function Error({
           it from there.
         </p>
 
-        {process.env.NODE_ENV !== "production" && error.message ? (
-          <div
+        {/* Show the error details in production too — the alternative
+            (digging in DevTools every time) is too much friction for the
+            actual user. We don't show stack traces; just name + message
+            + digest, which is what we'd ask the user to paste anyway. */}
+        {(error.message || error.digest) ? (
+          <details
             className="rounded-lg px-3 py-2 mb-4 text-[11px] font-mono"
             style={{
               background: "var(--surface-alt)",
@@ -64,17 +68,27 @@ export default function Error({
               wordBreak: "break-word",
             }}
           >
-            <div style={{ fontWeight: 600 }}>{error.name}</div>
-            <div>{error.message}</div>
-            {error.digest ? (
-              <div
-                className="mt-1"
-                style={{ color: "var(--muted)" }}
-              >
-                digest: {error.digest}
-              </div>
-            ) : null}
-          </div>
+            <summary
+              className="cursor-pointer list-none"
+              style={{ color: "var(--muted)", fontWeight: 600 }}
+            >
+              Error details (tap to expand)
+            </summary>
+            <div className="mt-2">
+              {error.name && (
+                <div style={{ fontWeight: 600 }}>{error.name}</div>
+              )}
+              {error.message && <div>{error.message}</div>}
+              {error.digest ? (
+                <div
+                  className="mt-1"
+                  style={{ color: "var(--muted)" }}
+                >
+                  digest: {error.digest}
+                </div>
+              ) : null}
+            </div>
+          </details>
         ) : null}
 
         <div className="flex gap-2">

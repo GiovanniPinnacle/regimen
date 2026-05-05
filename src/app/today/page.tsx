@@ -27,6 +27,7 @@ import SmartSuggestions from "@/components/SmartSuggestions";
 import CatalogPicks from "@/components/CatalogPicks";
 import WeeklyDigestCard from "@/components/WeeklyDigestCard";
 import SymptomCorrelationCard from "@/components/SymptomCorrelationCard";
+import SectionBoundary from "@/components/SectionBoundary";
 import { showToast } from "@/lib/toast";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -670,64 +671,101 @@ export default function TodayPage() {
         <EmptyToday displayName={displayName} />
       ) : (
         <>
-      <QuickCheckin date={today} />
+      {/* Each major section is wrapped in SectionBoundary so a single
+          component throwing during render only knocks out THAT section
+          — the rest of /today stays usable. We log to console + show a
+          tiny "couldn't load" placeholder. Decorative cards run silent
+          (return null on error) so they don't add visual noise. */}
+      <SectionBoundary label="Check-in" silent>
+        <QuickCheckin date={today} />
+      </SectionBoundary>
 
-      <AchievementsChecker />
+      <SectionBoundary label="Achievements" silent>
+        <AchievementsChecker />
+      </SectionBoundary>
 
-      <DailyScore
-        takenCount={takenCount}
-        totalActive={totalActive}
-      />
+      <SectionBoundary label="Daily score" silent>
+        <DailyScore
+          takenCount={takenCount}
+          totalActive={totalActive}
+        />
+      </SectionBoundary>
 
-      <NextStep todayTakenCount={takenCount} />
-      <SmartSuggestions />
+      <SectionBoundary label="Next step" silent>
+        <NextStep todayTakenCount={takenCount} />
+      </SectionBoundary>
+      <SectionBoundary label="Suggestions" silent>
+        <SmartSuggestions />
+      </SectionBoundary>
       {/* Proactive catalog recommendations — high-evidence items the
           user doesn't have yet. Hidden when nothing fresh to surface. */}
-      <CatalogPicks />
+      <SectionBoundary label="Catalog picks" silent>
+        <CatalogPicks />
+      </SectionBoundary>
       {/* Weekly digest — only renders Mon/Tue, dismissable per ISO week.
           Aggregates last 7 days vs prev 7 with adherence delta + top
           helpers + slipping items. "Discuss with Coach" pre-fills the
           numbers as the conversation starting point. */}
-      <WeeklyDigestCard />
+      <SectionBoundary label="Weekly digest" silent>
+        <WeeklyDigestCard />
+      </SectionBoundary>
       {/* Symptom × stack-change correlations — n=1 hypothesis cards.
           Renders only when a real signal exists (1+ point drop on a 1-5
           scale + stack changes within 14d before). Dismissable for 2
           weeks per dimension to avoid badgering. */}
-      <SymptomCorrelationCard />
-      <ProtocolCompletionModal />
+      <SectionBoundary label="Symptom correlations" silent>
+        <SymptomCorrelationCard />
+      </SectionBoundary>
+      <SectionBoundary label="Protocol completion" silent>
+        <ProtocolCompletionModal />
+      </SectionBoundary>
 
-      <StreakAtRiskBanner
-        takenCount={takenCount}
-        totalActive={totalActive}
-      />
+      <SectionBoundary label="Streak banner" silent>
+        <StreakAtRiskBanner
+          takenCount={takenCount}
+          totalActive={totalActive}
+        />
+      </SectionBoundary>
 
       {/* Stack ingredient safety check — flags cumulative dosing problems
           across multiple supplements (e.g. stacked vitamin D from multi +
           D3 cap pushing total >4000 IU UL). High-signal, sits above the
           fold so users notice before they take everything. */}
-      <StackWarningsBanner />
+      <SectionBoundary label="Stack warnings">
+        <StackWarningsBanner />
+      </SectionBoundary>
 
-      <OnboardingBanner />
+      <SectionBoundary label="Onboarding" silent>
+        <OnboardingBanner />
+      </SectionBoundary>
       {/* AuditPrompt + MagicMomentPrompt removed — NextStep covers both
           (priority #5 magic_ready, priority #8 needs_audit) so the user
           gets ONE primary CTA instead of three competing cards. */}
-      <ProtocolProgress />
+      <SectionBoundary label="Protocol progress" silent>
+        <ProtocolProgress />
+      </SectionBoundary>
       {/* High-signal observations stay near the top so users see them
           before the daily checklist. */}
-      <InsightsBanner />
-      <PatternCard />
+      <SectionBoundary label="Insights">
+        <InsightsBanner />
+      </SectionBoundary>
+      <SectionBoundary label="Patterns" silent>
+        <PatternCard />
+      </SectionBoundary>
 
-      <IntakeTracker
-        targets={
-          macros
-            ? {
-                calories: macros.calories,
-                protein_g: macros.protein_g,
-                water_oz: 84,
-              }
-            : { water_oz: 84 }
-        }
-      />
+      <SectionBoundary label="Intake tracker">
+        <IntakeTracker
+          targets={
+            macros
+              ? {
+                  calories: macros.calories,
+                  protein_g: macros.protein_g,
+                  water_oz: 84,
+                }
+              : { water_oz: 84 }
+          }
+        />
+      </SectionBoundary>
 
       {(() => {
         const hour = new Date().getHours();
@@ -1153,8 +1191,12 @@ export default function TodayPage() {
       </div>
 
       {/* Below-checklist zone — Coach prompts + Pro benefits + extras. */}
-      <CoachQuickActions />
-      <ProBenefits />
+      <SectionBoundary label="Coach quick actions" silent>
+        <CoachQuickActions />
+      </SectionBoundary>
+      <SectionBoundary label="Pro benefits" silent>
+        <ProBenefits />
+      </SectionBoundary>
         </>
       )}
 
@@ -1178,7 +1220,9 @@ export default function TodayPage() {
         }}
       />
 
-      <VoiceMemo />
+      <SectionBoundary label="Voice memo" silent>
+        <VoiceMemo />
+      </SectionBoundary>
     </div>
   );
 }
