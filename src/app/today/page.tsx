@@ -28,6 +28,7 @@ import CatalogPicks from "@/components/CatalogPicks";
 import WeeklyDigestCard from "@/components/WeeklyDigestCard";
 import SymptomCorrelationCard from "@/components/SymptomCorrelationCard";
 import SectionBoundary from "@/components/SectionBoundary";
+import MilestoneCheckins from "@/components/MilestoneCheckins";
 import { showToast } from "@/lib/toast";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -743,6 +744,13 @@ export default function TodayPage() {
           gets ONE primary CTA instead of three competing cards. */}
       <SectionBoundary label="Protocol progress" silent>
         <ProtocolProgress />
+      </SectionBoundary>
+      {/* Milestone check-ins — Coach's memory loop. Asks "how's X
+          going" at 14/30/60/90 day marks and stores the answer for
+          future Coach context. The compounding asset that makes
+          year-2 Coach smarter than year-1 Coach. */}
+      <SectionBoundary label="Coach check-ins">
+        <MilestoneCheckins />
       </SectionBoundary>
       {/* High-signal observations stay near the top so users see them
           before the daily checklist. */}

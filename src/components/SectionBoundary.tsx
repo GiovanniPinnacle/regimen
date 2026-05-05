@@ -43,7 +43,6 @@ export default class SectionBoundary extends React.Component<Props, State> {
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     // Surface to DevTools console so devs can debug — and to any future
     // telemetry hook (Sentry/Datadog).
-    // eslint-disable-next-line no-console
     console.error(
       `[SectionBoundary] ${this.props.label ?? "Section"} crashed:`,
       error,
