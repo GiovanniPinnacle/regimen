@@ -7,13 +7,9 @@ import { getItemsByStatus, getAdherenceMap } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/client";
 import { showToast } from "@/lib/toast";
 import type { Category, Goal, Item, ItemType, Status } from "@/lib/types";
-import {
-  CATEGORY_COLORS,
-  GOAL_LABELS,
-  ITEM_TYPE_LABELS,
-  ITEM_TYPE_ICONS,
-} from "@/lib/constants";
+import { ITEM_TYPE_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
 import EmptyState from "@/components/EmptyState";
+import StackFilterSheet from "@/components/StackFilterSheet";
 import {
   SkeletonLine,
   SkeletonPill,
@@ -21,37 +17,11 @@ import {
   SkeletonCard,
 } from "@/components/Skeleton";
 
-const CATEGORY_FILTERS: Array<{ value: "all" | Category; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "permanent", label: "Permanent" },
-  { value: "temporary", label: "Temporary" },
-  { value: "cycled", label: "Cycled" },
-  { value: "condition_linked", label: "Condition" },
-  { value: "situational", label: "Situational" },
-];
-
-const TYPE_FILTERS: Array<{ value: "all" | ItemType; label: string }> = [
-  { value: "all", label: "All types" },
-  { value: "supplement", label: "Supplements" },
-  { value: "topical", label: "Topicals" },
-  { value: "device", label: "Devices" },
-  { value: "procedure", label: "Procedures" },
-  { value: "practice", label: "Practices" },
-  { value: "food", label: "Foods" },
-  { value: "gear", label: "Gear" },
-  { value: "test", label: "Tests" },
-];
-
+// Filter chip arrays now live in StackFilterSheet — page only owns
+// state. Sort union type stays here since it's part of the page's
+// state shape.
 type SortMode = "default" | "name" | "adherence_low" | "supply_low" | "recent";
 type StatusTab = "active" | "queued" | "backburner";
-
-const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-  { value: "default", label: "Default" },
-  { value: "name", label: "Name A-Z" },
-  { value: "adherence_low", label: "Adherence: low → high" },
-  { value: "supply_low", label: "Supply running out first" },
-  { value: "recent", label: "Recently added" },
-];
 
 const STATUS_TABS: { value: StatusTab; label: string; subtitle: string }[] = [
   { value: "active", label: "Active", subtitle: "On Today" },
@@ -112,6 +82,10 @@ export default function StackPage() {
       return next;
     });
   }
+
+  // Filter sheet — replaces the old four-row chip stack. One sticky
+  // search bar + one Filter button → tap opens the sheet.
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   // One-time hint about the new swipe-left-to-retire gesture. Auto-hides
   // after first dismissal OR after the user actually retires something.
@@ -589,10 +563,11 @@ export default function StackPage() {
         </details>
       )}
 
-      {/* Sticky search + type filter — keeps the filter affordances in
-          reach when the user scrolls a long list. The -mx-5/px-5 trick
-          extends the sticky background bar across the full viewport
-          width while letting children align to the page gutter. */}
+      {/* Sticky search + Filter button — replaces the old four-row
+          chip stack. Search stays inline (most-used). Everything else
+          (type / sort / category / goal) lives in StackFilterSheet
+          which opens on tap. The Filter button shows a dot when any
+          filter is active. */}
       <div
         className="sticky top-0 z-10 -mx-5 px-5 pt-1 pb-2 mb-2"
         style={{
@@ -600,212 +575,61 @@ export default function StackPage() {
             "linear-gradient(to bottom, var(--background) 0%, var(--background) 88%, transparent 100%)",
         }}
       >
-        <div className="mb-2">
+        <div className="flex gap-2">
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, brand, or notes…"
-            className="w-full rounded-xl px-4 py-2.5 text-[14px]"
+            placeholder="Search…"
+            className="flex-1 rounded-xl px-4 py-2.5 text-[14px]"
             style={{
               background: "var(--surface)",
               border: "1px solid var(--border)",
               color: "var(--foreground)",
+              minHeight: 40,
             }}
           />
-        </div>
-        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-5 px-5">
-        {TYPE_FILTERS.map((f) => {
-          const active = typeFilter === f.value;
-          const count =
-            f.value === "all"
-              ? items.length
-              : items.filter((i) => i.item_type === f.value).length;
-          return (
-            <button
-              key={f.value}
-              onClick={() => setTypeFilter(f.value)}
-              className="text-[13px] px-3.5 py-2 rounded-full whitespace-nowrap flex items-center gap-1.5 transition-all"
-              style={{
-                background: active ? "var(--olive)" : "var(--surface-glass)",
-                color: active ? "#FBFAF6" : "var(--foreground-soft)",
-                fontWeight: active ? 700 : 500,
-                border: active
-                  ? "1px solid var(--olive)"
-                  : "1px solid var(--border)",
-                backdropFilter: active ? undefined : "blur(8px)",
-                WebkitBackdropFilter: active ? undefined : "blur(8px)",
-                minHeight: 34,
-              }}
+          <button
+            onClick={() => setFilterSheetOpen(true)}
+            aria-label={`Filter${hasActiveFilter ? " (filters active)" : ""}`}
+            className="shrink-0 px-3 rounded-xl flex items-center gap-1.5 relative"
+            style={{
+              background: hasActiveFilter
+                ? "var(--olive)"
+                : "var(--surface)",
+              color: hasActiveFilter ? "#FBFAF6" : "var(--foreground-soft)",
+              border: hasActiveFilter
+                ? "1px solid var(--olive)"
+                : "1px solid var(--border)",
+              fontWeight: hasActiveFilter ? 700 : 500,
+              minHeight: 40,
+              fontSize: 13,
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
             >
-              <span>{f.label}</span>
+              <path d="M4 6h16M7 12h10M10 18h4" />
+            </svg>
+            <span>Filter</span>
+            {hasActiveFilter && (
               <span
-                className="text-[10px] px-1.5 rounded-full"
-                style={{
-                  background: active
-                    ? "rgba(251, 250, 246, 0.2)"
-                    : "var(--border)",
-                  color: active ? "#FBFAF6" : "var(--muted)",
-                  fontWeight: 500,
-                  minWidth: 18,
-                  textAlign: "center",
-                }}
-              >
-                {count}
-              </span>
-            </button>
-          );
-        })}
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: "#FBFAF6" }}
+                aria-hidden
+              />
+            )}
+          </button>
         </div>
       </div>
-
-      {/* Sort + secondary filters */}
-      <details className="mb-3 group">
-        <summary
-          className="flex items-center justify-between text-[11px] cursor-pointer list-none py-1"
-          style={{ color: "var(--muted)" }}
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              Sort & filter
-              <span className="transition-transform group-open:rotate-180">
-                ⌄
-              </span>
-            </span>
-            {hasActiveFilter && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  clearFilters();
-                }}
-                className="underline"
-              >
-                clear
-              </button>
-            )}
-          </div>
-          <span>
-            {sortMode !== "default" &&
-              `· ${SORT_OPTIONS.find((s) => s.value === sortMode)?.label}`}
-          </span>
-        </summary>
-
-        <div className="pt-3">
-          <div
-            className="text-[10px] uppercase tracking-wider mb-1.5"
-            style={{ color: "var(--muted)", fontWeight: 600 }}
-          >
-            Sort
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-3">
-            {SORT_OPTIONS.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => {
-                  setSortMode(s.value);
-                  if (s.value !== "default") setGroupByType(false);
-                }}
-                className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap"
-                style={{
-                  background:
-                    sortMode === s.value
-                      ? "var(--olive)"
-                      : "var(--surface)",
-                  color:
-                    sortMode === s.value ? "#FBFAF6" : "var(--muted)",
-                  border:
-                    sortMode === s.value
-                      ? "1px solid var(--olive)"
-                      : "1px solid var(--border)",
-                  fontWeight: sortMode === s.value ? 600 : 400,
-                }}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-
-          <div
-            className="text-[10px] uppercase tracking-wider mb-1.5"
-            style={{ color: "var(--muted)", fontWeight: 600 }}
-          >
-            Category
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5 mb-2">
-            {CATEGORY_FILTERS.map((f) => {
-              const active = categoryFilter === f.value;
-              const colors =
-                f.value !== "all"
-                  ? CATEGORY_COLORS[f.value as Category]
-                  : null;
-              return (
-                <button
-                  key={f.value}
-                  onClick={() => setCategoryFilter(f.value)}
-                  className="text-[12px] px-3 py-1.5 rounded-full whitespace-nowrap border-hair"
-                  style={{
-                    background: active
-                      ? colors?.bg ?? "var(--foreground)"
-                      : "var(--background)",
-                    color: active
-                      ? colors?.text ?? "var(--background)"
-                      : "var(--muted)",
-                    fontWeight: active ? 500 : 400,
-                    borderColor: active ? "transparent" : undefined,
-                  }}
-                >
-                  {f.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div
-            className="text-[10px] uppercase tracking-wider mb-1.5"
-            style={{ color: "var(--muted)", fontWeight: 600 }}
-          >
-            Goal
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-5 px-5">
-            <button
-              onClick={() => setGoalFilter("all")}
-              className="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap border-hair"
-              style={{
-                background:
-                  goalFilter === "all"
-                    ? "var(--foreground)"
-                    : "var(--background)",
-                color:
-                  goalFilter === "all"
-                    ? "var(--background)"
-                    : "var(--muted)",
-                fontWeight: goalFilter === "all" ? 500 : 400,
-              }}
-            >
-              All goals
-            </button>
-            {allGoals.map((g) => (
-              <button
-                key={g}
-                onClick={() => setGoalFilter(g)}
-                className="text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap border-hair"
-                style={{
-                  background:
-                    goalFilter === g
-                      ? "var(--foreground)"
-                      : "var(--background)",
-                  color:
-                    goalFilter === g ? "var(--background)" : "var(--muted)",
-                  fontWeight: goalFilter === g ? 500 : 400,
-                }}
-              >
-                {GOAL_LABELS[g]}
-              </button>
-            ))}
-          </div>
-        </div>
-      </details>
 
       {/* Swipe-to-retire hint — shown once per device. Auto-dismisses on
           first successful retire OR when user taps the X. */}
@@ -943,6 +767,42 @@ export default function StackPage() {
           />
         </div>
       )}
+      <StackFilterSheet
+        open={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        typeCounts={(() => {
+          const m: Partial<Record<"all" | ItemType, number>> = {
+            all: items.length,
+          };
+          for (const t of [
+            "supplement",
+            "topical",
+            "device",
+            "procedure",
+            "practice",
+            "food",
+            "gear",
+            "test",
+          ] as ItemType[]) {
+            m[t] = items.filter((i) => i.item_type === t).length;
+          }
+          return m;
+        })()}
+        availableGoals={allGoals}
+        typeFilter={typeFilter}
+        setTypeFilter={setTypeFilter}
+        categoryFilter={categoryFilter}
+        setCategoryFilter={setCategoryFilter}
+        goalFilter={goalFilter}
+        setGoalFilter={setGoalFilter}
+        sortMode={sortMode}
+        setSortMode={(s) => {
+          setSortMode(s);
+          if (s !== "default") setGroupByType(false);
+        }}
+        hasActiveFilter={hasActiveFilter}
+        onClear={clearFilters}
+      />
     </div>
   );
 }

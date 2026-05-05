@@ -73,12 +73,18 @@ export const ITEM_TYPE_ICONS: Record<ItemType, string> = {
   test: "🧪",
 };
 
-// Types that appear on Today tab (daily check-off worthy)
+// Types that appear on Today tab (daily check-off worthy).
+//
+// Food removed from the checklist — foods are consumption, not
+// adherence. They're surfaced as a separate "suggested foods" list
+// (still on /stack with the Food filter), and consumption gets logged
+// via the intake_log + meal photos + voice memo path. The macros/
+// micros are aggregated automatically into IntakeTracker so the user
+// sees their daily progress without ticking 12 boxes.
 export const DAILY_LOGGABLE_TYPES: ItemType[] = [
   "supplement",
   "topical",
   "practice",
-  "food",
 ];
 
 // Post-op day zero = 2026-04-17 (FUE surgery date)

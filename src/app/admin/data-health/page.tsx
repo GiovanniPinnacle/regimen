@@ -26,11 +26,24 @@ type Finding = {
   severity: "crash" | "warning" | "info";
 };
 
+type NearDuplicateGroup = {
+  key: string;
+  items: {
+    id: string;
+    name: string;
+    status: string;
+    timing_slot: string;
+    started_on: string | null;
+  }[];
+  reason: string;
+};
+
 type Summary = {
   total: number;
   crash: number;
   warning: number;
   info: number;
+  near_duplicates: number;
 };
 
 const SEVERITY_META: Record<
@@ -56,6 +69,9 @@ const SEVERITY_META: Record<
 
 export default function DataHealthPage() {
   const [findings, setFindings] = useState<Finding[] | null>(null);
+  const [nearDuplicates, setNearDuplicates] = useState<
+    NearDuplicateGroup[] | null
+  >(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [healingAll, setHealingAll] = useState(false);
@@ -63,20 +79,47 @@ export default function DataHealthPage() {
   async function load() {
     setFindings(null);
     setSummary(null);
+    setNearDuplicates(null);
     try {
       const r = await fetch("/api/admin/data-health", {
         credentials: "include",
       });
       if (!r.ok) {
         setFindings([]);
+        setNearDuplicates([]);
         return;
       }
-      const j = (await r.json()) as { findings: Finding[]; summary: Summary };
+      const j = (await r.json()) as {
+        findings: Finding[];
+        nearDuplicates: NearDuplicateGroup[];
+        summary: Summary;
+      };
       setFindings(j.findings);
+      setNearDuplicates(j.nearDuplicates ?? []);
       setSummary(j.summary);
     } catch {
       setFindings([]);
+      setNearDuplicates([]);
     }
+  }
+
+  function reviewWithCoach(group: NearDuplicateGroup) {
+    const list = group.items
+      .map(
+        (i) =>
+          `- ${i.name} [${i.status}, ${i.timing_slot}${
+            i.started_on ? `, started ${i.started_on}` : ""
+          }]`,
+      )
+      .join("\n");
+    const prompt =
+      `These items in my stack look like near-duplicates (${group.reason.toLowerCase()}):\n\n${list}\n\n` +
+      `Decide if they should be merged, kept separate, or one retired. Emit one or more <<<PROPOSAL ... PROPOSAL>>> blocks for the change(s) you recommend (action: retire, action: adjust, etc.). If they're intentionally distinct, just say why in 1 sentence.`;
+    window.dispatchEvent(
+      new CustomEvent("regimen:ask", {
+        detail: { text: prompt, send: true },
+      }),
+    );
   }
 
   useEffect(() => {
@@ -346,6 +389,99 @@ export default function DataHealthPage() {
             })}
           </div>
         </>
+      )}
+
+      {/* Near-duplicates — separate from findings because they need
+          user judgment, not auto-heal. Shown after the findings list. */}
+      {nearDuplicates && nearDuplicates.length > 0 && (
+        <section className="mt-6">
+          <div className="flex items-baseline justify-between mb-2 px-0.5">
+            <h2
+              className="text-[11px] uppercase tracking-wider"
+              style={{
+                color: "var(--accent)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Likely near-duplicates · {nearDuplicates.length}
+            </h2>
+            <span
+              className="text-[11px]"
+              style={{ color: "var(--muted)" }}
+            >
+              Coach decides
+            </span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {nearDuplicates.map((g) => (
+              <div
+                key={g.key}
+                className="rounded-xl card-glass p-3"
+                style={{ borderLeft: "3px solid var(--accent)" }}
+              >
+                <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                  <div
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{
+                      color: "var(--accent)",
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    {g.reason} · {g.items.length} items
+                  </div>
+                </div>
+                <ul className="flex flex-col gap-1 mb-2.5">
+                  {g.items.map((i) => (
+                    <li
+                      key={i.id}
+                      className="text-[12.5px] leading-snug flex items-baseline gap-2"
+                    >
+                      <span
+                        className="shrink-0 h-1.5 w-1.5 rounded-full mt-1"
+                        style={{ background: "var(--accent)" }}
+                        aria-hidden
+                      />
+                      <span style={{ fontWeight: 600 }}>{i.name}</span>
+                      <span
+                        className="text-[11px]"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        · {i.timing_slot}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => reviewWithCoach(g)}
+                  className="w-full text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5"
+                  style={{
+                    background: "var(--pro)",
+                    color: "#FBFAF6",
+                    fontWeight: 700,
+                    minHeight: 36,
+                  }}
+                >
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z" />
+                  </svg>
+                  Ask Coach to resolve
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

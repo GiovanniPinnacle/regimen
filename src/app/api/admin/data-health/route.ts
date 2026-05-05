@@ -112,7 +112,7 @@ async function scan(userId: string): Promise<Finding[]> {
   const { data: items } = await supabase
     .from("items")
     .select(
-      "id, name, timing_slot, item_type, category, status, purchase_state, goals, schedule_rule, companion_of",
+      "id, name, timing_slot, item_type, category, status, purchase_state, goals, schedule_rule, companion_of, started_on",
     )
     .eq("user_id", userId);
   type ItemRow = {
@@ -126,6 +126,7 @@ async function scan(userId: string): Promise<Finding[]> {
     goals: string[] | null;
     schedule_rule: { frequency?: string } | null;
     companion_of: string | null;
+    started_on: string | null;
   };
   const itemList = (items ?? []) as ItemRow[];
   const validIds = new Set(itemList.map((i) => i.id));
@@ -297,6 +298,133 @@ async function scan(userId: string): Promise<Finding[]> {
   return findings;
 }
 
+export type NearDuplicateGroup = {
+  /** Stable hash of the group so the UI can target it. */
+  key: string;
+  /** All items in this near-duplicate cluster. Items have an existence
+   *  question — caller decides which to keep. */
+  items: { id: string; name: string; status: string; timing_slot: string; started_on: string | null }[];
+  /** One-line reason this group is suspect ("share 'EVOO'", etc.). */
+  reason: string;
+};
+
+/** Find clusters of items that look like near-duplicates: same item type
+ *  + meaningful word overlap. Doesn't try to auto-resolve — the user
+ *  knows whether "EVOO shot (fat carrier for D3)" and "Kasandrinos
+ *  EVOO" are intentional or redundant. */
+async function findNearDuplicates(userId: string): Promise<NearDuplicateGroup[]> {
+  const supabase = await createClient();
+  const { data: items } = await supabase
+    .from("items")
+    .select("id, name, item_type, status, timing_slot, started_on")
+    .eq("user_id", userId)
+    .in("status", ["active", "queued"]);
+  type Row = {
+    id: string;
+    name: string;
+    item_type: string;
+    status: string;
+    timing_slot: string;
+    started_on: string | null;
+  };
+  const list = (items ?? []) as Row[];
+  if (list.length < 2) return [];
+
+  // Skip common-word stopwords and tiny fragments. Anything left is a
+  // "meaningful token" we use for overlap comparison.
+  const STOP = new Set([
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "your",
+    "one",
+    "two",
+    "all",
+    "ml",
+    "mg",
+    "iu",
+    "g",
+    "oz",
+    "tbsp",
+    "tsp",
+    "cup",
+    "cups",
+    "am",
+    "pm",
+    "day",
+    "daily",
+    "per",
+  ]);
+  function tokens(s: string): Set<string> {
+    return new Set(
+      s
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length > 3 && !STOP.has(t)),
+    );
+  }
+
+  // Group by item_type — only compare apples to apples. A "Cold shower"
+  // practice and a "Cold shower wand" device aren't dupes.
+  const byType = new Map<string, Row[]>();
+  for (const r of list) {
+    if (!byType.has(r.item_type)) byType.set(r.item_type, []);
+    byType.get(r.item_type)!.push(r);
+  }
+
+  const groups: NearDuplicateGroup[] = [];
+  const seen = new Set<string>(); // track which items already paired
+
+  for (const [, rows] of byType) {
+    for (let i = 0; i < rows.length; i++) {
+      if (seen.has(rows[i].id)) continue;
+      const ti = tokens(rows[i].name);
+      if (ti.size === 0) continue;
+      const cluster: Row[] = [rows[i]];
+      let sharedWord = "";
+      for (let j = i + 1; j < rows.length; j++) {
+        if (seen.has(rows[j].id)) continue;
+        const tj = tokens(rows[j].name);
+        let overlap = 0;
+        let firstShared = "";
+        for (const t of ti) {
+          if (tj.has(t)) {
+            overlap++;
+            if (!firstShared) firstShared = t;
+          }
+        }
+        const minSize = Math.min(ti.size, tj.size);
+        if (overlap >= 1 && overlap / minSize >= 0.5) {
+          cluster.push(rows[j]);
+          if (!sharedWord) sharedWord = firstShared;
+        }
+      }
+      if (cluster.length >= 2) {
+        for (const c of cluster) seen.add(c.id);
+        groups.push({
+          key: cluster
+            .map((c) => c.id)
+            .sort()
+            .join(":"),
+          items: cluster.map((c) => ({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            timing_slot: c.timing_slot,
+            started_on: c.started_on,
+          })),
+          reason: sharedWord
+            ? `Share "${sharedWord}"`
+            : "Possible near-duplicate",
+        });
+      }
+    }
+  }
+  return groups;
+}
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -305,14 +433,19 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
-  const findings = await scan(user.id);
+  const [findings, nearDuplicates] = await Promise.all([
+    scan(user.id),
+    findNearDuplicates(user.id),
+  ]);
   return NextResponse.json({
     findings,
+    nearDuplicates,
     summary: {
       total: findings.length,
       crash: findings.filter((f) => f.severity === "crash").length,
       warning: findings.filter((f) => f.severity === "warning").length,
       info: findings.filter((f) => f.severity === "info").length,
+      near_duplicates: nearDuplicates.length,
     },
   });
 }

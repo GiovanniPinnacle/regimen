@@ -1026,22 +1026,83 @@ export default async function ItemDetailPage({
 
 function Section({
   title,
+  badge,
+  collapsible,
+  defaultOpen,
   children,
 }: {
   title: string;
+  /** Optional small badge shown next to the title — useful for word
+   *  counts ("240 words"), item counts, or freshness markers. */
+  badge?: string | null;
+  /** When true, the section renders as a collapsible <details>.
+   *  Heavy reading sections (research, history, deep research) opt in
+   *  so the item-detail page reads as a structured ToC instead of a
+   *  wall of text. */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
+  if (!collapsible) {
+    return (
+      <section className="mb-6">
+        <h2
+          className="text-[11px] uppercase tracking-wider mb-2 flex items-baseline gap-2"
+          style={{ color: "var(--muted)", fontWeight: 500 }}
+        >
+          <span>{title}</span>
+          {badge && (
+            <span
+              className="text-[10px] tabular-nums"
+              style={{ color: "var(--muted)", opacity: 0.7 }}
+            >
+              {badge}
+            </span>
+          )}
+        </h2>
+        {children}
+      </section>
+    );
+  }
   return (
-    <section className="mb-6">
-      <h2
-        className="text-[11px] uppercase tracking-wider mb-2"
-        style={{ color: "var(--muted)", fontWeight: 500 }}
-      >
-        {title}
-      </h2>
-      {children}
+    <section className="mb-3">
+      <details className="group" open={defaultOpen}>
+        <summary
+          className="cursor-pointer list-none flex items-center justify-between gap-2 py-2 px-1 -mx-1 rounded-lg"
+          style={{ color: "var(--muted)" }}
+        >
+          <h2
+            className="text-[11px] uppercase tracking-wider flex items-baseline gap-2"
+            style={{ fontWeight: 500, letterSpacing: "0.06em" }}
+          >
+            <span>{title}</span>
+            {badge && (
+              <span
+                className="text-[10px] tabular-nums"
+                style={{ opacity: 0.7 }}
+              >
+                {badge}
+              </span>
+            )}
+          </h2>
+          <span
+            className="text-[14px] leading-none transition-transform group-open:rotate-180"
+            aria-hidden
+          >
+            ⌄
+          </span>
+        </summary>
+        <div className="pt-2">{children}</div>
+      </details>
     </section>
   );
+}
+
+/** Word count helper for the badge — gives the user a sense of how
+ *  much they're about to expand without having to commit. */
+function wordCount(s: string | null | undefined): number {
+  if (!s) return 0;
+  return s.trim().split(/\s+/).filter(Boolean).length;
 }
 
 function NutStat({ label, value }: { label: string; value: string }) {
