@@ -19,6 +19,7 @@
 import { useEffect, useState } from "react";
 import { setReaction } from "@/lib/storage";
 import { showToast } from "@/lib/toast";
+import { usePulseCount } from "@/components/CoachPulse";
 import {
   REACTION_EMOJI,
   REACTION_LABELS,
@@ -115,6 +116,13 @@ export default function MilestoneCheckins() {
       }),
     );
   }
+
+  // Don't double-count rows the user already reacted to this session
+  // — they're visually ghosted but shouldn't pad the Pulse badge.
+  const liveCount = (checkins ?? []).filter(
+    (c) => !reacted[c.item_id],
+  ).length;
+  usePulseCount("checkins", liveCount);
 
   if (!checkins || checkins.length === 0) return null;
 

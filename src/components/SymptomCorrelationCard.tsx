@@ -17,6 +17,7 @@
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import SwipeDismiss from "@/components/SwipeDismiss";
+import { usePulseCount } from "@/components/CoachPulse";
 import type { SymptomCorrelation } from "@/lib/symptom-correlate";
 
 const DISMISS_KEY_PREFIX = "regimen.symptom_correlation.dismissed.v1.";
@@ -96,6 +97,7 @@ export default function SymptomCorrelationCard() {
     dismiss();
   }
 
+  usePulseCount("correlations", showing && top ? 1 : 0);
   if (!showing || !top) return null;
 
   return (

@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import { usePulseCount } from "@/components/CoachPulse";
 
 type PatternKind =
   | "worse"
@@ -208,9 +209,13 @@ export default function PatternCard() {
     );
   }
 
+  const visible =
+    !loading && patterns
+      ? patterns.filter((p) => executed[patternId(p)] !== "done")
+      : [];
+  usePulseCount("patterns", visible.length);
   if (loading) return null;
   if (!patterns) return null;
-  const visible = patterns.filter((p) => executed[patternId(p)] !== "done");
   if (visible.length === 0) return null;
 
   const top = visible[0];

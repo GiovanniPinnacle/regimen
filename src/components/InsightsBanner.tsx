@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
+import { usePulseCount } from "@/components/CoachPulse";
 
 type Insight = {
   id: string;
@@ -116,6 +117,7 @@ export default function InsightsBanner() {
   }
 
   const visible = insights.filter((i) => !appliedIds.has(i.id));
+  usePulseCount("insights", visible.length);
   if (visible.length === 0) return null;
 
   // If only one note, render as a single full-width card with prominent

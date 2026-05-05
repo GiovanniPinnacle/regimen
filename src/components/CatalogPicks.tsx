@@ -20,6 +20,7 @@
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import SwipeDismiss from "@/components/SwipeDismiss";
+import { usePulseCount } from "@/components/CoachPulse";
 
 type Pick = {
   catalog_item_id: string;
@@ -139,6 +140,7 @@ export default function CatalogPicks() {
     );
   }
 
+  usePulseCount("picks", visible ? 1 : 0);
   if (picks === null) return null; // loading
   if (!visible) return null; // nothing to show
 

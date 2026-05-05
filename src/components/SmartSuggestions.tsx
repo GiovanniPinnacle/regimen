@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import SwipeDismiss from "@/components/SwipeDismiss";
+import { usePulseCount } from "@/components/CoachPulse";
 
 type Suggestion = {
   id: string;
@@ -106,6 +107,7 @@ export default function SmartSuggestions() {
     );
   }
 
+  usePulseCount("suggestions", !loading && s ? 1 : 0);
   if (loading || !s) return null;
 
   const accent = KIND_ACCENT[s.kind];

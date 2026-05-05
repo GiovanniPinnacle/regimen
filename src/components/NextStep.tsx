@@ -24,6 +24,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
+import { usePulseCount } from "@/components/CoachPulse";
 import type { UserStage, UserSignals } from "@/lib/context";
 
 type IconName = Parameters<typeof Icon>[0]["name"];
@@ -88,9 +89,10 @@ export default function NextStep({
     };
   }, []);
 
-  if (loading || !state) return null;
+  const step = !loading && state ? pickStep(state, todayTakenCount) : null;
+  usePulseCount("next_step", step ? 1 : 0);
 
-  const step = pickStep(state, todayTakenCount);
+  if (loading || !state) return null;
   if (!step) return null;
 
   function fireCoach(prompt: string) {

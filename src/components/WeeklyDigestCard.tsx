@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import SwipeDismiss from "@/components/SwipeDismiss";
+import { usePulseCount } from "@/components/CoachPulse";
 
 type Digest = {
   generated_at: string;
@@ -127,6 +128,7 @@ export default function WeeklyDigestCard() {
     dismiss();
   }
 
+  usePulseCount("digest", showing && digest ? 1 : 0);
   if (!showing || !digest) return null;
 
   const lastPct = Math.round(digest.last_week.rate * 100);

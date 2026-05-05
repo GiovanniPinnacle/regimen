@@ -29,6 +29,7 @@ import WeeklyDigestCard from "@/components/WeeklyDigestCard";
 import SymptomCorrelationCard from "@/components/SymptomCorrelationCard";
 import SectionBoundary from "@/components/SectionBoundary";
 import MilestoneCheckins from "@/components/MilestoneCheckins";
+import CoachPulse from "@/components/CoachPulse";
 import { showToast } from "@/lib/toast";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -701,11 +702,9 @@ export default function TodayPage() {
         <EmptyToday displayName={displayName} />
       ) : (
         <>
-      {/* Each major section is wrapped in SectionBoundary so a single
-          component throwing during render only knocks out THAT section
-          — the rest of /today stays usable. We log to console + show a
-          tiny "couldn't load" placeholder. Decorative cards run silent
-          (return null on error) so they don't add visual noise. */}
+      {/* === ALWAYS-VISIBLE TIER ===
+          Quick check-in, daily score, intake tracker — small,
+          high-utility, used daily. Stay inline above the fold. */}
       <SectionBoundary label="Check-in" silent>
         <QuickCheckin date={today} />
       </SectionBoundary>
@@ -721,75 +720,63 @@ export default function TodayPage() {
         />
       </SectionBoundary>
 
-      <SectionBoundary label="Next step" silent>
-        <NextStep todayTakenCount={takenCount} />
-      </SectionBoundary>
-      <SectionBoundary label="Suggestions" silent>
-        <SmartSuggestions />
-      </SectionBoundary>
-      {/* Proactive catalog recommendations — high-evidence items the
-          user doesn't have yet. Hidden when nothing fresh to surface. */}
-      <SectionBoundary label="Catalog picks" silent>
-        <CatalogPicks />
-      </SectionBoundary>
-      {/* Weekly digest — only renders Mon/Tue, dismissable per ISO week.
-          Aggregates last 7 days vs prev 7 with adherence delta + top
-          helpers + slipping items. "Discuss with Coach" pre-fills the
-          numbers as the conversation starting point. */}
-      <SectionBoundary label="Weekly digest" silent>
-        <WeeklyDigestCard />
-      </SectionBoundary>
-      {/* Symptom × stack-change correlations — n=1 hypothesis cards.
-          Renders only when a real signal exists (1+ point drop on a 1-5
-          scale + stack changes within 14d before). Dismissable for 2
-          weeks per dimension to avoid badgering. */}
-      <SectionBoundary label="Symptom correlations" silent>
-        <SymptomCorrelationCard />
-      </SectionBoundary>
-      <SectionBoundary label="Protocol completion" silent>
-        <ProtocolCompletionModal />
-      </SectionBoundary>
-
+      {/* === CRITICAL TIER ===
+          Banners that fire only when something is off. They render
+          themselves null when conditions don't apply, so they're zero-
+          cost most days. Stay inline so urgent stuff never hides. */}
       <SectionBoundary label="Streak banner" silent>
         <StreakAtRiskBanner
           takenCount={takenCount}
           totalActive={totalActive}
         />
       </SectionBoundary>
-
-      {/* Stack ingredient safety check — flags cumulative dosing problems
-          across multiple supplements (e.g. stacked vitamin D from multi +
-          D3 cap pushing total >4000 IU UL). High-signal, sits above the
-          fold so users notice before they take everything. */}
       <SectionBoundary label="Stack warnings">
         <StackWarningsBanner />
       </SectionBoundary>
-
       <SectionBoundary label="Onboarding" silent>
         <OnboardingBanner />
       </SectionBoundary>
-      {/* AuditPrompt + MagicMomentPrompt removed — NextStep covers both
-          (priority #5 magic_ready, priority #8 needs_audit) so the user
-          gets ONE primary CTA instead of three competing cards. */}
+
+      {/* === COACH'S PULSE ===
+          Single collapsed master card that aggregates 8 secondary
+          surfaces. Header line shows "Coach has N — bucket badges".
+          User taps to expand. Children stay mounted-but-hidden when
+          collapsed so their counts stay accurate. Pulse renders null
+          when no children have anything to show — completely invisible
+          on a clean day. */}
+      <CoachPulse>
+        <SectionBoundary label="Next step" silent>
+          <NextStep todayTakenCount={takenCount} />
+        </SectionBoundary>
+        <SectionBoundary label="Coach check-ins" silent>
+          <MilestoneCheckins />
+        </SectionBoundary>
+        <SectionBoundary label="Insights" silent>
+          <InsightsBanner />
+        </SectionBoundary>
+        <SectionBoundary label="Suggestions" silent>
+          <SmartSuggestions />
+        </SectionBoundary>
+        <SectionBoundary label="Catalog picks" silent>
+          <CatalogPicks />
+        </SectionBoundary>
+        <SectionBoundary label="Patterns" silent>
+          <PatternCard />
+        </SectionBoundary>
+        <SectionBoundary label="Symptom correlations" silent>
+          <SymptomCorrelationCard />
+        </SectionBoundary>
+        <SectionBoundary label="Weekly digest" silent>
+          <WeeklyDigestCard />
+        </SectionBoundary>
+      </CoachPulse>
+
+      {/* === ALWAYS-VISIBLE: PROTOCOL + INTAKE ===
+          Rendered after the Pulse so they sit just above the
+          checklist where they're most useful for daily logging. */}
       <SectionBoundary label="Protocol progress" silent>
         <ProtocolProgress />
       </SectionBoundary>
-      {/* Milestone check-ins — Coach's memory loop. Asks "how's X
-          going" at 14/30/60/90 day marks and stores the answer for
-          future Coach context. The compounding asset that makes
-          year-2 Coach smarter than year-1 Coach. */}
-      <SectionBoundary label="Coach check-ins">
-        <MilestoneCheckins />
-      </SectionBoundary>
-      {/* High-signal observations stay near the top so users see them
-          before the daily checklist. */}
-      <SectionBoundary label="Insights">
-        <InsightsBanner />
-      </SectionBoundary>
-      <SectionBoundary label="Patterns" silent>
-        <PatternCard />
-      </SectionBoundary>
-
       <SectionBoundary label="Intake tracker">
         <IntakeTracker
           targets={
@@ -802,6 +789,12 @@ export default function TodayPage() {
               : { water_oz: 84 }
           }
         />
+      </SectionBoundary>
+
+      {/* Modal trigger — renders nothing visible until a protocol
+          completes. Safe to leave anywhere in the tree. */}
+      <SectionBoundary label="Protocol completion" silent>
+        <ProtocolCompletionModal />
       </SectionBoundary>
 
       {(() => {
