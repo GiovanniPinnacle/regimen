@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import SwipeDismiss from "@/components/SwipeDismiss";
 import { usePulseCount } from "@/components/CoachPulse";
+import StepIndicator from "@/components/StepIndicator";
 
 type Pick = {
   catalog_item_id: string;
@@ -166,7 +167,7 @@ export default function CatalogPicks() {
             <Icon name="sparkle" size={13} strokeWidth={2} />
           </span>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2">
               <span
                 className="text-[10px] uppercase tracking-wider"
                 style={{
@@ -177,6 +178,13 @@ export default function CatalogPicks() {
               >
                 Coach pick · Grade {grade}
               </span>
+              {(picks?.length ?? 0) > 1 && (
+                <StepIndicator
+                  current={0}
+                  total={picks?.length ?? 0}
+                  color={gradeColor}
+                />
+              )}
             </div>
             <div
               className="text-[15px] leading-snug mt-0.5"

@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import { usePulseCount } from "@/components/CoachPulse";
+import StepIndicator from "@/components/StepIndicator";
 
 type PatternKind =
   | "worse"
@@ -94,7 +95,11 @@ const KIND_ACTIONS: Record<PatternKind, (p: Pattern) => Action> = {
 export default function PatternCard() {
   const [patterns, setPatterns] = useState<Pattern[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(false);
+  // Cursor into `visible` for one-at-a-time rendering. We never
+  // decrement — once the user advances past a pattern (acting on it
+  // removes it from `visible` automatically; skipping just bumps
+  // cursor) it doesn't come back this session.
+  const [cursor, setCursor] = useState(0);
   const [executed, setExecuted] = useState<
     Record<string, "done" | "pending" | "error">
   >({});
@@ -218,8 +223,10 @@ export default function PatternCard() {
   if (!patterns) return null;
   if (visible.length === 0) return null;
 
-  const top = visible[0];
-  const rest = visible.slice(1);
+  // Show the pattern at the cursor position. If cursor went past the
+  // end (user skipped them all), render null.
+  if (cursor >= visible.length) return null;
+  const top = visible[cursor];
   const topStyle = SEVERITY_STYLES[top.severity];
   const topAction = KIND_ACTIONS[top.kind](top);
   const topId = patternId(top);
@@ -288,10 +295,26 @@ export default function PatternCard() {
 
   return (
     <section className="rounded-2xl card-glass mb-6 overflow-hidden">
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full px-4 pt-3.5 pb-3 text-left flex items-start gap-3"
-      >
+      <div className="flex items-baseline justify-between px-4 pt-3.5 pb-1">
+        <span
+          className="text-[10px] uppercase tracking-wider"
+          style={{
+            color: topStyle.accent,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+          }}
+        >
+          {topStyle.label}
+        </span>
+        {visible.length > 1 && (
+          <StepIndicator
+            current={cursor}
+            total={visible.length}
+            color={topStyle.accent}
+          />
+        )}
+      </div>
+      <div className="px-4 pt-1 pb-3 flex items-start gap-3">
         <span
           className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
           style={{
@@ -302,26 +325,6 @@ export default function PatternCard() {
           <Icon name={topStyle.icon} size={14} strokeWidth={1.8} />
         </span>
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2 mb-0.5">
-            <span
-              className="text-[10px] uppercase tracking-wider"
-              style={{
-                color: topStyle.accent,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              {topStyle.label}
-            </span>
-            {visible.length > 1 && (
-              <span
-                className="text-[11px]"
-                style={{ color: "var(--muted)" }}
-              >
-                +{visible.length - 1} more
-              </span>
-            )}
-          </div>
           <div
             className="text-[14px] leading-snug"
             style={{ fontWeight: 600 }}
@@ -335,71 +338,21 @@ export default function PatternCard() {
             {top.detail}
           </div>
         </div>
-        {visible.length > 1 && (
-          <span
-            className="shrink-0 mt-1 transition-transform"
-            style={{
-              transform: expanded ? "rotate(180deg)" : undefined,
-            }}
-          >
-            <Icon name="chevron-down" size={16} />
-          </span>
-        )}
-      </button>
-      <div className="px-4 pb-3 ml-10">
-        {topState !== "done" && renderActionButtons(top, topAction, true)}
       </div>
-
-      {expanded && rest.length > 0 && (
-        <div
-          className="px-4 pt-1 pb-3 flex flex-col"
-          style={{ borderTop: "1px solid var(--border)" }}
-        >
-          {rest.map((p, i) => {
-            const s = SEVERITY_STYLES[p.severity];
-            const action = KIND_ACTIONS[p.kind](p);
-            return (
-              <div
-                key={`${p.item_id}-${p.kind}-${i}`}
-                className="py-3 flex flex-col gap-2"
-                style={{
-                  borderBottom:
-                    i < rest.length - 1
-                      ? "1px solid var(--border)"
-                      : undefined,
-                }}
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className="shrink-0 mt-0.5 h-6 w-6 rounded-lg flex items-center justify-center"
-                    style={{
-                      background: `${s.accent}1F`,
-                      color: s.accent,
-                    }}
-                  >
-                    <Icon name={s.icon} size={12} strokeWidth={1.8} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className="text-[13px] leading-snug"
-                      style={{ fontWeight: 600 }}
-                    >
-                      {p.headline}
-                    </div>
-                    <div
-                      className="text-[11.5px] mt-0.5 leading-relaxed"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {p.detail}
-                    </div>
-                  </div>
-                </div>
-                <div className="ml-9">{renderActionButtons(p, action, true)}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div className="px-4 pb-3 ml-10 flex items-center gap-3 flex-wrap">
+        {topState !== "done" && renderActionButtons(top, topAction, true)}
+        {/* Skip — advance to next pattern without acting. Only shown
+            if there's another one queued. */}
+        {visible.length > 1 && cursor < visible.length - 1 && (
+          <button
+            onClick={() => setCursor((c) => c + 1)}
+            className="text-[12px] underline"
+            style={{ color: "var(--muted)" }}
+          >
+            Skip — show next
+          </button>
+        )}
+      </div>
     </section>
   );
 }

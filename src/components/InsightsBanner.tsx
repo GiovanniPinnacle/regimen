@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
 import { usePulseCount } from "@/components/CoachPulse";
+import StepIndicator from "@/components/StepIndicator";
 
 type Insight = {
   id: string;
@@ -120,10 +121,11 @@ export default function InsightsBanner() {
   usePulseCount("insights", visible.length);
   if (visible.length === 0) return null;
 
-  // If only one note, render as a single full-width card with prominent
-  // body + clear actions. Multiple notes = stacked dense list with
-  // primary action on the first one only (others tap to expand).
-  const single = visible.length === 1 ? visible[0] : null;
+  // One-at-a-time: always render the FIRST visible insight. Apply or
+  // Dismiss removes it (via appliedIds), the next one slides up
+  // automatically. StepIndicator shows "1 of 3" so the user knows
+  // there's more to look at without seeing them all stacked.
+  const current = visible[0];
 
   return (
     <section className="mb-5">
@@ -139,99 +141,20 @@ export default function InsightsBanner() {
           Coach&apos;s notes
         </h2>
         {visible.length > 1 && (
-          <span
-            className="text-[11px] tabular-nums"
-            style={{ color: "var(--muted)" }}
-          >
-            {visible.length} new
-          </span>
+          <StepIndicator
+            current={0}
+            total={visible.length}
+            color="var(--accent)"
+          />
         )}
       </div>
 
-      {single ? (
-        <SingleNote
-          insight={single}
-          onApply={() => applyInsight(single)}
-          onDiscuss={() => discussInsight(single)}
-          onDismiss={(e) => dismiss(e, single.id)}
-        />
-      ) : (
-        <div className="rounded-2xl card-glass overflow-hidden">
-          {visible.map((i, idx) => {
-            const meta = TYPE_META[i.type] ?? DEFAULT_META;
-            return (
-              <div
-                key={i.id}
-                className="px-3.5 pt-3 pb-3"
-                style={{
-                  borderTop: idx > 0 ? "1px solid var(--border)" : undefined,
-                }}
-              >
-                <div className="flex items-start gap-2.5">
-                  <span
-                    className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
-                    style={{
-                      background: `${meta.accent}1F`,
-                      color: meta.accent,
-                    }}
-                  >
-                    <Icon name={meta.icon} size={13} strokeWidth={1.8} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className="text-[13.5px] leading-snug"
-                      style={{ fontWeight: 600 }}
-                    >
-                      {i.title}
-                    </div>
-                    <div
-                      className="text-[12px] mt-0.5 leading-snug line-clamp-2"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {i.body}
-                    </div>
-                    <div className="flex gap-2 mt-2.5">
-                      <button
-                        onClick={() => applyInsight(i)}
-                        className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
-                        style={{
-                          background: meta.accent,
-                          color: "#FBFAF6",
-                          fontWeight: 700,
-                          minHeight: 32,
-                        }}
-                      >
-                        <Icon name="check-circle" size={11} strokeWidth={2.4} />
-                        {meta.verb}
-                      </button>
-                      <button
-                        onClick={() => discussInsight(i)}
-                        className="text-[12.5px] px-3 py-1.5 rounded-lg"
-                        style={{
-                          background: "var(--surface-alt)",
-                          color: "var(--foreground)",
-                          fontWeight: 600,
-                          minHeight: 32,
-                        }}
-                      >
-                        More
-                      </button>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => dismiss(e, i.id)}
-                    className="shrink-0 leading-none px-1 -mr-1 -mt-0.5"
-                    style={{ color: "var(--muted)" }}
-                    aria-label="Dismiss"
-                  >
-                    <Icon name="plus" size={13} className="rotate-45" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <SingleNote
+        insight={current}
+        onApply={() => applyInsight(current)}
+        onDiscuss={() => discussInsight(current)}
+        onDismiss={(e) => dismiss(e, current.id)}
+      />
     </section>
   );
 }
