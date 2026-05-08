@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
   contextToSystemPrompt,
@@ -49,6 +50,9 @@ export async function POST(request: NextRequest) {
   if (!body.fridge?.trim()) {
     return NextResponse.json({ error: "Missing fridge contents" }, { status: 400 });
   }
+
+  const limited = await rateLimitOrError(user.id, "enrich");
+  if (limited) return limited;
 
   const ctx = await buildContextForCurrentUser();
   const baseSystem = contextToSystemPrompt(ctx);

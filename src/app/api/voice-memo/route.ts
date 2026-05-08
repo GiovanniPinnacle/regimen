@@ -7,6 +7,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -126,6 +127,10 @@ export async function POST(request: NextRequest) {
   // on failure — voice memo save still succeeds even if this fails.
   let loggedAsMeal = false;
   if (detectFoodIntent(transcript, body.context_tag ?? null)) {
+    // Rate-limit only the LLM-backed branch — non-food voice memos
+    // are pure DB writes and shouldn't burn the coach bucket.
+    const limited = await rateLimitOrError(user.id, "coach");
+    if (limited) return limited;
     try {
       const anthropic = getAnthropic();
       const r = await anthropic.messages.create({
@@ -133,6 +138,12 @@ export async function POST(request: NextRequest) {
         max_tokens: 400,
         system: TEXT_MACRO_SYSTEM,
         messages: [{ role: "user", content: transcript }],
+      });
+      void recordUsage(user.id, "coach", {
+        route: "/api/voice-memo",
+        model: MODELS.chat,
+        tokens_in: r.usage?.input_tokens,
+        tokens_out: r.usage?.output_tokens,
       });
       const text = r.content[0]?.type === "text" ? r.content[0].text : "";
       const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();

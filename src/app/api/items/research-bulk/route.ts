@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
   contextToSystemPrompt,
@@ -31,6 +32,9 @@ export async function POST() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  const limited = await rateLimitOrError(user.id, "research");
+  if (limited) return limited;
 
   const { data: missingRows } = await supabase
     .from("items")
@@ -89,6 +93,12 @@ Generate usage_notes + research_summary. JSON only.`;
         max_tokens: 1500,
         system,
         messages: [{ role: "user", content: userMsg }],
+      });
+      void recordUsage(user.id, "research", {
+        route: "/api/items/research-bulk",
+        model: MODELS.chat,
+        tokens_in: res.usage?.input_tokens,
+        tokens_out: res.usage?.output_tokens,
       });
       let raw = "";
       for (const b of res.content) if (b.type === "text") raw += b.text;

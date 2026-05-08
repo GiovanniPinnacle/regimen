@@ -163,6 +163,12 @@ const SECTIONS: Section[] = [
         desc: "Oura CSV, bloodwork PDFs",
         icon: "download",
       },
+      {
+        href: "/account",
+        label: "Account & data",
+        desc: "Export your data or delete your account",
+        icon: "shield",
+      },
     ],
   },
   {
@@ -373,6 +379,28 @@ export default function MorePage() {
         </h2>
         <SignOutButton />
       </section>
+
+      {/* Footer — required for App Store + GDPR + CCPA. Always visible. */}
+      <footer
+        className="mt-10 pt-5 border-t flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px]"
+        style={{
+          borderColor: "var(--border)",
+          color: "var(--muted)",
+        }}
+      >
+        <Link href="/privacy" className="underline">
+          Privacy
+        </Link>
+        <Link href="/terms" className="underline">
+          Terms
+        </Link>
+        <Link href="/account" className="underline">
+          Export / delete data
+        </Link>
+        <a href="mailto:hello@regimen.app" className="underline">
+          Contact
+        </a>
+      </footer>
     </div>
   );
 }

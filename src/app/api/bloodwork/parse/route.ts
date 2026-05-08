@@ -15,9 +15,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+/** Reject base64 payloads larger than ~6MB to prevent runaway vision
+ *  costs and 60s timeouts. Lab reports are typically a single page —
+ *  6MB of base64 = ~4.5MB raw image, plenty for a phone-camera shot. */
+const MAX_IMAGE_BASE64_BYTES = 6_000_000;
 
 type Body = {
   image_base64?: string;
@@ -97,6 +103,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Image size cap — both protects against accidental 50MB phone
+  // shots and rules out scripted abuse trying to maximize Vision
+  // token cost.
+  if (body.image_base64 && body.image_base64.length > MAX_IMAGE_BASE64_BYTES) {
+    return NextResponse.json(
+      {
+        error:
+          "Image too large. Please retake at lower resolution or crop the page.",
+      },
+      { status: 413 },
+    );
+  }
+
+  // Per-user rate limit — vision is the most expensive bucket
+  // (~$0.10 per call); cap at 10/24h to keep worst-case spend bounded.
+  const limited = await rateLimitOrError(user.id, "vision");
+  if (limited) return limited;
+
   const anthropic = getAnthropic();
   // The SDK's narrowed media_type union ("image/jpeg" | "image/png" |
   // "image/gif" | "image/webp") rejects a generic string. Coerce
@@ -169,6 +193,12 @@ export async function POST(request: NextRequest) {
     }
     const raw = block.text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
     result = JSON.parse(raw) as ParseResult;
+    void recordUsage(user.id, "vision", {
+      route: "/api/bloodwork/parse",
+      model: MODELS.vision,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: `Parse failed: ${(e as Error).message}` },

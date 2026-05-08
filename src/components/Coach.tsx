@@ -552,7 +552,7 @@ export default function Coach() {
             className="px-5 py-3 flex items-center justify-between"
             style={{
               background:
-                "linear-gradient(135deg, rgba(168, 85, 247, 0.14) 0%, rgba(34, 197, 94, 0.06) 100%)",
+                "linear-gradient(135deg, rgba(139, 124, 252, 0.14) 0%, rgba(0, 214, 128, 0.04) 100%)",
               borderBottom: "1px solid var(--border)",
             }}
           >
@@ -561,8 +561,10 @@ export default function Coach() {
                 className="h-9 w-9 rounded-xl flex items-center justify-center"
                 style={{
                   background:
-                    "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
+                    "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
                   color: "#FFFFFF",
+                  boxShadow:
+                    "inset 0 1px 0 rgba(255, 255, 255, 0.18)",
                 }}
               >
                 <Icon name="sparkle" size={16} strokeWidth={2} />
@@ -570,7 +572,7 @@ export default function Coach() {
               <div>
                 <div
                   className="text-[16px] leading-tight"
-                  style={{ fontWeight: 600 }}
+                  style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
                 >
                   Coach
                 </div>
@@ -578,7 +580,7 @@ export default function Coach() {
                   className="text-[11px]"
                   style={{ color: "var(--muted)" }}
                 >
-                  Knows your stack · proposes, you approve
+                  Educational · not medical advice
                 </div>
               </div>
             </div>

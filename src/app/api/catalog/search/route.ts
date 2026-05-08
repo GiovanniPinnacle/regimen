@@ -57,8 +57,11 @@ export async function GET(request: Request) {
   if (!q) return NextResponse.json({ items: [], local: 0, external: 0 });
 
   // 1. Local catalog hits (fast, prefer these — already enriched if any
-  // user has used them). catalog_items isn't in Supabase generated types
-  // yet so we cast through unknown.
+  // user has used them). RLS (migration 027) filters to is_verified =
+  // true OR submitted_by = current user, so the cookied SSR client
+  // safely returns a poison-free slice without us having to filter
+  // here. catalog_items isn't in Supabase generated types yet so we
+  // cast through unknown.
   // Pull a wider initial slice from the DB so the client-side ranker
   // has more candidates to choose from. We over-fetch by 2.5× then
   // truncate to LOCAL_LIMIT after composite-scoring.

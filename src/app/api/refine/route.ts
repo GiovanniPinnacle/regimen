@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
   contextToSystemPrompt,
@@ -19,6 +20,9 @@ export async function POST() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  const limited = await rateLimitOrError(user.id, "coach");
+  if (limited) return limited;
 
   const ctx = await buildContextForCurrentUser();
   const baseSystem = contextToSystemPrompt(ctx);
@@ -65,6 +69,12 @@ Rules:
     for (const block of res.content) {
       if (block.type === "text") memo += block.text;
     }
+    void recordUsage(user.id, "coach", {
+      route: "/api/refine",
+      model: MODELS.chat,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
+    });
   } catch (err) {
     console.error("refine/POST claude error", err);
     return NextResponse.json(

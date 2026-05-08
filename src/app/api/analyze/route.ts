@@ -5,6 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
   contextToSystemPrompt,
@@ -113,6 +114,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const limited = await rateLimitOrError(user.id, "vision");
+  if (limited) return limited;
+
   // Fetch image as base64
   let imageBase64: string;
   let mediaType = "image/jpeg";
@@ -160,6 +164,13 @@ export async function POST(request: NextRequest) {
           ],
         },
       ],
+    });
+
+    void recordUsage(user.id, "vision", {
+      route: "/api/analyze",
+      model: MODELS.vision,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
     });
 
     const text = res.content

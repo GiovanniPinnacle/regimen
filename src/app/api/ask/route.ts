@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
   contextToSystemPrompt,
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
   if (!body.messages || body.messages.length === 0) {
     return NextResponse.json({ error: "Missing messages" }, { status: 400 });
   }
+
+  const limited = await rateLimitOrError(user.id, "coach");
+  if (limited) return limited;
 
   const ctx = await buildContextForCurrentUser();
   const system = contextToSystemPrompt(ctx);
@@ -78,6 +82,18 @@ export async function POST(request: NextRequest) {
           }
         }
         controller.close();
+
+        // Record LLM usage (post-stream). finalMessage() resolves
+        // synchronously after the stream closes since we already
+        // consumed all events above.
+        void res.finalMessage().then((final) => {
+          void recordUsage(user.id, "coach", {
+            route: "/api/ask",
+            model: MODELS.chat,
+            tokens_in: final.usage?.input_tokens,
+            tokens_out: final.usage?.output_tokens,
+          });
+        });
 
         // Best-effort persist — fire-and-forget so it never delays the
         // response. Failures are logged but don't break chat.

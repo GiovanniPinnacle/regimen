@@ -28,7 +28,7 @@ const TIERS = [
     name: "Pro",
     price: "$9",
     period: "/mo · or $79/yr",
-    cta: "Most users go here",
+    cta: "Start Pro",
     highlight: true,
     badge: "Best value",
     features: [

@@ -25,6 +25,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
+import { userSubmission } from "@/lib/catalog/moderation";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -62,6 +64,7 @@ type TutorialResponse = {
 async function generateTutorial(
   name: string,
   itemType: string,
+  userId: string,
 ): Promise<TutorialResponse> {
   try {
     const anthropic = getAnthropic();
@@ -71,6 +74,12 @@ async function generateTutorial(
       messages: [
         { role: "user", content: TUTORIAL_PROMPT(name, itemType) },
       ],
+    });
+    void recordUsage(userId, "enrich", {
+      route: "/api/items/enrich",
+      model: MODELS.chat,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
     });
     const block = res.content[0];
     if (!block || block.type !== "text") return { media_url: null, how_to: null };
@@ -115,6 +124,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing item_id" }, { status: 400 });
   }
 
+  const limited = await rateLimitOrError(user.id, "enrich");
+  if (limited) return limited;
+
   const admin = createAdminClient();
 
   // Pull the item — admin client so we can also write to catalog
@@ -154,12 +166,15 @@ export async function POST(request: NextRequest) {
   let catalogId = item.catalog_item_id;
   if (!catalogId) {
     // Try direct name match in catalog (ILIKE handles case + minor
-    // formatting differences).
+    // formatting differences). Only match against verified entries OR
+    // the calling user's own pending entries — never inherit from
+    // another user's unvetted submission.
     const { data: catalogMatch } = await admin
       .from("catalog_items")
       .select("id")
       .ilike("name", item.name.trim())
       .eq("item_type", item.item_type)
+      .or(`is_verified.eq.true,submitted_by.eq.${user.id}`)
       .limit(1)
       .maybeSingle();
     if (catalogMatch) {
@@ -177,6 +192,12 @@ export async function POST(request: NextRequest) {
           model: MODELS.chat,
           max_tokens: 800,
           messages: [{ role: "user", content: GEN_PROMPT }],
+        });
+        void recordUsage(user.id, "enrich", {
+          route: "/api/items/enrich",
+          model: MODELS.chat,
+          tokens_in: r.usage?.input_tokens,
+          tokens_out: r.usage?.output_tokens,
         });
         const b = r.content[0];
         if (b?.type === "text") {
@@ -199,6 +220,10 @@ export async function POST(request: NextRequest) {
             evidence_grade: string | null;
           };
           const parsed = JSON.parse(raw) as GenResult;
+          // User-submitted catalog row — visible only to this user
+          // until an admin promotes it via /admin/catalog. Prevents
+          // one user's hallucinated entry from leaking into every
+          // other user's autocomplete.
           const { data: inserted } = await admin
             .from("catalog_items")
             .insert({
@@ -220,6 +245,7 @@ export async function POST(request: NextRequest) {
               evidence_grade: parsed.evidence_grade,
               enriched_at: new Date().toISOString(),
               enriched_by: "coach-v1",
+              ...userSubmission(user.id),
             })
             .select("id")
             .single();
@@ -247,13 +273,20 @@ export async function POST(request: NextRequest) {
   // STEP 2 — CATALOG INHERITANCE (copy useful fields onto user item)
   // ================================================================
   if (catalogId) {
+    // Inherit only from verified catalog rows or rows the calling
+    // user submitted. The match step above already constrained to
+    // these, but we re-filter here to make the security boundary
+    // explicit at every read site. (Defense-in-depth: if a future
+    // bug widens step 1, step 2 still won't leak unvetted data.)
     const { data: catalogRowRaw } = await admin
       .from("catalog_items")
       .select(
         "media_url, how_to, default_vendor, default_affiliate_url, " +
-          "default_list_price_cents, default_affiliate_network",
+          "default_list_price_cents, default_affiliate_network, " +
+          "is_verified, submitted_by",
       )
       .eq("id", catalogId)
+      .or(`is_verified.eq.true,submitted_by.eq.${user.id}`)
       .maybeSingle();
     type CatalogRow = {
       media_url: string | null;
@@ -262,6 +295,8 @@ export async function POST(request: NextRequest) {
       default_affiliate_url: string | null;
       default_list_price_cents: number | null;
       default_affiliate_network: string | null;
+      is_verified: boolean;
+      submitted_by: string | null;
     };
     const cat = catalogRowRaw as CatalogRow | null;
     if (cat) {
@@ -297,13 +332,17 @@ export async function POST(request: NextRequest) {
   // ================================================================
   const TUTORIAL_TYPES = new Set(["practice", "device", "gear", "procedure"]);
   if (!item.media_url && TUTORIAL_TYPES.has(item.item_type)) {
-    const tut = await generateTutorial(item.name, item.item_type);
+    const tut = await generateTutorial(item.name, item.item_type, user.id);
     if (tut.media_url || tut.how_to) {
       const updates: Record<string, unknown> = {};
       if (tut.media_url) updates.media_url = tut.media_url;
       if (tut.how_to && !item.how_to) updates.how_to = tut.how_to;
       await admin.from("items").update(updates).eq("id", item.id);
-      // Also write back to catalog so future users inherit
+      // Write back to catalog ONLY if the calling user submitted this
+      // catalog row. Don't mutate verified rows from a user-driven
+      // flow — that would let one user's hallucinated tutorial URL
+      // propagate to every other user. Admin /admin/catalog can
+      // backfill tutorials on verified rows manually.
       if (catalogId) {
         const catUpdates: Record<string, unknown> = {};
         if (tut.media_url) catUpdates.media_url = tut.media_url;
@@ -312,7 +351,8 @@ export async function POST(request: NextRequest) {
           await admin
             .from("catalog_items")
             .update(catUpdates)
-            .eq("id", catalogId);
+            .eq("id", catalogId)
+            .eq("submitted_by", user.id);
         }
       }
       steps.push("tutorial_generated");

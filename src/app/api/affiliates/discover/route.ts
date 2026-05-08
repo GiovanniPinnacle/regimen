@@ -18,7 +18,9 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   AFFILIATE_CONFIGS,
   detectNetwork,
@@ -224,16 +226,22 @@ export async function POST(request: NextRequest) {
         affiliate_lookup_attempted_at: new Date().toISOString(),
       })
       .eq("id", item.id);
-    // Propagate to catalog row so all future users inherit
+    // Propagate to catalog row ONLY if the calling user submitted it.
+    // Verified catalog rows are immutable from user-driven flows
+    // (admin promotes them via /admin/catalog). Prevents one user's
+    // affiliate URL from overwriting the vetted default everyone else
+    // sees.
     if (item.catalog_item_id) {
-      await supabase
+      const admin = createAdminClient();
+      await admin
         .from("catalog_items")
         .update({
           default_affiliate_url: wrapped,
           default_affiliate_network: fp.network,
           default_vendor: fp.vendor,
         })
-        .eq("id", item.catalog_item_id);
+        .eq("id", item.catalog_item_id)
+        .eq("submitted_by", user.id);
     }
     return NextResponse.json({
       ok: true,
@@ -243,7 +251,11 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Coach-powered fallback
+  // Coach-powered fallback — rate-limit only this branch since fast
+  // path / catalog inheritance don't burn LLM tokens.
+  const limited = await rateLimitOrError(user.id, "enrich");
+  if (limited) return limited;
+
   try {
     const anthropic = getAnthropic();
     const prompt = `For the item "${item.name}"${item.brand ? ` (brand: ${item.brand})` : ""} of type "${item.item_type}", suggest the SINGLE best affiliate-link URL we could use. Choose ONE network from: amazon, iherb, thorne, fullscript. Prefer Amazon for non-pharmaceutical foods/gear, Thorne for pharma-grade supplements, iHerb for international/discount supplements, Fullscript for prescriber-network products.
@@ -257,6 +269,12 @@ If you can't determine a good URL, return: {"network":"amazon","vendor":"Amazon"
       model: MODELS.chat,
       max_tokens: 256,
       messages: [{ role: "user", content: prompt }],
+    });
+    void recordUsage(user.id, "enrich", {
+      route: "/api/affiliates/discover",
+      model: MODELS.chat,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
     });
     const text =
       res.content
@@ -291,16 +309,19 @@ If you can't determine a good URL, return: {"network":"amazon","vendor":"Amazon"
         affiliate_lookup_attempted_at: new Date().toISOString(),
       })
       .eq("id", item.id);
-    // Propagate to catalog row so future users sharing it inherit
+    // Propagate to catalog row ONLY if the calling user submitted it.
+    // See comment in the fast-path branch above.
     if (item.catalog_item_id) {
-      await supabase
+      const admin = createAdminClient();
+      await admin
         .from("catalog_items")
         .update({
           default_affiliate_url: wrapped,
           default_affiliate_network: network,
           default_vendor: parsed.vendor,
         })
-        .eq("id", item.catalog_item_id);
+        .eq("id", item.catalog_item_id)
+        .eq("submitted_by", user.id);
     }
 
     return NextResponse.json({

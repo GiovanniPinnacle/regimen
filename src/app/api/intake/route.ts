@@ -7,6 +7,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -91,6 +92,10 @@ export async function POST(request: NextRequest) {
     (body.kind === "meal" || body.kind === "snack") &&
     body.content.length > 3
   ) {
+    // Rate-limit only the LLM-backed branch — manual / water entries
+    // are pure DB writes and shouldn't burn the coach bucket.
+    const limited = await rateLimitOrError(user.id, "coach");
+    if (limited) return limited;
     try {
       const anthropic = getAnthropic();
       const r = await anthropic.messages.create({
@@ -98,6 +103,12 @@ export async function POST(request: NextRequest) {
         max_tokens: 400,
         system: TEXT_MACRO_SYSTEM,
         messages: [{ role: "user", content: body.content }],
+      });
+      void recordUsage(user.id, "coach", {
+        route: "/api/intake",
+        model: MODELS.chat,
+        tokens_in: r.usage?.input_tokens,
+        tokens_out: r.usage?.output_tokens,
       });
       const text = r.content[0]?.type === "text" ? r.content[0].text : "";
       const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();

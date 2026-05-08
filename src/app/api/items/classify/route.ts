@@ -8,6 +8,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -69,22 +70,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const limited = await rateLimitOrError(user.id, "coach");
+  if (limited) return limited;
+
   const anthropic = getAnthropic();
   const userMsg = body.brand
     ? `Item name: ${body.name}\nBrand: ${body.brand}`
     : `Item name: ${body.name}`;
 
   try {
-    const response = await anthropic.messages.create({
+    const res = await anthropic.messages.create({
       model: MODELS.chat,
       max_tokens: 600,
       system: SYSTEM,
       messages: [{ role: "user", content: userMsg }],
     });
 
+    void recordUsage(user.id, "coach", {
+      route: "/api/items/classify",
+      model: MODELS.chat,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
+    });
+
     const text =
-      response.content[0]?.type === "text"
-        ? response.content[0].text
+      res.content[0]?.type === "text"
+        ? res.content[0].text
         : "";
 
     // Parse JSON — strip any markdown fence if Coach added one

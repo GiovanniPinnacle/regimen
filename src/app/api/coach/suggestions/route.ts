@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
   contextToSystemPrompt,
@@ -55,6 +56,11 @@ export async function GET() {
     return NextResponse.json({ suggestion: null });
   }
 
+  // Rate-limit only the LLM-backed branch — heuristic-only responses
+  // shouldn't burn the coach bucket.
+  const limited = await rateLimitOrError(user.id, "coach");
+  if (limited) return limited;
+
   const system = contextToSystemPrompt(ctx);
   const userPrompt = `Look at my active stack ONLY. Find the SINGLE highest-leverage pairing/topping/consolidation opportunity I'm missing — like a fat-soluble vitamin without a fat companion, eggs without yolk cofactors, or two items in the same slot that should be merged into one card via companion_of.
 
@@ -70,6 +76,12 @@ If nothing high-leverage is missing right now, return: {"kind":"none","title":""
       max_tokens: 512,
       system,
       messages: [{ role: "user", content: userPrompt }],
+    });
+    void recordUsage(user.id, "coach", {
+      route: "/api/coach/suggestions",
+      model: MODELS.chat,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
     });
     const text = res.content
       .map((c) => (c.type === "text" ? c.text : ""))

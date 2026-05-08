@@ -16,6 +16,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
   const isCron =
     cronAuth && cronAuth === `Bearer ${process.env.CRON_SECRET}`;
 
+  let userId: string | null = null;
   if (!isCron) {
     const supabase = await createClient();
     const {
@@ -69,6 +71,10 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Not signed in" }, { status: 401 });
     }
+    userId = user.id;
+    // Cron bypasses per-user limits (it operates on the shared catalog).
+    const limited = await rateLimitOrError(user.id, "enrich");
+    if (limited) return limited;
   }
 
   let body: Body;
@@ -133,6 +139,14 @@ export async function POST(request: NextRequest) {
         },
       ],
     });
+    if (userId) {
+      void recordUsage(userId, "enrich", {
+        route: "/api/catalog/enrich",
+        model: MODELS.chat,
+        tokens_in: res.usage?.input_tokens,
+        tokens_out: res.usage?.output_tokens,
+      });
+    }
     const text = res.content
       .map((c) => (c.type === "text" ? c.text : ""))
       .join("")

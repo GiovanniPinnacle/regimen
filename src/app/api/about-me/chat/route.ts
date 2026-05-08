@@ -7,6 +7,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -70,6 +71,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing messages" }, { status: 400 });
   }
 
+  const limited = await rateLimitOrError(user.id, "coach");
+  if (limited) return limited;
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("about_me")
@@ -123,6 +127,12 @@ Style:
     for (const block of res.content) {
       if (block.type === "text") raw += block.text;
     }
+    void recordUsage(user.id, "coach", {
+      route: "/api/about-me/chat",
+      model: MODELS.chat,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: `Coach error: ${(err as Error).message}` },

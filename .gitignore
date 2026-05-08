@@ -43,3 +43,8 @@ next-env.d.ts
 # supabase CLI temp files
 supabase/.temp/
 supabase/.branches/
+
+# Local one-off scripts — these often contain hardcoded UUIDs or
+# service-role logic that should never reach a public repo.
+/tmp/
+/scripts/local/

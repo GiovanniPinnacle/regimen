@@ -5,6 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
   contextToSystemPrompt,
@@ -33,6 +34,9 @@ export async function POST(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  const limited = await rateLimitOrError(user.id, "research");
+  if (limited) return limited;
 
   const { data: itemRow } = await supabase
     .from("items")
@@ -86,6 +90,12 @@ Generate usage_notes + research_summary. JSON only.`;
     for (const block of res.content) {
       if (block.type === "text") raw += block.text;
     }
+    void recordUsage(user.id, "research", {
+      route: "/api/items/[id]/research",
+      model: MODELS.chat,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
+    });
   } catch (err) {
     console.error("research/POST claude error", err);
     return NextResponse.json(

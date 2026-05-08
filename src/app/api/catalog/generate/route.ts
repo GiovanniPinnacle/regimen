@@ -13,6 +13,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
+import {
+  userSubmission,
+  validateUserCatalogPayload,
+} from "@/lib/catalog/moderation";
 
 export const runtime = "nodejs";
 export const maxDuration = 45;
@@ -73,15 +78,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing name" }, { status: 400 });
   }
 
+  const validationError = validateUserCatalogPayload({
+    name: body.name,
+    brand: body.brand ?? null,
+    source: "coach",
+  });
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
+  }
+
+  const limited = await rateLimitOrError(user.id, "enrich");
+  if (limited) return limited;
+
   const admin = createAdminClient();
 
-  // De-dup: if a Coach-generated row already exists for this exact name +
-  // brand combo, return it instead of hitting the model again.
+  // De-dup: prefer a verified Coach-generated row. Fall back to the
+  // calling user's own pending row if they've already generated this
+  // entry. Don't ever return another user's pending row — that's the
+  // poisoning vector this whole gate exists to prevent.
   const { data: existing } = await admin
     .from("catalog_items")
-    .select("id, name, brand, item_type")
+    .select("id, name, brand, item_type, is_verified, submitted_by")
     .eq("source", "coach")
     .ilike("name", body.name.trim())
+    .or(`is_verified.eq.true,submitted_by.eq.${user.id}`)
     .limit(1)
     .maybeSingle();
   if (existing) {
@@ -103,6 +123,12 @@ export async function POST(request: NextRequest) {
           ),
         },
       ],
+    });
+    void recordUsage(user.id, "enrich", {
+      route: "/api/catalog/generate",
+      model: MODELS.chat,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
     });
     const text = res.content
       .map((c) => (c.type === "text" ? c.text : ""))
@@ -149,6 +175,9 @@ export async function POST(request: NextRequest) {
       evidence_grade: parsed.evidence_grade ?? null,
       enriched_at: new Date().toISOString(),
       enriched_by: "coach-v1-generate",
+      // User-submitted: only the calling user sees this row in search
+      // until /admin/catalog promotes it.
+      ...userSubmission(user.id),
     };
 
     const { data, error } = await admin

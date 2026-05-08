@@ -146,7 +146,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     key: "hundred_items_logged",
     title: "100 items logged",
-    detail: "Years of regimen data. Coach knows you better than your doctor.",
+    detail: "Years of regimen data. Coach has the full picture of your stack.",
     icon: "🌟",
     tier: "legendary",
   },
