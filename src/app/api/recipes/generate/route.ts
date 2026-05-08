@@ -112,6 +112,12 @@ Generate one recipe. JSON only.`;
     for (const block of res.content) {
       if (block.type === "text") raw += block.text;
     }
+    void recordUsage(user.id, "enrich", {
+      route: "/api/recipes/generate",
+      model: MODELS.chat,
+      tokens_in: res.usage?.input_tokens,
+      tokens_out: res.usage?.output_tokens,
+    });
   } catch (err) {
     console.error("recipes/generate claude error", err);
     return NextResponse.json(
