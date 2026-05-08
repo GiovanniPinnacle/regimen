@@ -366,72 +366,99 @@ export default function StackPage() {
 
   return (
     <div className="pb-28">
-      <header className="mb-3 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
-            Stack
-          </h1>
-          <div
-            className="text-[12px] mt-1"
-            style={{ color: "var(--muted)" }}
-          >
-            {sorted.length} of {parentItems.length}{" "}
-            {STATUS_TABS.find((t) => t.value === statusTab)?.label.toLowerCase()}
+      <header className="mb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1
+              className="text-[34px] leading-tight"
+              style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
+            >
+              Stack
+            </h1>
+            <div
+              className="text-[12.5px] mt-1"
+              style={{ color: "var(--muted)" }}
+            >
+              {sorted.length} of {parentItems.length}{" "}
+              {STATUS_TABS.find((t) => t.value === statusTab)?.label.toLowerCase()}
+            </div>
+          </div>
+          {/* Density toggle + Add — compact icon group on the right.
+              Density used to live here as a wide pill; now it's an
+              icon button. Refine-stack moved to a full-width row
+              below so it doesn't fight for header space. */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={toggleDense}
+              aria-pressed={dense}
+              aria-label={dense ? "Switch to comfortable view" : "Switch to compact view"}
+              className="h-10 w-10 rounded-xl flex items-center justify-center"
+              style={{
+                background: dense ? "var(--foreground)" : "var(--surface-alt)",
+                color: dense ? "var(--background)" : "var(--muted)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                {dense ? (
+                  <path d="M3 6h18M3 12h18M3 18h18" />
+                ) : (
+                  <>
+                    <rect x="3" y="4" width="18" height="6" rx="1.5" />
+                    <rect x="3" y="14" width="18" height="6" rx="1.5" />
+                  </>
+                )}
+              </svg>
+            </button>
+            <Link
+              href="/items/new"
+              aria-label="Add new item"
+              className="h-10 px-3.5 rounded-xl flex items-center gap-1 text-[13.5px]"
+              style={{
+                background: "var(--foreground)",
+                color: "var(--background)",
+                fontWeight: 700,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Add
+            </Link>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+        {/* Refine stack — full width primary CTA below the title. Was
+            squeezed in the header right column; now it gets the room
+            it needs and the gradient reads properly. */}
+        <div className="mt-3">
           <AskCoachButton
             prompt="Audit my full stack right now. Look for: items I should drop (no_change 5+ times, worse 2+ times, skipped 14+ days), redundant items, missing essentials given my goals, and dose stacking risks. Emit each change as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format. End with a 1-sentence summary of what changes."
             send
-            label="Refine stack"
+            size="md"
+            label="Refine stack with Coach"
           />
-          <button
-            type="button"
-            onClick={toggleDense}
-            aria-pressed={dense}
-            aria-label={dense ? "Switch to comfortable view" : "Switch to compact view"}
-            className="h-9 w-9 rounded-lg flex items-center justify-center"
-            style={{
-              background: dense ? "var(--foreground)" : "var(--surface-alt)",
-              color: dense ? "var(--background)" : "var(--muted)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              {dense ? (
-                <>
-                  <path d="M3 6h18M3 12h18M3 18h18" />
-                </>
-              ) : (
-                <>
-                  <rect x="3" y="4" width="18" height="6" rx="1.5" />
-                  <rect x="3" y="14" width="18" height="6" rx="1.5" />
-                </>
-              )}
-            </svg>
-          </button>
-          <Link
-            href="/items/new"
-            className="px-3 py-2 rounded-lg text-[13px] flex items-center"
-            style={{
-              background: "var(--foreground)",
-              color: "var(--background)",
-              fontWeight: 500,
-              minHeight: 36,
-            }}
-          >
-            + Add
-          </Link>
         </div>
       </header>
 
