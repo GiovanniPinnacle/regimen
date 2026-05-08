@@ -164,6 +164,22 @@ export type ProtocolContext = {
     total_sleep_min: number | null;
     temp_deviation: number | null;
   }>;
+  /** Latest biomarker values per name with previous draw for trend.
+   *  Sourced from /tests bloodwork uploads. Empty when user hasn't
+   *  uploaded any panels. Drives "your ferritin is X" grounded
+   *  recommendations vs generic biohacker advice. */
+  biomarkers: Array<{
+    name: string;
+    display_name: string | null;
+    value: number;
+    unit: string | null;
+    reference_range: string | null;
+    flag: string | null;
+    drawn_on: string;
+    /** Previous value if a prior draw exists, for trend signaling. */
+    prev_value: number | null;
+    prev_drawn_on: string | null;
+  }>;
 };
 
 /**
@@ -256,6 +272,7 @@ export async function buildContextForUser(
     changelog30Res,
     ouraRes,
     coachConvoRes,
+    biomarkersRes,
   ] = await Promise.all([
       admin.from("items").select("*").eq("user_id", userId),
       admin
@@ -408,6 +425,18 @@ export async function buildContextForUser(
         )
         .order("created_at", { ascending: false })
         .limit(1),
+      // Latest biomarkers — Coach uses these to ground recommendations
+      // in actual lab data. Pull last 6 months; client-side reducer
+      // collapses to "latest per name + previous for trend."
+      admin
+        .from("biomarkers")
+        .select("name, display_name, value, unit, reference_range, flag, drawn_on, panel")
+        .eq("user_id", userId)
+        .gte(
+          "drawn_on",
+          new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10),
+        )
+        .order("drawn_on", { ascending: false }),
     ]);
 
   const allItems = (itemsRes.data ?? []) as Item[];
@@ -790,6 +819,48 @@ export async function buildContextForUser(
     wasteCandidates,
     symptomCorrelations,
     ouraDaily: (ouraRes.data ?? []) as ProtocolContext["ouraDaily"],
+    biomarkers: (() => {
+      // Group biomarkers by name, take latest + previous for trend.
+      type Row = {
+        name: string;
+        display_name: string | null;
+        value: number;
+        unit: string | null;
+        reference_range: string | null;
+        flag: string | null;
+        drawn_on: string;
+      };
+      const rows = ((biomarkersRes.data ?? []) as Row[]).slice();
+      const byName = new Map<string, Row[]>();
+      for (const r of rows) {
+        if (!byName.has(r.name)) byName.set(r.name, []);
+        byName.get(r.name)!.push(r);
+      }
+      const out: ProtocolContext["biomarkers"] = [];
+      for (const [, list] of byName) {
+        // rows are pre-sorted desc by drawn_on
+        const latest = list[0];
+        const prev = list[1] ?? null;
+        out.push({
+          name: latest.name,
+          display_name: latest.display_name,
+          value: latest.value,
+          unit: latest.unit,
+          reference_range: latest.reference_range,
+          flag: latest.flag,
+          drawn_on: latest.drawn_on,
+          prev_value: prev?.value ?? null,
+          prev_drawn_on: prev?.drawn_on ?? null,
+        });
+      }
+      // Sort: flagged values first (most actionable), then alphabetical
+      out.sort((a, b) => {
+        if (a.flag && !b.flag) return -1;
+        if (!a.flag && b.flag) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      return out;
+    })(),
     recentCoachTurn: (() => {
       const row = coachConvoRes.data?.[0];
       if (!row) return null;
@@ -1168,6 +1239,44 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     }
     lines.push(
       `Reference these numbers when answering anything about sleep, recovery, energy, or training. Tie symptom-log scores to objective wearable data when both exist for the same day.`,
+    );
+    lines.push(``);
+  }
+
+  // Bloodwork — surface flagged values prominently, then list every
+  // recent marker. Coach should reference specific values + reference
+  // ranges when making recommendations.
+  if (ctx.biomarkers.length > 0) {
+    const flagged = ctx.biomarkers.filter((b) => b.flag);
+    lines.push(`# BLOODWORK / BIOMARKERS (latest values)`);
+    if (flagged.length > 0) {
+      lines.push(`## Flagged (out of range)`);
+      for (const b of flagged) {
+        const ref = b.reference_range ? ` (ref ${b.reference_range})` : "";
+        const trend =
+          b.prev_value != null
+            ? ` — was ${b.prev_value} on ${b.prev_drawn_on}`
+            : "";
+        lines.push(
+          `- ${b.display_name ?? b.name}: ${b.value}${b.unit ?? ""} [${b.flag}]${ref}${trend} · drawn ${b.drawn_on}`,
+        );
+      }
+    }
+    const inRange = ctx.biomarkers.filter((b) => !b.flag);
+    if (inRange.length > 0) {
+      lines.push(`## In range`);
+      for (const b of inRange) {
+        const trend =
+          b.prev_value != null
+            ? ` (prev ${b.prev_value} on ${b.prev_drawn_on})`
+            : "";
+        lines.push(
+          `- ${b.display_name ?? b.name}: ${b.value}${b.unit ?? ""}${trend}`,
+        );
+      }
+    }
+    lines.push(
+      `Cite specific values when recommending changes. Don't propose adding a supplement targeting a marker that's already in range.`,
     );
     lines.push(``);
   }

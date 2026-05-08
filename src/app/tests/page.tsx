@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Item } from "@/lib/types";
 import Icon from "@/components/Icon";
+import BloodworkSection from "@/components/BloodworkSection";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,11 @@ export default async function TestsPage() {
           Queued so they don&apos;t crowd daily flow.
         </p>
       </header>
+
+      {/* Bloodwork upload + recent biomarkers — Coach can read these
+          values for grounded recommendations once we wire the
+          biomarker context next round. */}
+      <BloodworkSection />
 
       {tests.length > 0 && (
         <div className="flex gap-2 mb-6">
