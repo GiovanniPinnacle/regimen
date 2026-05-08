@@ -1,119 +1,134 @@
 @import "tailwindcss";
 
 /* =====================================================================
-   Regimen palette — dark-first, dopamine-friendly.
-   - Bg: warm near-black with a faint emerald tint (low-fatigue)
-   - Accent: emerald (progress, growth — the dopamine signal)
-   - Premium: warm amber (affiliate moments, "unlock", merchandise)
-   - Pro: violet (paid tier, exclusivity)
-   - Warn / error / success kept distinct so feedback colors don't clash
+   Regimen design system v2 — cleaner, tighter, more premium.
+   Goals:
+     - One strong accent (emerald) used sparingly
+     - Pure neutrals everywhere else (no warm tint, no green-bias)
+     - Coach (violet) and Premium (gold) reserved for their domains only
+     - Typography tightened — bigger sizes, tighter spacing, better
+       digit feature settings on Apple devices
+     - Removed ambient radial gradient pools (was making the bg busy)
+     - Soft, not punchy shadows
    ===================================================================== */
 
 :root {
-  /* Surfaces — start with dark, even in default scheme. Light mode is
-     applied only when the user explicitly prefers it. */
-  --background: #0B100E;
-  --surface: #131A18;
-  --surface-alt: #1B2421;
-  --surface-glass: rgba(27, 36, 33, 0.62);
-  --surface-glass-strong: rgba(27, 36, 33, 0.82);
-  --surface-glass-tint: rgba(34, 197, 94, 0.05);
+  /* ─── Surfaces — flat, cool-leaning dark. Was warm-green-tinted; now
+     neutral so the accent emerald reads as the only color. ──────────── */
+  --background: #0A0B0D;
+  --surface: #14171B;
+  --surface-alt: #1C2026;
+  --surface-glass: rgba(20, 23, 26, 0.74);
+  --surface-glass-strong: rgba(20, 23, 26, 0.92);
+  --surface-glass-tint: rgba(0, 214, 128, 0.04);
 
-  /* Inks — warm off-white over warm dark */
-  --foreground: #F4F1E8;
-  --foreground-soft: #C7C5BB;
-  --muted: #8A958E;
+  /* ─── Inks — pure white hierarchy via opacity ───────────────────────── */
+  --foreground: #FAFAFA;
+  --foreground-soft: rgba(250, 250, 250, 0.72);
+  --muted: rgba(250, 250, 250, 0.48);
 
-  /* Accent — emerald. The progress / "you did it" / dopamine green.
-     Kept consistent with --olive var name on existing components for
-     minimal sweep cost; the CSS value is just emerald now. */
-  --olive: #22C55E;
-  --olive-deep: #16A34A;
-  --olive-light: #4ADE80;
-  --olive-tint: rgba(34, 197, 94, 0.12);
-  --accent: #22C55E;
-  --accent-deep: #16A34A;
-  --accent-tint: rgba(34, 197, 94, 0.12);
-  --accent-glow: rgba(34, 197, 94, 0.30);
+  /* ─── Accent — single emerald. Used for primary CTAs, active states,
+     progress, success. The brand color. ─────────────────────────────── */
+  --olive: #00D680;
+  --olive-deep: #00B36B;
+  --olive-light: #4DEAA0;
+  --olive-tint: rgba(0, 214, 128, 0.10);
+  --accent: #00D680;
+  --accent-deep: #00B36B;
+  --accent-tint: rgba(0, 214, 128, 0.10);
+  --accent-glow: rgba(0, 214, 128, 0.22);
 
-  /* Premium — warm amber. Use for affiliate "Get this" buttons,
-     unlocks, merchandise CTAs, "cha-ching" moments. */
-  --premium: #F59E0B;
-  --premium-deep: #D97706;
-  --premium-tint: rgba(245, 158, 11, 0.12);
-  --premium-glow: rgba(245, 158, 11, 0.30);
+  /* ─── Premium — refined gold. ONLY for affiliate / buy / unlock
+     moments. Was a loud amber; now a more sophisticated honey gold. ── */
+  --premium: #D4A645;
+  --premium-deep: #B8862F;
+  --premium-tint: rgba(212, 166, 69, 0.10);
+  --premium-glow: rgba(212, 166, 69, 0.22);
 
-  /* Pro tier — vibrant violet. Use ONLY for Pro paywall, Pro-only
-     features, and the "you're already Pro" reinforcement widgets. */
-  --pro: #A855F7;
-  --pro-soft: #C084FC;
-  --pro-deep: #7C3AED;
-  --pro-tint: rgba(168, 85, 247, 0.12);
+  /* ─── Pro / Coach — soft violet. ONLY for Coach surfaces (FAB, Coach
+     buttons, Pro paywall). Toned down from the previous candy violet
+     to a more sophisticated indigo-leaning tone. ────────────────────── */
+  --pro: #8B7CFC;
+  --pro-soft: #A89BFC;
+  --pro-deep: #6E5DF0;
+  --pro-tint: rgba(139, 124, 252, 0.10);
 
-  /* Legacy names kept so old components still resolve until swept */
-  --tan: #2A3431;
-  --tan-light: #1F2826;
-  --tan-deep: #3D4945;
+  /* Legacy aliases — kept so old components resolve while we sweep */
+  --tan: var(--surface-alt);
+  --tan-light: var(--surface);
+  --tan-deep: rgba(255, 255, 255, 0.18);
   --purple: var(--pro);
   --purple-soft: var(--pro-soft);
   --purple-deep: var(--pro-deep);
   --purple-tint: var(--pro-tint);
 
-  /* Borders + shadows */
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.45);
-  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.32);
-  --shadow-lift: 0 14px 40px rgba(0, 0, 0, 0.55);
+  /* ─── Borders — pure white at low alpha. Crisper than the previous
+     warm-tinted borders. ────────────────────────────────────────────── */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.16);
 
-  /* Semantic */
-  --success: #22C55E;
-  --warn: #F59E0B;
-  --error: #EF4444;
+  /* ─── Shadows — softer, layered with a subtle inset highlight on
+     elevated surfaces for premium depth. ───────────────────────────── */
+  --shadow-glass:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 16px 48px rgba(0, 0, 0, 0.48);
+  --shadow-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 8px 24px rgba(0, 0, 0, 0.32);
+  --shadow-lift:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 64px rgba(0, 0, 0, 0.55);
+
+  /* ─── Semantic — sat-tuned to feel less alarming, more clinical ─── */
+  --success: #00D680;
+  --warn: #F0B43E;
+  --error: #FF5670;
 }
 
-/* Light scheme — keep available for users who explicitly prefer light.
-   Inverts dark to warm-white. Most users get dark by default. */
+/* Light scheme — kept as an opt-in for users who explicitly prefer it.
+   Most users get dark by default. Same color logic applied to light bg. */
 @media (prefers-color-scheme: light) {
   :root {
-    --background: #F8F6EE;
+    --background: #FAFAFA;
     --surface: #FFFFFF;
-    --surface-alt: #EFEBDF;
-    --surface-glass: rgba(255, 255, 255, 0.62);
-    --surface-glass-strong: rgba(255, 255, 255, 0.82);
-    --surface-glass-tint: rgba(34, 197, 94, 0.04);
+    --surface-alt: #F2F3F5;
+    --surface-glass: rgba(255, 255, 255, 0.74);
+    --surface-glass-strong: rgba(255, 255, 255, 0.92);
+    --surface-glass-tint: rgba(0, 179, 107, 0.04);
 
-    --foreground: #14181A;
-    --foreground-soft: #3A3D40;
-    --muted: #6A7380;
+    --foreground: #0A0B0D;
+    --foreground-soft: rgba(10, 11, 13, 0.72);
+    --muted: rgba(10, 11, 13, 0.50);
 
-    --olive: #16A34A;
-    --olive-deep: #15803D;
-    --olive-light: #22C55E;
-    --olive-tint: rgba(34, 197, 94, 0.10);
-    --accent: #16A34A;
-    --accent-deep: #15803D;
-    --accent-tint: rgba(34, 197, 94, 0.10);
-    --accent-glow: rgba(34, 197, 94, 0.18);
+    --olive: #00B36B;
+    --olive-deep: #008F55;
+    --olive-light: #00D680;
+    --olive-tint: rgba(0, 179, 107, 0.10);
+    --accent: #00B36B;
+    --accent-deep: #008F55;
+    --accent-tint: rgba(0, 179, 107, 0.10);
+    --accent-glow: rgba(0, 179, 107, 0.18);
 
-    --premium: #B45309;
-    --premium-deep: #92400E;
-    --premium-tint: rgba(180, 83, 9, 0.10);
+    --premium: #B8862F;
+    --premium-deep: #92692A;
+    --premium-tint: rgba(184, 134, 47, 0.10);
 
-    --pro: #7C3AED;
-    --pro-soft: #A855F7;
-    --pro-deep: #6D28D9;
-    --pro-tint: rgba(124, 58, 237, 0.10);
+    --pro: #6E5DF0;
+    --pro-soft: #8B7CFC;
+    --pro-deep: #5849C9;
+    --pro-tint: rgba(110, 93, 240, 0.08);
 
-    --tan: #ECE7DA;
-    --tan-light: #F8F4E9;
-    --tan-deep: #D1CABA;
-
-    --border: rgba(20, 24, 26, 0.08);
-    --border-strong: rgba(20, 24, 26, 0.18);
-    --shadow-glass: 0 8px 32px rgba(20, 24, 26, 0.06);
-    --shadow-card: 0 2px 8px rgba(20, 24, 26, 0.04);
-    --shadow-lift: 0 14px 40px rgba(20, 24, 26, 0.10);
+    --border: rgba(10, 11, 13, 0.07);
+    --border-strong: rgba(10, 11, 13, 0.16);
+    --shadow-glass:
+      0 16px 48px rgba(10, 11, 13, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    --shadow-card:
+      0 8px 24px rgba(10, 11, 13, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    --shadow-lift:
+      0 24px 64px rgba(10, 11, 13, 0.10),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
   }
 }
 
@@ -130,8 +145,12 @@
   --color-pro: var(--pro);
   --color-purple: var(--purple);
   --color-tan: var(--tan);
-  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans:
+    "SF Pro Text", -apple-system, BlinkMacSystemFont, "Inter",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display:
+    "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 html,
@@ -140,49 +159,49 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   font-weight: 400;
+  /* Pull in SF Pro / Inter contextual digit features for tabular alignment +
+     better lining figures. Falls through silently on systems without. */
+  font-feature-settings:
+    "ss01" 1,   /* SF Pro alternate cursive 6 + 9 */
+    "cv11" 1,   /* SF Pro lining numerals */
+    "tnum" 0;   /* prefer proportional by default; tabular-nums opts in */
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   letter-spacing: -0.005em;
 }
 
-/* Ambient glow — emerald + violet pools deep in the bg. Subtle but
-   creates a "this app feels alive" layer. Brighter in dark mode. */
-body {
-  background:
-    radial-gradient(
-      ellipse at 18% 8%,
-      rgba(168, 85, 247, 0.08) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      ellipse at 85% 92%,
-      rgba(34, 197, 94, 0.10) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      ellipse at 92% 12%,
-      rgba(245, 158, 11, 0.06) 0%,
-      transparent 45%
-    ),
-    var(--background);
-  min-height: 100dvh;
+/* Tight headings — bigger sizes, optical-grade letter-spacing.
+   Apply via class .display-* on h1/h2/h3 where you want it. */
+h1, h2, h3, h4, h5, .display {
+  font-family: var(--font-display);
+  letter-spacing: -0.022em;
 }
 
-@media (prefers-color-scheme: light) {
-  body {
-    background:
-      radial-gradient(
-        ellipse at 18% 8%,
-        rgba(168, 85, 247, 0.05) 0%,
-        transparent 50%
-      ),
-      radial-gradient(
-        ellipse at 85% 92%,
-        rgba(34, 197, 94, 0.06) 0%,
-        transparent 50%
-      ),
-      var(--background);
-  }
+/* Tabular numerals — one rule, applied via Tailwind's tabular-nums
+   utility OR the .tabular-nums class for places we hand-roll. Lines up
+   times, percentages, costs in cards. */
+.tabular-nums,
+[class*="tabular-nums"] {
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* No-truncate — apply to button labels that should never clip. Pairs
+   with white-space: nowrap so labels overflow the container instead
+   of getting "...".  When text would overflow, we let it shrink the
+   container's parent (no fixed widths on button-bearing flex rows). */
+.no-truncate {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+/* Body — clean flat background. Removed the radial gradient pools (3
+   color glows) that were making the page feel busy. The new system
+   relies on purposeful accent moments instead. */
+body {
+  background: var(--background);
+  min-height: 100dvh;
 }
 
 button {
@@ -192,7 +211,9 @@ button {
   border: none;
   padding: 0;
   cursor: pointer;
-  /* Apple-style press feedback — scale + transition on every button */
+  /* Buttons must never clip their text — overflow visible by default.
+     Components that intentionally ellipsize override this locally. */
+  white-space: nowrap;
   transition:
     transform 120ms cubic-bezier(0.4, 0, 0.2, 1),
     background 200ms ease,
@@ -220,8 +241,6 @@ a:active {
 
 /* ============== Interaction polish utilities ============== */
 
-/* Reach 44pt minimum touch target without changing visual size — adds
-   invisible padding via a :before pseudo-element. Apply via .tap-target. */
 .tap-target {
   position: relative;
 }
@@ -236,7 +255,6 @@ a:active {
   z-index: 1;
 }
 
-/* Pressable card — adds the press feedback to any clickable card */
 .pressable {
   transition:
     transform 120ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -262,7 +280,7 @@ a:active {
   background: linear-gradient(
     90deg,
     var(--surface-alt) 0%,
-    var(--border) 50%,
+    var(--border-strong) 50%,
     var(--surface-alt) 100%
   );
   background-size: 200px 100%;
@@ -284,10 +302,7 @@ a:active {
   border-radius: 16px;
 }
 
-/* ============== Confetti micro-celebration ==============
-   Lightweight CSS-only confetti — when a slot completes 100% or
-   an achievement unlocks. Triggered by adding .confetti-burst to
-   any container. ~30 colored squares spread + fall + fade. */
+/* ============== Confetti micro-celebration ============== */
 
 @keyframes confetti-fall {
   0% {
@@ -355,31 +370,31 @@ a:active {
   background: linear-gradient(
     135deg,
     var(--pro-tint) 0%,
-    rgba(168, 85, 247, 0.04) 100%
+    rgba(139, 124, 252, 0.03) 100%
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(168, 85, 247, 0.22);
+  border: 1px solid rgba(139, 124, 252, 0.18);
 }
 .glass-tint-olive {
   background: linear-gradient(
     135deg,
     var(--accent-tint) 0%,
-    rgba(34, 197, 94, 0.04) 100%
+    rgba(0, 214, 128, 0.03) 100%
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(34, 197, 94, 0.22);
+  border: 1px solid rgba(0, 214, 128, 0.18);
 }
 .glass-tint-tan {
   background: linear-gradient(
     135deg,
     var(--premium-tint) 0%,
-    rgba(245, 158, 11, 0.04) 100%
+    rgba(212, 166, 69, 0.03) 100%
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(245, 158, 11, 0.22);
+  border: 1px solid rgba(212, 166, 69, 0.18);
 }
 
 /* ============== Card variants ============== */
@@ -398,13 +413,21 @@ a:active {
   box-shadow: var(--shadow-glass);
 }
 
-/* ============== Buttons ============== */
+/* ============== Buttons ==============
+   Base classes — components still use inline styles for color so this
+   stays a foundation. Common rule: never let label clip. */
 .btn-primary {
   background: var(--olive);
-  color: #FBFAF6;
-  font-weight: 500;
+  color: #0A0B0D;
+  font-weight: 700;
   border-radius: 12px;
-  padding: 0.625rem 1rem;
+  padding: 0.75rem 1.125rem;
+  white-space: nowrap;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .btn-primary:hover {
@@ -414,11 +437,17 @@ a:active {
   transform: scale(0.98);
 }
 .btn-purple {
-  background: var(--purple);
-  color: #FBFAF6;
-  font-weight: 500;
+  background: var(--pro);
+  color: #FFFFFF;
+  font-weight: 700;
   border-radius: 12px;
-  padding: 0.625rem 1rem;
+  padding: 0.75rem 1.125rem;
+  white-space: nowrap;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
 }
 .btn-ghost {
   background: var(--surface-glass);
@@ -426,9 +455,15 @@ a:active {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border);
   color: var(--foreground-soft);
-  font-weight: 500;
+  font-weight: 600;
   border-radius: 12px;
   padding: 0.625rem 1rem;
+  white-space: nowrap;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
 }
 
 /* ============== Pill / chip ============== */
@@ -443,6 +478,7 @@ a:active {
   background: var(--surface-glass);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  white-space: nowrap;
 }
 .chip-active {
   background: var(--foreground);
@@ -450,28 +486,28 @@ a:active {
   border-color: var(--foreground);
 }
 .chip-purple {
-  background: var(--purple-tint);
-  color: var(--purple-deep);
-  border-color: rgba(107, 91, 205, 0.2);
+  background: var(--pro-tint);
+  color: var(--pro-soft);
+  border-color: rgba(139, 124, 252, 0.22);
 }
 .chip-olive {
   background: var(--olive-tint);
   color: var(--olive);
-  border-color: rgba(34, 197, 94, 0.28);
+  border-color: rgba(0, 214, 128, 0.24);
 }
 
 /* ============== Accent text ============== */
 .accent-purple {
-  color: var(--purple);
+  color: var(--pro);
 }
 .accent-olive {
   color: var(--olive);
 }
 
-/* Scrollbar polish */
+/* Scrollbar polish — thinner, neutral */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -485,17 +521,17 @@ a:active {
   background: var(--muted);
 }
 
-/* Focus polish */
+/* Focus polish — emerald, not violet, so primary surfaces get the
+   accent color on tab focus instead of competing with Coach. */
 *:focus-visible {
-  outline: 2px solid var(--purple-soft);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-/* Selection color */
 ::selection {
-  background: var(--purple-tint);
-  color: var(--purple-deep);
+  background: var(--accent-tint);
+  color: var(--accent);
 }
 
 /* ============== Coach (AI assistant) ============== */
@@ -505,15 +541,15 @@ a:active {
 @keyframes coach-fab-pulse {
   0%, 100% {
     box-shadow:
-      0 12px 32px rgba(168, 85, 247, 0.40),
-      0 4px 12px rgba(109, 40, 217, 0.30),
-      0 0 0 0 rgba(168, 85, 247, 0.42);
+      0 12px 32px rgba(139, 124, 252, 0.35),
+      0 4px 12px rgba(110, 93, 240, 0.28),
+      0 0 0 0 rgba(139, 124, 252, 0.40);
   }
   50% {
     box-shadow:
-      0 14px 36px rgba(168, 85, 247, 0.52),
-      0 6px 14px rgba(109, 40, 217, 0.36),
-      0 0 0 10px rgba(168, 85, 247, 0);
+      0 14px 36px rgba(139, 124, 252, 0.45),
+      0 6px 14px rgba(110, 93, 240, 0.35),
+      0 0 0 10px rgba(139, 124, 252, 0);
   }
 }
 

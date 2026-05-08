@@ -42,26 +42,29 @@ export default function AskCoachButton({
       ? {
           fontSize: 13,
           padding: "10px 14px",
-          minHeight: 38,
+          minHeight: 40,
           gap: 6,
         }
-      : { fontSize: 12, padding: "8px 12px", minHeight: 34, gap: 5 };
+      : { fontSize: 12.5, padding: "9px 14px", minHeight: 36, gap: 6 };
   return (
     <button
       onClick={fire}
-      className="inline-flex items-center rounded-xl"
+      className="inline-flex items-center justify-center rounded-xl no-truncate"
       style={{
         background:
-          "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
-        color: "#FBFAF6",
+          "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
+        color: "#FFFFFF",
         fontWeight: 700,
-        boxShadow: "0 4px 14px rgba(168, 85, 247, 0.30)",
+        boxShadow:
+          "0 4px 14px rgba(139, 124, 252, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
+        whiteSpace: "nowrap",
+        flexShrink: 0,
         ...styles,
       }}
     >
       <Icon
         name="sparkle"
-        size={size === "md" ? 13 : 11}
+        size={size === "md" ? 13 : 12}
         strokeWidth={2.4}
       />
       {label}
