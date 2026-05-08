@@ -25,11 +25,45 @@ export async function GET(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  // Cap per-run user count so the cron stays under Vercel's 60s
+  // maxDuration even if user count grows. Each iteration does at
+  // minimum one Claude call (generateDailySuggestion ~3-10s) plus DB
+  // ops, so ~10 users is the safe ceiling per invocation. To handle
+  // more users, schedule the cron to run multiple times — each run
+  // processes the users with the oldest insight (round-robin).
+  const RUN_LIMIT = 10;
+
+  // Sort users by who hasn't been processed today (subquery would be
+  // cleanest but we don't have a join helper here). Strategy: pull
+  // all profile ids, then check who already has today's
+  // daily_suggestion, skip them, take the first N of the remainder.
+  // This keeps the cron idempotent if it runs multiple times per day.
   const { data: profiles, error } = await admin.from("profiles").select("id");
   if (error) {
     console.error("cron daily profiles error", error);
     return NextResponse.json({ error: "db error" }, { status: 500 });
   }
+
+  const todayStartIso = (() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  })();
+
+  const profileIds = (profiles ?? []).map((p) => p.id as string);
+  // Bulk-fetch users who already have today's daily_suggestion so we
+  // don't burn tokens regenerating it.
+  const { data: alreadyDoneRows } = await admin
+    .from("insights")
+    .select("user_id")
+    .eq("type", "daily_suggestion")
+    .gte("created_at", todayStartIso);
+  const alreadyDone = new Set(
+    (alreadyDoneRows ?? []).map((r) => r.user_id as string),
+  );
+  const pending = profileIds.filter((id) => !alreadyDone.has(id));
+  const batch = pending.slice(0, RUN_LIMIT);
+  const deferred = Math.max(0, pending.length - RUN_LIMIT);
 
   const results: {
     userId: string;
@@ -38,8 +72,7 @@ export async function GET(request: NextRequest) {
     skipped?: number;
   }[] = [];
 
-  for (const p of profiles ?? []) {
-    const userId = p.id as string;
+  for (const userId of batch) {
 
     // Sync Oura first so morning check-in + daily suggestion can reference fresh data
     await syncOuraForUser(userId, 2).catch(() => null);
@@ -116,5 +149,12 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ ok: true, results });
+  return NextResponse.json({
+    ok: true,
+    processed: results.length,
+    deferred,
+    total_users: profileIds.length,
+    already_done: alreadyDone.size,
+    results,
+  });
 }
