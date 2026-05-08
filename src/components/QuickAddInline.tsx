@@ -240,7 +240,7 @@ export default function QuickAddInline({
           className="px-3 py-2 rounded-xl text-[13px] flex items-center gap-1"
           style={{
             background: "var(--accent)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             fontWeight: 700,
             opacity: !name.trim() || busy ? 0.5 : 1,
           }}
@@ -286,7 +286,7 @@ export default function QuickAddInline({
                     ? "var(--accent)"
                     : "var(--surface)",
                 color:
-                  parentId === p.id ? "#FBFAF6" : "var(--foreground-soft)",
+                  parentId === p.id ? "#FFFFFF" : "var(--foreground-soft)",
                 fontWeight: 600,
               }}
               title={p.name}

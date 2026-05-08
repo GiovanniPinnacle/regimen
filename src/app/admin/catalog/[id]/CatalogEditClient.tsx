@@ -108,7 +108,7 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
           className="sticky top-2 z-10 rounded-xl mb-4 p-3 flex items-center justify-between gap-2"
           style={{
             background: "var(--accent)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             boxShadow: "0 6px 16px var(--accent-glow)",
           }}
         >
@@ -122,7 +122,7 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
               className="text-[12px] px-3 py-1.5 rounded-lg"
               style={{
                 background: "rgba(251, 250, 246, 0.18)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 600,
               }}
             >
@@ -166,7 +166,7 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
           className="text-[12.5px] px-3 py-2 rounded-xl flex items-center gap-1.5"
           style={{
             background: "var(--pro)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             fontWeight: 700,
             opacity: enriching ? 0.6 : 1,
           }}

@@ -160,7 +160,7 @@ export default function WelcomePage() {
             className="text-[15px] px-6 py-3 rounded-2xl"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
               boxShadow: "0 4px 14px var(--accent-glow)",
             }}
@@ -256,7 +256,7 @@ export default function WelcomePage() {
             className="text-[14px] px-5 py-2.5 rounded-2xl inline-block"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
             }}
           >
@@ -303,7 +303,7 @@ export default function WelcomePage() {
               className="text-[14px] px-5 py-2.5 rounded-2xl"
               style={{
                 background: "var(--olive)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
               }}
             >
@@ -349,7 +349,7 @@ export default function WelcomePage() {
             className="text-[14px] px-5 py-2.5 rounded-2xl"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
             }}
           >

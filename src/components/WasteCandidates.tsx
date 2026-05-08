@@ -139,7 +139,7 @@ export default function WasteCandidates({
                 className="flex-1 text-[13px] px-3.5 py-2 rounded-lg flex items-center justify-center gap-1.5"
                 style={{
                   background: "var(--error)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 700,
                   minHeight: 36,
                 }}

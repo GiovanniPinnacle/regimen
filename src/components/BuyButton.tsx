@@ -113,7 +113,7 @@ export default function BuyButton({
         className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5 active:scale-[0.97] transition-transform"
         style={{
           background: "var(--premium)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           fontWeight: 700,
           opacity: busy ? 0.6 : 1,
         }}
@@ -139,7 +139,7 @@ export default function BuyButton({
         style={{
           background:
             "linear-gradient(135deg, var(--premium) 0%, var(--premium-deep) 100%)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           fontWeight: 700,
           boxShadow: "0 6px 20px var(--premium-glow)",
           opacity: busy ? 0.6 : 1,

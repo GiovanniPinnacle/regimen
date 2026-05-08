@@ -272,7 +272,7 @@ export default async function AdminCatalogPage({
         style={{
           background:
             "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           boxShadow: "0 12px 32px rgba(168, 85, 247, 0.30)",
         }}
       >

@@ -240,7 +240,7 @@ function BadgeCard({
           className="mt-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
           style={{
             background: tierColor,
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             fontWeight: 700,
             letterSpacing: "0.08em",
           }}

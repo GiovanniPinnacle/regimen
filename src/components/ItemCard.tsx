@@ -127,7 +127,7 @@ export default function ItemCard({
           aria-label={taken ? "Mark as not taken" : "Mark as taken"}
         >
           {taken && (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FBFAF6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12l5 5L20 7" />
             </svg>
           )}

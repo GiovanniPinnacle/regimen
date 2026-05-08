@@ -192,7 +192,7 @@ export default function ScanPage() {
             style={{
               background:
                 "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               boxShadow: "0 8px 24px var(--accent-glow)",
             }}
           >
@@ -303,7 +303,7 @@ export default function ScanPage() {
                 className="absolute top-2.5 right-2.5 px-2.5 py-1.5 rounded-lg text-[11.5px]"
                 style={{
                   background: "rgba(0, 0, 0, 0.62)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 600,
                 }}
               >
@@ -379,7 +379,7 @@ export default function ScanPage() {
             className="px-4 py-3 rounded-xl text-[15px]"
             style={{
               background: TYPE_META[type].accent,
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 700,
               opacity:
                 !file || stage === "uploading" || stage === "analyzing"
@@ -767,7 +767,7 @@ function AnalysisDisplay({
               className="text-[13px] px-3.5 py-2 rounded-xl flex items-center gap-1.5"
               style={{
                 background: "var(--pro)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 700,
               }}
             >
@@ -803,7 +803,7 @@ function AnalysisDisplay({
             className="text-[13px] px-3.5 py-2 rounded-xl flex items-center gap-1.5"
             style={{
               background: "var(--accent)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 700,
             }}
           >

@@ -266,7 +266,7 @@ export default function InsightsPage() {
         style={{
           background:
             "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           boxShadow: "0 12px 32px rgba(168, 85, 247, 0.30)",
         }}
       >
@@ -325,7 +325,7 @@ export default function InsightsPage() {
               className="block w-full mt-2 py-2 rounded-xl text-center text-[12.5px]"
               style={{
                 background: "rgba(251, 250, 246, 0.16)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 600,
               }}
             >

@@ -53,7 +53,7 @@ export default async function RecipesPage() {
           style={{
             background:
               "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             fontWeight: 700,
             boxShadow: "0 6px 16px rgba(168, 85, 247, 0.30)",
           }}

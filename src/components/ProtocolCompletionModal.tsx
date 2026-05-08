@@ -94,7 +94,7 @@ export default function ProtocolCompletionModal() {
         style={{
           background:
             "linear-gradient(135deg, var(--premium) 0%, var(--premium-deep) 100%)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           boxShadow: "0 24px 48px var(--premium-glow)",
         }}
       >
@@ -104,7 +104,7 @@ export default function ProtocolCompletionModal() {
           className="absolute top-3 right-3 leading-none p-1.5 rounded-full"
           style={{
             background: "rgba(0, 0, 0, 0.18)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
           }}
           aria-label="Close"
         >
@@ -117,7 +117,7 @@ export default function ProtocolCompletionModal() {
               className="h-16 w-16 rounded-2xl flex items-center justify-center"
               style={{
                 background: "rgba(251, 250, 246, 0.18)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
               }}
             >
               <Icon name="award" size={32} strokeWidth={1.6} />
@@ -169,7 +169,7 @@ export default function ProtocolCompletionModal() {
               className="w-full py-2.5 rounded-xl text-[13px]"
               style={{
                 background: "rgba(251, 250, 246, 0.18)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 600,
               }}
             >

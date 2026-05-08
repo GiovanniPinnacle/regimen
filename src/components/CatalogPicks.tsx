@@ -234,7 +234,7 @@ export default function CatalogPicks() {
             className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5 active:scale-[0.98] transition-transform"
             style={{
               background: gradeColor,
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 700,
               opacity: pendingId === visible.catalog_item_id ? 0.6 : 1,
               minHeight: 36,

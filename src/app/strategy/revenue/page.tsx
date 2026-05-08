@@ -251,7 +251,7 @@ function OwnerSummary({ clicks }: { clicks: ClickRow[] }) {
         style={{
           background:
             "linear-gradient(135deg, var(--premium) 0%, var(--premium-deep) 100%)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           boxShadow: "0 12px 32px var(--premium-glow)",
         }}
       >

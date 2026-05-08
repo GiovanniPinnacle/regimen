@@ -92,7 +92,7 @@ export default function FeedbackFab() {
           color: "var(--muted)",
           backdropFilter: "blur(8px)",
           WebkitBackdropFilter: "blur(8px)",
-          boxShadow: "0 4px 12px rgba(31, 26, 20, 0.08)",
+          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.24)",
         }}
       >
         <svg
@@ -114,7 +114,7 @@ export default function FeedbackFab() {
         <div
           className="fixed inset-0 z-[60] flex items-end justify-center"
           style={{
-            background: "rgba(31, 26, 20, 0.5)",
+            background: "rgba(0, 0, 0, 0.6)",
             backdropFilter: "blur(4px)",
             WebkitBackdropFilter: "blur(4px)",
           }}
@@ -179,7 +179,7 @@ export default function FeedbackFab() {
                         background: active
                           ? "var(--olive)"
                           : "var(--surface-alt)",
-                        color: active ? "#FBFAF6" : "var(--foreground-soft)",
+                        color: active ? "#FFFFFF" : "var(--foreground-soft)",
                         border: active
                           ? "1px solid var(--olive)"
                           : "1px solid var(--border)",
@@ -243,7 +243,7 @@ export default function FeedbackFab() {
                 className="flex-1 px-4 py-3 rounded-xl text-[14px]"
                 style={{
                   background: "var(--olive)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 700,
                   opacity: !body.trim() || busy ? 0.5 : 1,
                   minHeight: 44,

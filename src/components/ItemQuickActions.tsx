@@ -121,7 +121,7 @@ export default function ItemQuickActions({
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
       style={{
-        background: "rgba(31, 26, 20, 0.5)",
+        background: "rgba(0, 0, 0, 0.6)",
         backdropFilter: "blur(4px)",
         WebkitBackdropFilter: "blur(4px)",
       }}

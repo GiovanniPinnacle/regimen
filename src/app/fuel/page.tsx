@@ -118,26 +118,29 @@ export default function FuelPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-5 flex items-start justify-between gap-2">
+      <header className="mb-4">
         <div className="min-w-0">
           <h1
-            className="text-[32px] leading-tight"
-            style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+            className="text-[34px] leading-tight"
+            style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
           >
             Fuel
           </h1>
           <p
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
+            className="text-[13px] mt-1 leading-relaxed"
+            style={{ color: "var(--foreground-soft)" }}
           >
             What went in today — log in 2 seconds, Coach handles macros.
           </p>
         </div>
-        <AskCoachButton
-          prompt="Look at what I've eaten the last 3 days, my macro targets, and my goals. What should I eat today? Suggest 2-3 specific meals that fit. If anything looks off in my recent intake (low protein, missing micronutrient, blood sugar pattern from Stelo), call it out and emit a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: add."
-          send
-          label="What to eat?"
-        />
+        <div className="mt-3">
+          <AskCoachButton
+            prompt="Look at what I've eaten the last 3 days, my macro targets, and my goals. What should I eat today? Suggest 2-3 specific meals that fit. If anything looks off in my recent intake (low protein, missing micronutrient, blood sugar pattern from Stelo), call it out and emit a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: add."
+            send
+            size="md"
+            label="What should I eat?"
+          />
+        </div>
       </header>
 
       {/* Today's intake — water, macros, meals logged. Same component
@@ -247,7 +250,7 @@ export default function FuelPage() {
                   className="shrink-0 text-[12px] px-3 py-1.5 rounded-lg"
                   style={{
                     background: "var(--olive)",
-                    color: "#FBFAF6",
+                    color: "#FFFFFF",
                     fontWeight: 700,
                     minHeight: 32,
                     opacity: logging === f.name ? 0.5 : 1,

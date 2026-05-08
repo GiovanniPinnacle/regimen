@@ -188,7 +188,7 @@ export default function SymptomCorrelationCard() {
             className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
             style={{
               background: "var(--warn)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 700,
               minHeight: 36,
             }}

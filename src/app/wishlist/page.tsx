@@ -343,7 +343,7 @@ export default function WishlistPage() {
             className="text-[12.5px] px-3 py-2 rounded-xl flex items-center gap-1.5 shrink-0"
             style={{
               background: "var(--pro)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 700,
               minHeight: 36,
             }}
@@ -480,7 +480,7 @@ export default function WishlistPage() {
               className="text-[12px] px-3 py-1.5 rounded-lg flex items-center gap-1"
               style={{
                 background: "var(--pro)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 700,
               }}
             >
@@ -492,7 +492,7 @@ export default function WishlistPage() {
               className="text-[12px] px-3 py-1.5 rounded-lg"
               style={{
                 background: "var(--error)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 700,
               }}
             >
@@ -536,7 +536,7 @@ export default function WishlistPage() {
             className="inline-flex items-center gap-1 mt-4 px-4 py-2 rounded-xl text-[13px]"
             style={{
               background: "var(--pro)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 700,
             }}
           >
@@ -771,7 +771,7 @@ function WishRow({
                 height="11"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#FBFAF6"
+                stroke="#FFFFFF"
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -874,7 +874,7 @@ function WishRow({
                     className="text-[10.5px] px-2 py-1 rounded-full"
                     style={{
                       background: active ? m.accent : "var(--surface-alt)",
-                      color: active ? "#FBFAF6" : "var(--muted)",
+                      color: active ? "#FFFFFF" : "var(--muted)",
                       fontWeight: 700,
                       minHeight: 26,
                     }}
@@ -892,7 +892,7 @@ function WishRow({
               className="text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5"
               style={{
                 background: "var(--pro)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 700,
                 minHeight: 36,
               }}
@@ -906,7 +906,7 @@ function WishRow({
               className="text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5"
               style={{
                 background: "var(--premium)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 700,
                 minHeight: 36,
                 opacity: busyBuy ? 0.6 : 1,
@@ -1105,7 +1105,7 @@ function AddWishlistInline({
               className="flex-1 text-[12px] px-2 py-1.5 rounded-full"
               style={{
                 background: active ? m.accent : "var(--surface-alt)",
-                color: active ? "#FBFAF6" : "var(--muted)",
+                color: active ? "#FFFFFF" : "var(--muted)",
                 fontWeight: 700,
                 minHeight: 34,
               }}

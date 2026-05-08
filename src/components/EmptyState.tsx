@@ -62,7 +62,7 @@ export default function EmptyState({
                 className="text-[13px] px-4 py-2 rounded-xl"
                 style={{
                   background: "var(--olive)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 500,
                 }}
               >
@@ -74,7 +74,7 @@ export default function EmptyState({
                 className="text-[13px] px-4 py-2 rounded-xl"
                 style={{
                   background: "var(--olive)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 500,
                 }}
               >

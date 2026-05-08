@@ -176,7 +176,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
     >
       <header
         className="flex items-center justify-between px-4 py-3"
-        style={{ color: "#FBFAF6" }}
+        style={{ color: "#FFFFFF" }}
       >
         <div className="flex items-center gap-2">
           <Icon name="search" size={16} strokeWidth={1.8} />
@@ -187,7 +187,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
         <button
           onClick={onClose}
           className="text-[13px] px-3 py-1.5 rounded-lg"
-          style={{ background: "rgba(255,255,255,0.16)", color: "#FBFAF6" }}
+          style={{ background: "rgba(255,255,255,0.16)", color: "#FFFFFF" }}
         >
           Close
         </button>
@@ -197,7 +197,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
         {result ? (
           <ResultCard result={result} onConfirm={confirm} />
         ) : supported === null ? (
-          <div className="text-[14px]" style={{ color: "#FBFAF6" }}>
+          <div className="text-[14px]" style={{ color: "#FFFFFF" }}>
             Starting camera…
           </div>
         ) : supported ? (
@@ -243,7 +243,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
                 className="text-[12.5px] text-center px-3 py-2 rounded-lg"
                 style={{
                   background: "rgba(239, 68, 68, 0.18)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                 }}
               >
                 {err}
@@ -253,7 +253,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
         ) : (
           <div
             className="w-full max-w-md flex flex-col gap-3"
-            style={{ color: "#FBFAF6" }}
+            style={{ color: "#FFFFFF" }}
           >
             <div className="text-[14px] text-center">
               Your browser doesn&apos;t support barcode scanning. Type the
@@ -270,7 +270,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
                 className="flex-1 rounded-xl px-3 py-2.5 text-[15px]"
                 style={{
                   background: "rgba(255,255,255,0.10)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   border: "1px solid rgba(255,255,255,0.20)",
                 }}
               />
@@ -280,7 +280,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
                 className="px-4 rounded-xl text-[14px]"
                 style={{
                   background: "var(--accent)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 700,
                   opacity: !manualUpc.trim() || manualBusy ? 0.5 : 1,
                 }}
@@ -293,7 +293,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
                 className="text-[12.5px] text-center px-3 py-2 rounded-lg"
                 style={{
                   background: "rgba(239, 68, 68, 0.18)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                 }}
               >
                 {err}
@@ -369,7 +369,7 @@ function ResultCard({
         className="w-full mt-4 py-3 rounded-xl text-[14px] flex items-center justify-center gap-1.5"
         style={{
           background: "var(--accent)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           fontWeight: 700,
         }}
       >

@@ -126,7 +126,7 @@ export default function MoodPing({ date }: { date: string }) {
                   background: active
                     ? "var(--olive)"
                     : "var(--surface-alt)",
-                  color: active ? "#FBFAF6" : "var(--foreground)",
+                  color: active ? "#FFFFFF" : "var(--foreground)",
                   border: active
                     ? "1px solid var(--olive)"
                     : "1px solid var(--border)",

@@ -167,7 +167,7 @@ export default function RecentBiomarkers({
                     className="text-[9px] uppercase px-1.5 rounded-full"
                     style={{
                       background: flagColor,
-                      color: "#FBFAF6",
+                      color: "#FFFFFF",
                       fontWeight: 700,
                       minWidth: 20,
                       textAlign: "center",

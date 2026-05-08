@@ -172,7 +172,7 @@ export default async function ReviewsPage() {
             className="inline-block mt-4 text-[13px] px-4 py-2 rounded-xl"
             style={{
               background: "var(--accent)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
             }}
           >

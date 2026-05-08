@@ -173,7 +173,7 @@ export default async function RevenueSetupPage() {
         style={{
           background:
             "linear-gradient(135deg, var(--premium) 0%, var(--premium-deep) 100%)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           boxShadow: "0 12px 32px var(--premium-glow)",
         }}
       >
@@ -394,7 +394,7 @@ function NetworkStepCard({ step }: { step: NetworkStep }) {
               className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
               style={{
                 background: step.accent,
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 700,
               }}
             >

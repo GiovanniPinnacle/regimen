@@ -2,12 +2,17 @@
 // Call fireConfetti() from anywhere; it injects ~30 colored squares
 // into a fixed-position overlay and removes them after the animation.
 
+// Palette aligned to the new design tokens (system v2):
+//   --accent  #00D680  emerald
+//   --premium #D4A645  refined gold
+//   --pro     #8B7CFC  soft violet
+// White cluster keeps the burst feeling celebratory without overpowering.
 const PALETTE = [
-  "#22C55E", // emerald accent
-  "#F59E0B", // premium gold
-  "#A855F7", // pro violet
-  "#EF4444", // error red
-  "#FBFAF6", // off-white
+  "#00D680", // accent emerald
+  "#4DEAA0", // accent light
+  "#D4A645", // premium gold
+  "#8B7CFC", // pro violet
+  "#FFFFFF", // crisp white
 ];
 
 export function fireConfetti(opts: { count?: number } = {}) {

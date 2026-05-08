@@ -193,7 +193,7 @@ export default function ProtocolDetailPage() {
                   className="text-[10px] px-1.5 py-0.5 rounded-full"
                   style={{
                     background: "var(--olive)",
-                    color: "#FBFAF6",
+                    color: "#FFFFFF",
                     fontWeight: 600,
                   }}
                 >
@@ -233,7 +233,7 @@ export default function ProtocolDetailPage() {
             className="rounded-2xl p-5 text-center"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
             }}
           >
             <div
@@ -276,7 +276,7 @@ export default function ProtocolDetailPage() {
               className="text-[13px] px-3.5 py-2 rounded-xl shrink-0"
               style={{
                 background: "var(--olive)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
               }}
             >
@@ -310,7 +310,7 @@ export default function ProtocolDetailPage() {
             className="w-full rounded-2xl px-5 py-4 text-[15px]"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
               opacity: enrolling ? 0.6 : 1,
               boxShadow: "0 4px 14px var(--accent-glow)",

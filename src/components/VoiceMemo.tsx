@@ -196,7 +196,7 @@ export default function VoiceMemo() {
         className="fixed bottom-20 right-4 z-40 h-14 w-14 rounded-full flex items-center justify-center"
         style={{
           background: "var(--olive)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           boxShadow: "0 8px 24px var(--accent-glow)",
           paddingBottom: "env(safe-area-inset-bottom, 0)",
         }}
@@ -222,7 +222,7 @@ export default function VoiceMemo() {
         <div
           className="fixed inset-0 z-50 flex items-end justify-center"
           style={{
-            background: "rgba(31, 26, 20, 0.5)",
+            background: "rgba(0, 0, 0, 0.6)",
             backdropFilter: "blur(4px)",
             WebkitBackdropFilter: "blur(4px)",
           }}
@@ -277,7 +277,7 @@ export default function VoiceMemo() {
                   className="h-20 w-20 mx-auto rounded-full flex items-center justify-center"
                   style={{
                     background: "var(--olive)",
-                    color: "#FBFAF6",
+                    color: "#FFFFFF",
                     boxShadow: "0 8px 24px var(--accent-glow)",
                   }}
                   aria-label="Start recording"
@@ -320,7 +320,7 @@ export default function VoiceMemo() {
                   className="h-20 w-20 mx-auto rounded-full flex items-center justify-center relative"
                   style={{
                     background: "#b00020",
-                    color: "#FBFAF6",
+                    color: "#FFFFFF",
                   }}
                   aria-label="Stop recording"
                 >
@@ -334,7 +334,7 @@ export default function VoiceMemo() {
                   />
                   <div
                     className="h-6 w-6 rounded-md relative z-10"
-                    style={{ background: "#FBFAF6" }}
+                    style={{ background: "#FFFFFF" }}
                   />
                 </button>
                 <div
@@ -400,7 +400,7 @@ export default function VoiceMemo() {
                       style={{
                         background:
                           tag === t.key ? "var(--olive)" : "var(--surface)",
-                        color: tag === t.key ? "#FBFAF6" : "var(--muted)",
+                        color: tag === t.key ? "#FFFFFF" : "var(--muted)",
                         border:
                           tag === t.key
                             ? "1px solid var(--olive)"
@@ -420,7 +420,7 @@ export default function VoiceMemo() {
                     className="flex-1 px-4 py-2.5 rounded-xl text-[14px]"
                     style={{
                       background: "var(--olive)",
-                      color: "#FBFAF6",
+                      color: "#FFFFFF",
                       fontWeight: 500,
                       opacity:
                         stage === "saving" || !transcript.trim() ? 0.5 : 1,

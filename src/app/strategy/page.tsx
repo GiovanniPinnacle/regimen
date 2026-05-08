@@ -354,7 +354,7 @@ export default function StrategyPage() {
                           : "var(--surface-alt)",
                     color:
                       p.status === "live"
-                        ? "#FBFAF6"
+                        ? "#FFFFFF"
                         : p.status === "next"
                           ? "var(--olive)"
                           : "var(--muted)",
@@ -795,7 +795,7 @@ export default function StrategyPage() {
           className="rounded-2xl p-5"
           style={{
             background: "var(--olive)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
           }}
         >
           <div
@@ -813,7 +813,7 @@ export default function StrategyPage() {
               className="text-[13px] px-3.5 py-2 rounded-xl"
               style={{
                 background: "rgba(251, 250, 246, 0.18)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
               }}
             >
@@ -824,7 +824,7 @@ export default function StrategyPage() {
               className="text-[13px] px-3.5 py-2 rounded-xl"
               style={{
                 background: "rgba(251, 250, 246, 0.18)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
               }}
             >
@@ -835,7 +835,7 @@ export default function StrategyPage() {
               className="text-[13px] px-3.5 py-2 rounded-xl"
               style={{
                 background: "rgba(251, 250, 246, 0.18)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
               }}
             >

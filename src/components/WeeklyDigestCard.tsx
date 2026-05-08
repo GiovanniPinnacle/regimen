@@ -244,7 +244,7 @@ export default function WeeklyDigestCard() {
             style={{
               background:
                 "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 700,
               minHeight: 36,
             }}

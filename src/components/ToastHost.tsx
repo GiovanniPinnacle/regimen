@@ -95,7 +95,7 @@ export default function ToastHost() {
             className="pointer-events-auto rounded-2xl glass-strong px-4 py-3 flex items-center gap-3 max-w-sm"
             style={{
               border: "1px solid var(--border-strong)",
-              boxShadow: "0 12px 36px rgba(31, 26, 20, 0.18)",
+              boxShadow: "0 12px 36px rgba(0, 0, 0, 0.36)",
               transform: t.fadingOut ? "translateY(8px)" : "translateY(0)",
               opacity: t.fadingOut ? 0 : 1,
               transition:
@@ -120,7 +120,7 @@ export default function ToastHost() {
                 className="text-[13px] px-2.5 py-1 rounded-lg shrink-0"
                 style={{
                   background: "var(--olive)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 500,
                 }}
               >
@@ -138,7 +138,7 @@ export default function ToastHost() {
                 className="text-[13px] px-2.5 py-1 rounded-lg shrink-0"
                 style={{
                   background: "var(--olive)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 500,
                 }}
               >

@@ -207,7 +207,7 @@ export default function UpgradePage() {
                 background: t.highlight
                   ? "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)"
                   : "var(--surface)",
-                color: t.highlight ? "#FBFAF6" : "var(--foreground)",
+                color: t.highlight ? "#FFFFFF" : "var(--foreground)",
                 border: t.highlight
                   ? "1px solid var(--pro)"
                   : "1px solid var(--border)",
@@ -226,7 +226,7 @@ export default function UpgradePage() {
                       className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
                       style={{
                         background: "rgba(251, 250, 246, 0.22)",
-                        color: "#FBFAF6",
+                        color: "#FFFFFF",
                         fontWeight: 700,
                         letterSpacing: "0.06em",
                       }}
@@ -292,7 +292,7 @@ export default function UpgradePage() {
                     background: t.highlight
                       ? "rgba(251, 250, 246, 0.95)"
                       : "var(--pro)",
-                    color: t.highlight ? "var(--pro-deep)" : "#FBFAF6",
+                    color: t.highlight ? "var(--pro-deep)" : "#FFFFFF",
                     fontWeight: 700,
                   }}
                 >

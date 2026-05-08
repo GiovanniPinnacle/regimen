@@ -109,7 +109,7 @@ export default function DataPage() {
             className="px-4 py-2.5 rounded-lg text-[14px]"
             style={{
               background: "var(--accent)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
               opacity: !file || uploading ? 0.5 : 1,
             }}

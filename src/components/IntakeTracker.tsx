@@ -191,7 +191,7 @@ export default function IntakeTracker({ targets }: Props) {
             className="text-[12px] px-3 py-2 rounded-full flex items-center gap-1.5 transition-all"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
               minHeight: "32px",
             }}
@@ -527,7 +527,7 @@ function MealLogSheet({
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
       style={{
-        background: "rgba(31, 26, 20, 0.5)",
+        background: "rgba(0, 0, 0, 0.6)",
         backdropFilter: "blur(4px)",
         WebkitBackdropFilter: "blur(4px)",
       }}
@@ -650,7 +650,7 @@ function MealLogSheet({
                 fontWeight: mode === m ? 600 : 500,
                 boxShadow:
                   mode === m
-                    ? "0 1px 4px rgba(31, 26, 20, 0.08)"
+                    ? "0 1px 4px rgba(0, 0, 0, 0.24)"
                     : undefined,
               }}
             >
@@ -674,7 +674,7 @@ function MealLogSheet({
               className="block w-full rounded-2xl px-4 py-8 text-center cursor-pointer"
               style={{
                 background: "var(--olive)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
                 opacity: busy ? 0.5 : 1,
               }}
@@ -723,7 +723,7 @@ function MealLogSheet({
               className="w-full rounded-xl px-4 py-3 text-[14px]"
               style={{
                 background: "var(--olive)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
                 opacity: busy || !text.trim() ? 0.5 : 1,
               }}

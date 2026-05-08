@@ -264,7 +264,7 @@ export default function StarterPack({
                     height="11"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#FBFAF6"
+                    stroke="#FFFFFF"
                     strokeWidth="3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -375,7 +375,7 @@ export default function StarterPack({
           className="flex-1 rounded-xl px-3 py-2.5 text-[13.5px]"
           style={{
             background: "var(--olive)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             fontWeight: 700,
             opacity: selected.size === 0 || busy ? 0.5 : 1,
             minHeight: 38,

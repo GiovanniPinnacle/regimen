@@ -169,7 +169,7 @@ function FreeUpsellCard() {
       style={{
         background:
           "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
-        color: "#FBFAF6",
+        color: "#FFFFFF",
         boxShadow: "0 10px 28px rgba(168, 85, 247, 0.30)",
       }}
     >

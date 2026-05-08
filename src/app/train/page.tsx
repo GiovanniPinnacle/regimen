@@ -122,43 +122,42 @@ export default function TrainPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-5 flex items-start justify-between gap-2">
-        <div>
-          <h1
-            className="text-[32px] leading-tight"
-            style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-          >
-            Train
-          </h1>
-          <p
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            Movement, mobility, recovery. Voice-log a session anytime.
-          </p>
-        </div>
-        <div className="flex flex-col gap-1.5 shrink-0">
-          <AskCoachButton
-            prompt="Look at my Oura readiness, sleep, HRV, recent training history, and post-op timeline. Should I train today, and if yes — Day A or Day B? If readiness says back off, suggest a recovery alternative. Emit one one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format if it changes my schedule."
-            send
-            label="What to train?"
-          />
+      <header className="mb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1
+              className="text-[34px] leading-tight"
+              style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
+            >
+              Train
+            </h1>
+            <p
+              className="text-[13px] mt-1 leading-relaxed"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              Movement, mobility, recovery. Voice-log a session anytime.
+            </p>
+          </div>
           <button
             onClick={captureWorkout}
             aria-label="Log a workout"
-            className="px-3 py-2 rounded-xl flex items-center gap-1.5 justify-center"
+            className="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center"
             style={{
               background: "var(--surface-alt)",
               color: "var(--foreground)",
-              fontWeight: 600,
-              minHeight: 32,
-              fontSize: 12,
               border: "1px solid var(--border)",
             }}
           >
-            <Icon name="plus" size={11} strokeWidth={2.4} />
-            Log session
+            <Icon name="plus" size={16} strokeWidth={2.4} />
           </button>
+        </div>
+        <div className="mt-3">
+          <AskCoachButton
+            prompt="Look at my Oura readiness, sleep, HRV, recent training history, and post-op timeline. Should I train today, and if yes — Day A or Day B? If readiness says back off, suggest a recovery alternative. Emit one one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format if it changes my schedule."
+            send
+            size="md"
+            label="What should I train?"
+          />
         </div>
       </header>
 
@@ -280,7 +279,7 @@ export default function TrainPage() {
                     className="flex-1 mt-3 px-3 py-2 rounded-lg text-[12.5px] flex items-center justify-center gap-1.5"
                     style={{
                       background: "var(--olive)",
-                      color: "#FBFAF6",
+                      color: "#FFFFFF",
                       fontWeight: 700,
                       minHeight: 36,
                     }}
@@ -369,7 +368,7 @@ export default function TrainPage() {
             className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl text-[13px]"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 700,
             }}
           >

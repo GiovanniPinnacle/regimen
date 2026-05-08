@@ -119,7 +119,7 @@ export default function SwapSheet({
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
       style={{
-        background: "rgba(31, 26, 20, 0.5)",
+        background: "rgba(0, 0, 0, 0.6)",
         backdropFilter: "blur(4px)",
         WebkitBackdropFilter: "blur(4px)",
       }}
@@ -216,7 +216,7 @@ export default function SwapSheet({
             className="px-4 py-2.5 rounded-lg text-[14px]"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
               opacity: busy || !text.trim() ? 0.5 : 1,
             }}

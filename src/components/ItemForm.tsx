@@ -413,7 +413,7 @@ export default function ItemForm({ initial, onSaved }: Props) {
             className="flex-1 text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 600,
               opacity: photoBusy ? 0.6 : 1,
               pointerEvents: photoBusy ? "none" : "auto",

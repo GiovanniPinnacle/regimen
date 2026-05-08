@@ -108,7 +108,7 @@ export default function NextStep({
       className="rounded-2xl mb-6 overflow-hidden relative"
       style={{
         background: `linear-gradient(135deg, ${step.accent} 0%, color-mix(in oklab, ${step.accent} 70%, black) 100%)`,
-        color: "#FBFAF6",
+        color: "#FFFFFF",
         boxShadow: `0 12px 32px color-mix(in oklab, ${step.accent} 35%, transparent)`,
       }}
     >
@@ -118,7 +118,7 @@ export default function NextStep({
             className="shrink-0 mt-0.5 h-9 w-9 rounded-xl flex items-center justify-center"
             style={{
               background: "rgba(251, 250, 246, 0.20)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
             }}
           >
             <Icon name={step.icon} size={18} strokeWidth={1.8} />
@@ -185,7 +185,7 @@ export default function NextStep({
                 className="text-[13px] px-3.5 py-2.5 rounded-lg"
                 style={{
                   background: "rgba(251, 250, 246, 0.32)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 600,
                   border: "1px solid rgba(251, 250, 246, 0.38)",
                   minHeight: 40,
@@ -204,7 +204,7 @@ export default function NextStep({
                 className="text-[13px] px-3.5 py-2.5 rounded-lg"
                 style={{
                   background: "rgba(251, 250, 246, 0.32)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 600,
                   border: "1px solid rgba(251, 250, 246, 0.38)",
                   minHeight: 40,

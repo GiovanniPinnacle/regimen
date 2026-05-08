@@ -630,14 +630,18 @@ export default function TodayPage() {
           </span>
         </div>
         <div className="flex items-baseline justify-between gap-2 mt-1">
-          <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
+          <h1
+            className="text-[34px] leading-tight"
+            style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
+          >
             Today
           </h1>
           <div className="flex items-baseline gap-1">
             <span
-              className="text-[24px] tabular-nums leading-none"
+              className="text-[26px] tabular-nums leading-none"
               style={{
-                fontWeight: 600,
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
                 color:
                   progressPct >= 80
                     ? "var(--olive)"
@@ -650,7 +654,7 @@ export default function TodayPage() {
             </span>
             <span
               className="text-[14px] leading-none"
-              style={{ color: "var(--muted)" }}
+              style={{ color: "var(--muted)", fontWeight: 600 }}
             >
               /{totalActive}
             </span>
@@ -1121,7 +1125,7 @@ export default function TodayPage() {
                               className="px-1.5 py-[1px] rounded-full"
                               style={{
                                 background: "var(--olive)",
-                                color: "#FBFAF6",
+                                color: "#FFFFFF",
                                 fontSize: 9,
                                 letterSpacing: "0.06em",
                               }}
@@ -1231,7 +1235,7 @@ export default function TodayPage() {
                             className="text-[13px] px-3.5 py-2 rounded-lg"
                             style={{
                               background: "var(--olive)",
-                              color: "#FBFAF6",
+                              color: "#FFFFFF",
                               fontWeight: 700,
                               minHeight: 36,
                             }}

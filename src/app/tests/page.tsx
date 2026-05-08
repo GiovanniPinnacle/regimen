@@ -78,7 +78,7 @@ export default async function TestsPage() {
             className="text-[12.5px] px-3 py-2 rounded-xl flex items-center gap-1.5"
             style={{
               background: "var(--pro)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 700,
             }}
           >
@@ -221,7 +221,7 @@ export default async function TestsPage() {
               className="text-[13px] px-4 py-2 rounded-xl flex items-center gap-1.5"
               style={{
                 background: "var(--pro)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 700,
               }}
             >

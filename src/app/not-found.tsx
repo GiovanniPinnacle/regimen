@@ -42,7 +42,7 @@ export default function NotFound() {
           className="inline-block px-4 py-2.5 rounded-lg text-[13px]"
           style={{
             background: "var(--accent)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             fontWeight: 700,
           }}
         >

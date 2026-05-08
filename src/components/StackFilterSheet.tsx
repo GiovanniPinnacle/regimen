@@ -103,7 +103,7 @@ export default function StackFilterSheet({
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
       style={{
-        background: "rgba(31, 26, 20, 0.5)",
+        background: "rgba(0, 0, 0, 0.6)",
         backdropFilter: "blur(4px)",
         WebkitBackdropFilter: "blur(4px)",
       }}
@@ -184,7 +184,7 @@ export default function StackFilterSheet({
                       background: active
                         ? "var(--olive)"
                         : "var(--surface-alt)",
-                      color: active ? "#FBFAF6" : "var(--foreground-soft)",
+                      color: active ? "#FFFFFF" : "var(--foreground-soft)",
                       fontWeight: active ? 700 : 500,
                       border: active
                         ? "1px solid var(--olive)"
@@ -224,7 +224,7 @@ export default function StackFilterSheet({
                       background: active
                         ? "var(--olive)"
                         : "var(--surface-alt)",
-                      color: active ? "#FBFAF6" : "var(--foreground-soft)",
+                      color: active ? "#FFFFFF" : "var(--foreground-soft)",
                       fontWeight: active ? 700 : 500,
                       border: active
                         ? "1px solid var(--olive)"
@@ -240,7 +240,7 @@ export default function StackFilterSheet({
                           background: active
                             ? "rgba(251, 250, 246, 0.2)"
                             : "var(--border)",
-                          color: active ? "#FBFAF6" : "var(--muted)",
+                          color: active ? "#FFFFFF" : "var(--muted)",
                           fontWeight: 600,
                           minWidth: 20,
                           textAlign: "center",
@@ -375,7 +375,7 @@ export default function StackFilterSheet({
             className="w-full px-4 py-3 rounded-xl text-[14px]"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 700,
               minHeight: 44,
             }}

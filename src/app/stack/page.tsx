@@ -478,24 +478,24 @@ export default function StackPage() {
               onClick={() => setStatusTab(tab.value)}
               role="tab"
               aria-selected={active}
-              className="rounded-xl py-2 px-2 transition-all"
+              className="rounded-xl py-2.5 px-2 transition-all"
               style={{
                 background: active ? "var(--surface)" : "transparent",
                 color: active ? "var(--foreground)" : "var(--muted)",
                 boxShadow: active
-                  ? "0 1px 4px rgba(31, 26, 20, 0.08)"
+                  ? "0 1px 3px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.04)"
                   : undefined,
-                fontWeight: active ? 600 : 500,
+                fontWeight: active ? 700 : 500,
               }}
             >
               <div className="text-[13px] flex items-baseline justify-center gap-1.5">
                 <span>{tab.label}</span>
                 {statusCounts[tab.value] > 0 && (
                   <span
-                    className="text-[10px] tabular-nums"
+                    className="text-[10.5px] tabular-nums"
                     style={{
                       color: active ? "var(--olive)" : "var(--muted)",
-                      fontWeight: 600,
+                      fontWeight: 700,
                     }}
                   >
                     {statusCounts[tab.value]}
@@ -503,8 +503,13 @@ export default function StackPage() {
                 )}
               </div>
               <div
-                className="text-[10px] mt-0.5"
-                style={{ color: "var(--muted)", opacity: 0.7 }}
+                className="text-[10px] mt-0.5 uppercase tracking-wider"
+                style={{
+                  color: "var(--muted)",
+                  fontWeight: 600,
+                  letterSpacing: "0.06em",
+                  opacity: active ? 0.85 : 0.6,
+                }}
               >
                 {tab.subtitle}
               </div>
@@ -520,12 +525,12 @@ export default function StackPage() {
           style={{
             background:
               supplyAlerts.some((a) => (a.days as number) < 0)
-                ? "rgba(176, 0, 32, 0.06)"
-                : "rgba(194, 145, 66, 0.08)",
+                ? "rgba(255, 86, 112, 0.08)"
+                : "var(--premium-tint)",
             border:
               supplyAlerts.some((a) => (a.days as number) < 0)
-                ? "1px solid rgba(176, 0, 32, 0.20)"
-                : "1px solid rgba(194, 145, 66, 0.25)",
+                ? "1px solid rgba(255, 86, 112, 0.24)"
+                : "1px solid rgba(212, 166, 69, 0.28)",
           }}
         >
           <summary
@@ -630,7 +635,7 @@ export default function StackPage() {
               background: hasActiveFilter
                 ? "var(--olive)"
                 : "var(--surface)",
-              color: hasActiveFilter ? "#FBFAF6" : "var(--foreground-soft)",
+              color: hasActiveFilter ? "#FFFFFF" : "var(--foreground-soft)",
               border: hasActiveFilter
                 ? "1px solid var(--olive)"
                 : "1px solid var(--border)",
@@ -656,7 +661,7 @@ export default function StackPage() {
             {hasActiveFilter && (
               <span
                 className="h-1.5 w-1.5 rounded-full"
-                style={{ background: "#FBFAF6" }}
+                style={{ background: "#FFFFFF" }}
                 aria-hidden
               />
             )}

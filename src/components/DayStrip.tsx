@@ -174,7 +174,7 @@ function Pill({
         ? "1px solid var(--olive)"
         : "1px solid var(--border)";
   const subColor = active
-    ? "#FBFAF6"
+    ? "#FFFFFF"
     : done
       ? "var(--olive)"
       : dim
@@ -190,12 +190,12 @@ function Pill({
         background: bg,
         border,
         boxShadow: active
-          ? "0 6px 18px var(--accent-glow)"
+          ? "0 6px 18px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.18)"
           : now
-            ? "0 2px 6px rgba(31, 26, 20, 0.06)"
+            ? "0 2px 8px rgba(0, 0, 0, 0.32)"
             : undefined,
-        minWidth: active ? 92 : 80,
-        padding: active ? "10px 12px" : "8px 12px",
+        minWidth: active ? 96 : 84,
+        padding: active ? "10px 14px" : "9px 12px",
         opacity: dim && !active ? 0.55 : 1,
         transform: active ? "translateY(-1px)" : undefined,
       }}
@@ -205,12 +205,12 @@ function Pill({
         className="text-[10px] uppercase tracking-wider"
         style={{
           color: active
-            ? "rgba(251, 250, 246, 0.78)"
+            ? "rgba(255, 255, 255, 0.82)"
             : now
               ? "var(--olive)"
               : "var(--muted)",
-          fontWeight: 600,
-          letterSpacing: "0.06em",
+          fontWeight: 700,
+          letterSpacing: "0.08em",
         }}
       >
         {time}
@@ -219,7 +219,7 @@ function Pill({
         className="text-[12px] mt-0.5 leading-none"
         style={{
           color: active
-            ? "#FBFAF6"
+            ? "#FFFFFF"
             : now
               ? "var(--olive)"
               : "var(--foreground-soft)",

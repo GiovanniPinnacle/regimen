@@ -126,7 +126,7 @@ export default function TutorialLink({
           className="inline-flex items-center gap-1.5 text-[13px] px-3.5 py-2 rounded-lg"
           style={{
             background: "var(--accent)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             fontWeight: 700,
             minHeight: 36,
           }}

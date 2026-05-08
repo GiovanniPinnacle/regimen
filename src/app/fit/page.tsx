@@ -148,7 +148,7 @@ export default function FitDemoPage() {
       >
         <span
           className="px-1.5 py-0.5 rounded-full text-[9px] uppercase tracking-wider"
-          style={{ background: "var(--olive)", color: "#FBFAF6" }}
+          style={{ background: "var(--olive)", color: "#FFFFFF" }}
         >
           Demo
         </span>
@@ -272,7 +272,7 @@ export default function FitDemoPage() {
             className="text-[13px] px-3.5 py-2 rounded-xl"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
             }}
           >
@@ -310,7 +310,7 @@ export default function FitDemoPage() {
                 border: w.current
                   ? "1px solid var(--olive)"
                   : "1px solid var(--border)",
-                color: w.current ? "#FBFAF6" : "var(--foreground)",
+                color: w.current ? "#FFFFFF" : "var(--foreground)",
               }}
             >
               <div
@@ -411,7 +411,7 @@ export default function FitDemoPage() {
             className="text-[13px] px-3.5 py-2 rounded-xl"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
             }}
           >
@@ -507,7 +507,7 @@ function PhaseStrip({
                 className="text-[14px] mt-0.5 leading-none"
                 style={{
                   color: isActive
-                    ? "#FBFAF6"
+                    ? "#FFFFFF"
                     : done
                       ? "var(--olive)"
                       : "var(--foreground)",
@@ -560,7 +560,7 @@ function FitCard({
             height="14"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#FBFAF6"
+            stroke="#FFFFFF"
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"

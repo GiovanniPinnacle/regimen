@@ -244,7 +244,7 @@ export default function UniversalCapture({ open, onClose }: Props) {
     <div
       className="fixed inset-0 z-[60] flex items-end justify-center"
       style={{
-        background: "rgba(31, 26, 20, 0.5)",
+        background: "rgba(0, 0, 0, 0.6)",
         backdropFilter: "blur(4px)",
         WebkitBackdropFilter: "blur(4px)",
       }}
@@ -382,7 +382,7 @@ export default function UniversalCapture({ open, onClose }: Props) {
               className="h-16 w-16 rounded-full flex items-center justify-center mb-3"
               style={{
                 background: "var(--error)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 animation: "pulse 1.5s ease-in-out infinite",
               }}
             >
@@ -496,7 +496,7 @@ export default function UniversalCapture({ open, onClose }: Props) {
               className="flex-1 px-4 py-3 rounded-xl text-[14px]"
               style={{
                 background: "var(--accent)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 700,
                 opacity: busy || (!text.trim() && !imageData) ? 0.5 : 1,
                 minHeight: 44,

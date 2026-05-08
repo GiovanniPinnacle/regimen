@@ -184,7 +184,7 @@ function PathCard({
         border: primary
           ? "1px solid var(--olive)"
           : "1px solid var(--border)",
-        color: primary ? "#FBFAF6" : "var(--foreground)",
+        color: primary ? "#FFFFFF" : "var(--foreground)",
         boxShadow: primary
           ? "0 8px 24px var(--accent-glow)"
           : undefined,
@@ -196,7 +196,7 @@ function PathCard({
           background: primary
             ? "rgba(251, 250, 246, 0.18)"
             : "var(--olive-tint)",
-          color: primary ? "#FBFAF6" : "var(--olive)",
+          color: primary ? "#FFFFFF" : "var(--olive)",
         }}
       >
         <Icon name={icon} size={20} strokeWidth={1.7} />
@@ -216,7 +216,7 @@ function PathCard({
                 background: primary
                   ? "rgba(251, 250, 246, 0.22)"
                   : "var(--olive-tint)",
-                color: primary ? "#FBFAF6" : "var(--olive)",
+                color: primary ? "#FFFFFF" : "var(--olive)",
                 fontWeight: 600,
                 letterSpacing: "0.06em",
               }}

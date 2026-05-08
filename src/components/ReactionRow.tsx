@@ -108,7 +108,7 @@ export default function ReactionRow({ itemId, compact = true }: Props) {
                 border: active
                   ? "1px solid var(--olive)"
                   : "1px solid var(--border)",
-                color: active ? "#FBFAF6" : "var(--muted)",
+                color: active ? "#FFFFFF" : "var(--muted)",
                 fontSize: compact ? "13px" : "14px",
                 minHeight: "26px",
               }}
@@ -161,7 +161,7 @@ export default function ReactionRow({ itemId, compact = true }: Props) {
             className="text-[12px] px-3 py-1.5 rounded-lg"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
             }}
           >

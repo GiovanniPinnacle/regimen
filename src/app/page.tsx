@@ -119,7 +119,7 @@ export default async function Home() {
             className="inline-block text-[15px] px-6 py-3 rounded-2xl"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
               boxShadow: "0 8px 24px var(--accent-glow)",
             }}
@@ -310,7 +310,7 @@ export default async function Home() {
           className="inline-block text-[15px] px-6 py-3 rounded-2xl"
           style={{
             background: "var(--olive)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             fontWeight: 500,
             boxShadow: "0 8px 24px var(--accent-glow)",
           }}

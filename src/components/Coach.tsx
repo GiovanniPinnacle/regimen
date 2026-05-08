@@ -531,7 +531,7 @@ export default function Coach() {
         style={{
           background:
             "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           boxShadow:
             "0 12px 32px rgba(168, 85, 247, 0.40), 0 4px 12px rgba(109, 40, 217, 0.30)",
         }}
@@ -562,7 +562,7 @@ export default function Coach() {
                 style={{
                   background:
                     "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                 }}
               >
                 <Icon name="sparkle" size={16} strokeWidth={2} />
@@ -741,7 +741,7 @@ export default function Coach() {
                       background: recording
                         ? "var(--error)"
                         : "var(--surface-alt)",
-                      color: recording ? "#FBFAF6" : "var(--foreground)",
+                      color: recording ? "#FFFFFF" : "var(--foreground)",
                     }}
                     aria-label={recording ? "Stop recording" : "Start voice input"}
                   >
@@ -905,7 +905,7 @@ export default function Coach() {
                   style={{
                     background:
                       "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
-                    color: "#FBFAF6",
+                    color: "#FFFFFF",
                     fontWeight: 600,
                     opacity:
                       (!input.trim() && !pendingImage) || loading ? 0.5 : 1,
@@ -1071,7 +1071,7 @@ function AssistantOrUserBubble({
         background: isUser
           ? "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)"
           : "var(--surface-alt)",
-        color: isUser ? "#FBFAF6" : "var(--foreground)",
+        color: isUser ? "#FFFFFF" : "var(--foreground)",
         borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
         fontWeight: isUser ? 500 : 400,
       }}
@@ -1473,7 +1473,7 @@ function ProposalCard({
               className="flex-1 px-3.5 py-2 rounded-lg text-[13.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
               style={{
                 background: meta.accent,
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 700,
                 opacity: state === "pending" ? 0.6 : 1,
               }}

@@ -35,7 +35,7 @@ export default function MoreFab() {
         color: "var(--muted)",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
-        boxShadow: "0 4px 12px rgba(31, 26, 20, 0.08)",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.24)",
       }}
     >
       <svg

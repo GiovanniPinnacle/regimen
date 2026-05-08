@@ -197,7 +197,7 @@ export default function RecapPage() {
             className="inline-block mt-4 text-[13px] px-4 py-2 rounded-xl"
             style={{
               background: "var(--accent)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
             }}
           >
@@ -212,7 +212,7 @@ export default function RecapPage() {
             style={{
               background:
                 "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               boxShadow: "0 12px 32px var(--accent-glow)",
             }}
           >

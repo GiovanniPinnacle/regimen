@@ -189,7 +189,7 @@ export default function AuditPage() {
               className="text-[12.5px] px-3 py-2 rounded-lg flex items-center gap-1"
               style={{
                 background: "var(--premium)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 600,
               }}
             >
@@ -281,7 +281,7 @@ export default function AuditPage() {
               className="inline-flex items-center gap-1 mt-4 px-4 py-2 rounded-xl text-[13px]"
               style={{
                 background: "var(--premium)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 600,
               }}
             >
@@ -372,13 +372,13 @@ function ChoiceButton({
     variant === "have"
       ? {
           background: "var(--accent)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           fontWeight: 700 as const,
         }
       : variant === "need"
         ? {
             background: "var(--premium)",
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             fontWeight: 700 as const,
           }
         : {

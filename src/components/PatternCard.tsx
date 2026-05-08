@@ -260,7 +260,7 @@ export default function PatternCard() {
           className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
           style={{
             background: buttonAccent,
-            color: "#FBFAF6",
+            color: "#FFFFFF",
             fontWeight: 700,
             opacity: state === "pending" ? 0.6 : 1,
             minHeight: 36,

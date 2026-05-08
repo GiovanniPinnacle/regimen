@@ -319,7 +319,7 @@ export default function BloodworkUpload({
                     height="11"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#FBFAF6"
+                    stroke="#FFFFFF"
                     strokeWidth="3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -369,7 +369,7 @@ export default function BloodworkUpload({
                   className="text-[9px] uppercase px-1.5 rounded-full shrink-0"
                   style={{
                     background: flagColor,
-                    color: "#FBFAF6",
+                    color: "#FFFFFF",
                     fontWeight: 700,
                     minWidth: 22,
                     textAlign: "center",
@@ -389,7 +389,7 @@ export default function BloodworkUpload({
         className="w-full px-4 py-3 rounded-xl text-[14px]"
         style={{
           background: "var(--olive)",
-          color: "#FBFAF6",
+          color: "#FFFFFF",
           fontWeight: 700,
           opacity: saving || visibleCount === 0 ? 0.5 : 1,
           minHeight: 44,

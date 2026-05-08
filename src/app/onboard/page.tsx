@@ -201,7 +201,7 @@ export default function OnboardPage() {
             className="w-full rounded-xl px-5 py-3.5 text-[15px]"
             style={{
               background: "var(--olive)",
-              color: "#FBFAF6",
+              color: "#FFFFFF",
               fontWeight: 500,
               opacity: displayName.trim().length < 1 ? 0.5 : 1,
             }}
@@ -233,7 +233,7 @@ export default function OnboardPage() {
                       ? "1px solid var(--olive)"
                       : "1px solid var(--border)",
                   color:
-                    focus === opt.key ? "#FBFAF6" : "var(--foreground)",
+                    focus === opt.key ? "#FFFFFF" : "var(--foreground)",
                 }}
               >
                 <div
@@ -270,7 +270,7 @@ export default function OnboardPage() {
               className="flex-[2] rounded-xl px-5 py-3 text-[15px]"
               style={{
                 background: "var(--olive)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
                 opacity: !focus ? 0.5 : 1,
               }}
@@ -318,7 +318,7 @@ export default function OnboardPage() {
               className="flex-[2] rounded-xl px-5 py-3 text-[15px]"
               style={{
                 background: "var(--olive)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
               }}
             >
@@ -369,7 +369,7 @@ export default function OnboardPage() {
               className="flex-[2] rounded-xl px-5 py-3 text-[15px]"
               style={{
                 background: "var(--olive)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
               }}
             >
@@ -407,7 +407,7 @@ export default function OnboardPage() {
                       border: active
                         ? "1px solid var(--olive)"
                         : "1px solid var(--border)",
-                      color: active ? "#FBFAF6" : "var(--foreground)",
+                      color: active ? "#FFFFFF" : "var(--foreground)",
                     }}
                   >
                     <span
@@ -489,7 +489,7 @@ export default function OnboardPage() {
               className="flex-[2] rounded-xl px-5 py-3 text-[15px]"
               style={{
                 background: "var(--olive)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 500,
                 opacity: saving ? 0.5 : 1,
               }}

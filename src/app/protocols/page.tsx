@@ -129,7 +129,7 @@ export default function ProtocolsBrowsePage() {
                   className="shrink-0 text-[12px] px-3.5 py-2 rounded-full transition-all"
                   style={{
                     background: active ? "var(--olive)" : "var(--surface)",
-                    color: active ? "#FBFAF6" : "var(--foreground)",
+                    color: active ? "#FFFFFF" : "var(--foreground)",
                     border: active
                       ? "1px solid var(--olive)"
                       : "1px solid var(--border)",
@@ -254,7 +254,7 @@ function HeroEnrolledCard({
       style={{
         background:
           "linear-gradient(135deg, var(--olive) 0%, var(--olive-deep) 100%)",
-        color: "#FBFAF6",
+        color: "#FFFFFF",
         boxShadow: "0 12px 36px var(--accent-glow)",
       }}
     >
@@ -274,7 +274,7 @@ function HeroEnrolledCard({
               className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
               style={{
                 background: "rgba(251, 250, 246, 0.18)",
-                color: "#FBFAF6",
+                color: "#FFFFFF",
                 fontWeight: 600,
                 letterSpacing: "0.06em",
               }}

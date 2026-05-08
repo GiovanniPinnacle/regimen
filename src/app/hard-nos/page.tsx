@@ -361,7 +361,7 @@ export default function HardNosPage() {
                       className="flex-1 rounded-lg px-3 py-2 text-[13px]"
                       style={{
                         background: "var(--accent)",
-                        color: "#FBFAF6",
+                        color: "#FFFFFF",
                         fontWeight: 500,
                         opacity: !draft.name.trim() ? 0.5 : 1,
                       }}

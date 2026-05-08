@@ -104,30 +104,36 @@ export default function CoachPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-5 flex items-start justify-between gap-2">
-        <div>
+      <header className="mb-5 flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1
-            className="text-[32px] leading-tight"
-            style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+            className="text-[34px] leading-tight"
+            style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
           >
             Coach
           </h1>
           <p
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
+            className="text-[13px] mt-1 leading-relaxed"
+            style={{ color: "var(--foreground-soft)" }}
           >
             Knows your stack. Proposes — you approve.
           </p>
         </div>
         <button
           onClick={startNewChat}
-          className="shrink-0 px-3 py-2 rounded-xl flex items-center gap-1.5"
+          aria-label="New chat with Coach"
+          className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl no-truncate"
           style={{
-            background: "var(--pro)",
-            color: "#FBFAF6",
+            background:
+              "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
+            color: "#FFFFFF",
             fontWeight: 700,
-            minHeight: 36,
+            minHeight: 40,
+            padding: "10px 14px",
             fontSize: 13,
+            whiteSpace: "nowrap",
+            boxShadow:
+              "0 6px 18px rgba(139, 124, 252, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
           }}
         >
           <Icon name="sparkle" size={12} strokeWidth={2.4} />

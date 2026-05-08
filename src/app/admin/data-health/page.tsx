@@ -309,7 +309,7 @@ export default function DataHealthPage() {
                 className="text-[12.5px] px-3 py-2 rounded-lg flex items-center gap-1.5"
                 style={{
                   background: "var(--olive)",
-                  color: "#FBFAF6",
+                  color: "#FFFFFF",
                   fontWeight: 700,
                   minHeight: 36,
                   opacity: healingAll ? 0.5 : 1,
@@ -458,7 +458,7 @@ export default function DataHealthPage() {
                   className="w-full text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5"
                   style={{
                     background: "var(--pro)",
-                    color: "#FBFAF6",
+                    color: "#FFFFFF",
                     fontWeight: 700,
                     minHeight: 36,
                   }}
