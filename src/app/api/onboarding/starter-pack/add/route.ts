@@ -141,6 +141,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Fire-and-forget enrichment for each starter — they all already
+  // have catalog_item_id set, so step 1 (catalog match) is instant.
+  // The enrichment kicks off catalog-inheritance + affiliate discovery
+  // for any catalog rows that aren't fully filled in yet.
+  if (inserted && inserted.length > 0 && request.headers.get("origin")) {
+    const origin = request.headers.get("origin")!;
+    const cookie = request.headers.get("cookie") ?? "";
+    for (const row of inserted) {
+      void fetch(`${origin}/api/items/enrich`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie },
+        body: JSON.stringify({ item_id: row.id }),
+      }).catch(() => {});
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     inserted: inserted?.length ?? 0,

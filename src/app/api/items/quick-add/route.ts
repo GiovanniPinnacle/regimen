@@ -182,15 +182,17 @@ export async function POST(request: NextRequest) {
     approved_by_user: true,
   });
 
-  // Fire-and-forget affiliate discovery so any new buyable item picks up
-  // a vendor link
+  // Fire-and-forget the unified enrichment pipeline. Catalog match,
+  // tutorial generation (for practices), affiliate discovery (for
+  // buyables) — all kicked off in the background. User sees the item
+  // appear; metadata fills in within ~5-15s.
   if (request.headers.get("origin")) {
     const origin = request.headers.get("origin")!;
     const cookie = request.headers.get("cookie") ?? "";
-    void fetch(`${origin}/api/affiliates/discover`, {
+    void fetch(`${origin}/api/items/enrich`, {
       method: "POST",
       headers: { "Content-Type": "application/json", cookie },
-      body: JSON.stringify({ itemId: data.id }),
+      body: JSON.stringify({ item_id: data.id }),
     }).catch(() => {});
   }
 

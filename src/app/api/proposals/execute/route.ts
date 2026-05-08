@@ -306,8 +306,12 @@ export async function POST(request: NextRequest) {
       .is("promoted_to_item_id", null);
   }
 
-  // For new items, fire-and-forget affiliate discovery so every Coach-
-  // proposed item becomes a revenue opportunity automatically.
+  // For new items, fire-and-forget the unified enrichment pipeline.
+  // /api/items/enrich orchestrates: catalog match → catalog generation
+  // (if missing) → catalog inheritance (media_url, how_to, vendor,
+  // affiliate URL) → tutorial generation (for practices/devices) →
+  // affiliate discovery (for buyables). User sees the item appear
+  // immediately; enrichment fills in within ~5-15s in the background.
   if (
     itemId &&
     (changeType === "add" || changeType === "promote") &&
@@ -315,10 +319,10 @@ export async function POST(request: NextRequest) {
   ) {
     const origin = request.headers.get("origin")!;
     const cookie = request.headers.get("cookie") ?? "";
-    void fetch(`${origin}/api/affiliates/discover`, {
+    void fetch(`${origin}/api/items/enrich`, {
       method: "POST",
       headers: { "Content-Type": "application/json", cookie },
-      body: JSON.stringify({ itemId }),
+      body: JSON.stringify({ item_id: itemId }),
     }).catch(() => {});
   }
 
