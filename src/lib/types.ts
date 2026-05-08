@@ -110,6 +110,13 @@ export type Item = {
   affiliate_url?: string | null;
   list_price_cents?: number | null;
   vendor_sku?: string | null;
+  /** Tutorial / how-to media URL (YouTube, Vimeo, blog post). Set
+   *  via curated seed OR Coach's auto-enrichment. Surfaced as a
+   *  "Watch how" button on item detail / /train / ItemCard. */
+  media_url?: string | null;
+  /** Plain-English how-to summary (2-4 sentences). Pairs with
+   *  media_url. Shown above the watch button on item detail. */
+  how_to?: string | null;
   // Global catalog link — see migration 023. When set, this item shares
   // macro/micro/mechanism data with all users who picked the same
   // catalog entry. The catalog row is enriched lazily by Coach.

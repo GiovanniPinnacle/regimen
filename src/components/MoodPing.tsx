@@ -77,6 +77,24 @@ export default function MoodPing({ date }: { date: string }) {
       tone: "success",
       duration: 1500,
     });
+
+    // "Off" is the highest-signal mood report — fire Coach to dig in.
+    // Coach has full context (recent stack, sleep, intake, last
+    // reactions) and can pinpoint what's likely the cause + propose
+    // a quick win.
+    if (value <= 2) {
+      window.dispatchEvent(
+        new CustomEvent("regimen:ask", {
+          detail: {
+            text:
+              `I just logged my mood as "off" today. ` +
+              `Read my last 3 days of stack changes, sleep, intake, reactions, and skips. ` +
+              `What's the most likely cause? Give me ONE concrete fix to try TODAY and emit it as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format if it involves a stack change. Keep the diagnosis to 2 sentences max.`,
+            send: true,
+          },
+        }),
+      );
+    }
   }
 
   if (!loaded) return null;

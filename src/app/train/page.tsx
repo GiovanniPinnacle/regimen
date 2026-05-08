@@ -14,6 +14,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
+import TutorialLink from "@/components/TutorialLink";
+import AskCoachButton from "@/components/AskCoachButton";
 import { createClient } from "@/lib/supabase/client";
 import { todayISO } from "@/lib/constants";
 import type { Item } from "@/lib/types";
@@ -135,21 +137,29 @@ export default function TrainPage() {
             Movement, mobility, recovery. Voice-log a session anytime.
           </p>
         </div>
-        <button
-          onClick={captureWorkout}
-          aria-label="Log a workout"
-          className="shrink-0 px-3 py-2 rounded-xl flex items-center gap-1.5"
-          style={{
-            background: "var(--foreground)",
-            color: "var(--background)",
-            fontWeight: 600,
-            minHeight: 36,
-            fontSize: 13,
-          }}
-        >
-          <Icon name="plus" size={12} strokeWidth={2.4} />
-          Log
-        </button>
+        <div className="flex flex-col gap-1.5 shrink-0">
+          <AskCoachButton
+            prompt="Look at my Oura readiness, sleep, HRV, recent training history, and post-op timeline. Should I train today, and if yes — Day A or Day B? If readiness says back off, suggest a recovery alternative. Emit one one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format if it changes my schedule."
+            send
+            label="What to train?"
+          />
+          <button
+            onClick={captureWorkout}
+            aria-label="Log a workout"
+            className="px-3 py-2 rounded-xl flex items-center gap-1.5 justify-center"
+            style={{
+              background: "var(--surface-alt)",
+              color: "var(--foreground)",
+              fontWeight: 600,
+              minHeight: 32,
+              fontSize: 12,
+              border: "1px solid var(--border)",
+            }}
+          >
+            <Icon name="plus" size={11} strokeWidth={2.4} />
+            Log session
+          </button>
+        </div>
       </header>
 
       {/* Recovery vitals — Oura snapshot at the top so user knows
@@ -244,12 +254,21 @@ export default function TrainPage() {
                     className="shrink-0 transition-transform group-open:rotate-180"
                   />
                 </summary>
-                {p.usage_notes && (
+                {(p.how_to || p.usage_notes) && (
                   <div
                     className="px-4 pb-4 pt-1 text-[12.5px] leading-relaxed whitespace-pre-line"
                     style={{ color: "var(--foreground)", opacity: 0.9 }}
                   >
-                    {p.usage_notes}
+                    {p.how_to ?? p.usage_notes}
+                  </div>
+                )}
+                {p.media_url && (
+                  <div className="px-4 pb-3">
+                    <TutorialLink
+                      mediaUrl={p.media_url}
+                      howTo={null}
+                      variant="block"
+                    />
                   </div>
                 )}
                 <div
@@ -391,31 +410,42 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 function TrainItemCard({ item }: { item: Item }) {
   return (
-    <Link
-      href={`/items/${item.id}`}
-      className="rounded-xl card-glass px-3 py-2.5 flex items-center gap-2.5"
-    >
-      <div className="flex-1 min-w-0">
-        <div
-          className="text-[14px] leading-snug truncate"
-          style={{ fontWeight: 600 }}
-        >
-          {item.name}
-        </div>
-        {item.usage_notes && (
+    <div className="rounded-xl card-glass px-3 py-2.5">
+      <Link
+        href={`/items/${item.id}`}
+        className="flex items-center gap-2.5"
+      >
+        <div className="flex-1 min-w-0">
           <div
-            className="text-[11.5px] mt-0.5 truncate"
-            style={{ color: "var(--muted)" }}
+            className="text-[14px] leading-snug truncate"
+            style={{ fontWeight: 600 }}
           >
-            {item.usage_notes.split("\n")[0]}
+            {item.name}
           </div>
-        )}
-      </div>
-      <Icon
-        name="chevron-right"
-        size={14}
-        className="shrink-0 opacity-50"
-      />
-    </Link>
+          {(item.how_to || item.usage_notes) && (
+            <div
+              className="text-[11.5px] mt-0.5 truncate"
+              style={{ color: "var(--muted)" }}
+            >
+              {(item.how_to ?? item.usage_notes ?? "").split("\n")[0]}
+            </div>
+          )}
+        </div>
+        <Icon
+          name="chevron-right"
+          size={14}
+          className="shrink-0 opacity-50"
+        />
+      </Link>
+      {item.media_url && (
+        <div className="mt-1.5">
+          <TutorialLink
+            mediaUrl={item.media_url}
+            howTo={item.how_to}
+            variant="chip"
+          />
+        </div>
+      )}
+    </div>
   );
 }

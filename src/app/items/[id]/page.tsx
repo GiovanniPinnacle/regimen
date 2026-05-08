@@ -15,6 +15,7 @@ import PurchaseStateControl from "@/components/PurchaseStateControl";
 import RegenerateResearchButton from "@/components/RegenerateResearchButton";
 import DeepResearchButton from "@/components/DeepResearchButton";
 import BuyButton from "@/components/BuyButton";
+import TutorialLink from "@/components/TutorialLink";
 
 export default async function ItemDetailPage({
   params,
@@ -241,6 +242,18 @@ export default async function ItemDetailPage({
       </header>
 
       <ItemActions item={item} />
+
+      {/* Tutorial / how-to — surfaced near the top so users see the
+          link before scrolling through research notes etc. */}
+      {(item.media_url || item.how_to) && (
+        <Section title="How to do this">
+          <TutorialLink
+            mediaUrl={item.media_url}
+            howTo={item.how_to}
+            variant="row"
+          />
+        </Section>
+      )}
 
       {/* Macros panel — appears when catalog has any nutritional data,
        *   even without enrichment. Surfaces the data we always have for

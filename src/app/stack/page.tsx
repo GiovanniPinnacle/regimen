@@ -10,6 +10,7 @@ import type { Category, Goal, Item, ItemType, Status } from "@/lib/types";
 import { ITEM_TYPE_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
 import EmptyState from "@/components/EmptyState";
 import StackFilterSheet from "@/components/StackFilterSheet";
+import AskCoachButton from "@/components/AskCoachButton";
 import {
   SkeletonLine,
   SkeletonPill,
@@ -378,7 +379,12 @@ export default function StackPage() {
             {STATUS_TABS.find((t) => t.value === statusTab)?.label.toLowerCase()}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          <AskCoachButton
+            prompt="Audit my full stack right now. Look for: items I should drop (no_change 5+ times, worse 2+ times, skipped 14+ days), redundant items, missing essentials given my goals, and dose stacking risks. Emit each change as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format. End with a 1-sentence summary of what changes."
+            send
+            label="Refine stack"
+          />
           <button
             type="button"
             onClick={toggleDense}

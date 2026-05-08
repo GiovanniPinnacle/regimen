@@ -7,6 +7,7 @@ import CategoryBadge from "./CategoryBadge";
 import ReactionRow, { shouldShowReaction } from "./ReactionRow";
 import ItemQuickActions from "./ItemQuickActions";
 import SwipeDismiss from "./SwipeDismiss";
+import TutorialLink from "./TutorialLink";
 import { GOAL_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
 import {
   snoozeItem,
@@ -261,6 +262,19 @@ export default function ItemCard({
               {item.__companions.map((c) => c.name).join(", ")}
             </div>
           )}
+
+        {/* Tutorial chip — visible inline whenever the item has a
+            how-to link. Lets the user open the video in one tap
+            without going to item detail. */}
+        {compact && (item.media_url || item.how_to) && (
+          <div className="mt-1.5">
+            <TutorialLink
+              mediaUrl={item.media_url}
+              howTo={item.how_to}
+              variant="chip"
+            />
+          </div>
+        )}
 
         {/* Inline action links (compact, only when not yet acted on).
             Snooze opens a tiny inline picker rather than firing a
