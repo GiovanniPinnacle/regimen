@@ -12,6 +12,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
+import Sparkline from "@/components/Sparkline";
+import MetricDelta from "@/components/MetricDelta";
 import { createClient } from "@/lib/supabase/client";
 
 type Marker = {
@@ -67,13 +69,24 @@ export default function RecentBiomarkers({
     byName.get(m.name)!.push(m);
   }
 
-  // Sort entries by latest drawn_on desc
+  // Sort entries by latest drawn_on desc. `series` is the chronological
+  // value-over-time array (oldest left, newest right) used to render
+  // the inline trend Sparkline. `delta` compares latest to previous —
+  // surfaced as a MetricDelta chip so users see direction + magnitude
+  // at a glance instead of a single raw number.
   const entries = Array.from(byName.entries())
-    .map(([name, list]) => ({
-      name,
-      latest: list[0],
-      prev: list[1] ?? null,
-    }))
+    .map(([name, list]) => {
+      // list comes back newest-first because the upstream order() does
+      // drawn_on desc — flip for the sparkline so today is on the right.
+      const chrono = [...list].reverse();
+      return {
+        name,
+        latest: list[0],
+        prev: list[1] ?? null,
+        series: chrono.map((m) => m.value),
+        delta: list[1] ? list[0].value - list[1].value : 0,
+      };
+    })
     .sort(
       (a, b) =>
         new Date(b.latest.drawn_on).getTime() -
@@ -102,86 +115,96 @@ export default function RecentBiomarkers({
               : e.latest.flag === "L"
                 ? "var(--warn)"
                 : "var(--olive)";
-          const trend = e.prev
-            ? e.latest.value > e.prev.value
-              ? "↑"
-              : e.latest.value < e.prev.value
-                ? "↓"
-                : "·"
-            : null;
+          // Sparkline color matches the flag tone so the trend visually
+          // agrees with the rollup (high-flagged marker → red trend).
+          const sparkColor = e.latest.flag ? flagColor : "var(--accent)";
           return (
             <Link
               key={e.name}
               href={`/tests?marker=${encodeURIComponent(e.name)}`}
-              className="rounded-xl card-glass px-3 py-2.5 flex items-center gap-2.5"
+              className="rounded-xl card-glass px-3 py-3 flex items-center gap-3"
             >
               <div className="flex-1 min-w-0">
                 <div
-                  className="text-[13.5px] leading-tight"
-                  style={{ fontWeight: 600 }}
+                  className="text-[14px] leading-tight"
+                  style={{ fontWeight: 600, letterSpacing: "-0.005em" }}
                 >
                   {e.latest.display_name ?? e.name.replace(/_/g, " ")}
                 </div>
+                <div className="flex items-baseline gap-2 mt-1.5">
+                  <span
+                    className="text-[20px] tabular-nums leading-none"
+                    style={{
+                      color: e.latest.flag ? flagColor : "var(--foreground)",
+                      fontWeight: 700,
+                      letterSpacing: "-0.018em",
+                    }}
+                  >
+                    {e.latest.value}
+                  </span>
+                  <span
+                    className="text-[11px] leading-none"
+                    style={{ color: "var(--muted)", fontWeight: 600 }}
+                  >
+                    {e.latest.unit}
+                  </span>
+                  {e.prev && (
+                    <MetricDelta
+                      delta={e.delta}
+                      baseline="vs prev"
+                      direction="neutral"
+                      unit={e.latest.unit ?? ""}
+                    />
+                  )}
+                  {e.latest.flag && (
+                    <span
+                      className="text-[9px] uppercase tracking-wider px-1.5 py-[1px] rounded-full"
+                      style={{
+                        background: flagColor,
+                        color: "#FFFFFF",
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      {e.latest.flag === "H"
+                        ? "high"
+                        : e.latest.flag === "L"
+                          ? "low"
+                          : e.latest.flag}
+                    </span>
+                  )}
+                </div>
                 <div
-                  className="text-[11px] mt-0.5 flex items-baseline gap-2"
+                  className="text-[11px] mt-1.5 flex items-baseline gap-2"
                   style={{ color: "var(--muted)" }}
                 >
                   <span>{e.latest.drawn_on}</span>
                   {e.latest.reference_range && (
                     <span>· ref {e.latest.reference_range}</span>
                   )}
-                  {e.prev && (
-                    <span>
-                      · prev {e.prev.value} on {e.prev.drawn_on}
-                    </span>
+                  {e.series.length > 1 && (
+                    <span>· {e.series.length} draws</span>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span
-                  className="text-[15px] tabular-nums"
-                  style={{
-                    color: e.latest.flag ? flagColor : "var(--foreground)",
-                    fontWeight: 700,
-                  }}
-                >
-                  {e.latest.value}
-                </span>
-                <span
-                  className="text-[10px]"
-                  style={{ color: "var(--muted)" }}
-                >
-                  {e.latest.unit}
-                </span>
-                {trend && (
-                  <span
-                    className="text-[12px] tabular-nums"
-                    style={{ color: "var(--muted)" }}
-                    aria-label={`Trend ${trend}`}
-                  >
-                    {trend}
-                  </span>
-                )}
-                {e.latest.flag && (
-                  <span
-                    className="text-[9px] uppercase px-1.5 rounded-full"
-                    style={{
-                      background: flagColor,
-                      color: "#FFFFFF",
-                      fontWeight: 700,
-                      minWidth: 20,
-                      textAlign: "center",
-                    }}
-                  >
-                    {e.latest.flag}
-                  </span>
-                )}
-                <Icon
-                  name="chevron-right"
-                  size={12}
-                  className="opacity-40"
+              {/* Trend sparkline — line mode for continuous biomarker
+                  values, sized so it sits comfortably without crowding
+                  the chevron. Hidden when only one draw exists. */}
+              {e.series.length > 1 && (
+                <Sparkline
+                  values={e.series}
+                  mode="line"
+                  width={64}
+                  height={32}
+                  color={sparkColor}
+                  ariaLabel={`${e.series.length}-draw trend`}
                 />
-              </div>
+              )}
+              <Icon
+                name="chevron-right"
+                size={14}
+                className="shrink-0 opacity-40"
+              />
             </Link>
           );
         })}

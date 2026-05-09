@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import MetricDelta from "@/components/MetricDelta";
 import SwipeDismiss from "@/components/SwipeDismiss";
 import { usePulseCount } from "@/components/CoachPulse";
 
@@ -134,9 +135,10 @@ export default function WeeklyDigestCard() {
   const lastPct = Math.round(digest.last_week.rate * 100);
   const prevPct = Math.round(digest.prev_week.rate * 100);
   const deltaPp = Math.round(digest.delta_rate * 100);
-  const trendUp = deltaPp >= 0;
-  const trendColor = trendUp ? "var(--accent)" : "var(--error)";
-  const trendIcon: "trend-up" | "trend-down" = trendUp ? "trend-up" : "trend-down";
+  // Color the headline percentage based on directional movement —
+  // green if last week was higher than the week before, warn-red if
+  // it slipped. The MetricDelta chip handles its own coloring.
+  const trendColor = deltaPp >= 0 ? "var(--accent)" : "var(--error)";
 
   return (
     <SwipeDismiss onDismiss={dismiss}>
@@ -167,17 +169,33 @@ export default function WeeklyDigestCard() {
               Weekly digest
             </div>
             <div
-              className="text-[15px] leading-snug mt-0.5"
-              style={{ fontWeight: 600 }}
+              className="flex items-baseline gap-2 mt-0.5 flex-wrap"
             >
-              {lastPct}% adherence last week
               <span
-                className="text-[12px] ml-2 inline-flex items-center gap-0.5"
-                style={{ color: trendColor, fontWeight: 700 }}
+                className="text-[24px] tabular-nums leading-none"
+                style={{
+                  fontWeight: 700,
+                  letterSpacing: "-0.02em",
+                  color: trendColor,
+                }}
               >
-                <Icon name={trendIcon} size={11} strokeWidth={2.2} />
-                {Math.abs(deltaPp)}pp vs prev
+                {lastPct}%
               </span>
+              <span
+                className="text-[12.5px]"
+                style={{
+                  color: "var(--foreground-soft)",
+                  fontWeight: 600,
+                }}
+              >
+                adherence last week
+              </span>
+              <MetricDelta
+                delta={deltaPp}
+                baseline="vs prev"
+                direction="good_higher"
+                unit="pp"
+              />
             </div>
             <div
               className="text-[12.5px] mt-1 leading-relaxed"
