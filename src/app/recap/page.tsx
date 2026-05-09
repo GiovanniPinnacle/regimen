@@ -247,13 +247,19 @@ export default function RecapPage() {
               </span>
               {delta !== 0 && (
                 <span
-                  className="text-[14px] tabular-nums ml-2 px-2 py-0.5 rounded-full"
+                  className="text-[12px] tabular-nums ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
                   style={{
-                    background: "rgba(251, 250, 246, 0.20)",
+                    background: "rgba(255, 255, 255, 0.18)",
                     fontWeight: 700,
+                    letterSpacing: "-0.005em",
                   }}
                 >
-                  {delta > 0 ? "↑" : "↓"} {Math.abs(delta)}%
+                  <Icon
+                    name={delta > 0 ? "arrow-up" : "arrow-down"}
+                    size={11}
+                    strokeWidth={2.4}
+                  />
+                  {Math.abs(delta)}pp vs prev
                 </span>
               )}
             </div>
@@ -281,7 +287,7 @@ export default function RecapPage() {
                       className="w-full rounded-sm"
                       style={{
                         height: `${pct}px`,
-                        background: "rgba(251, 250, 246, 0.85)",
+                        background: "rgba(255, 255, 255, 0.85)",
                         opacity: d.total > 0 ? 1 : 0.3,
                       }}
                     />
