@@ -88,13 +88,15 @@ export default function WishlistPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const id = setTimeout(() => void load(), 0);
     function onChange() {
       void load();
     }
     window.addEventListener("regimen:items-changed", onChange);
-    return () =>
+    return () => {
+      clearTimeout(id);
       window.removeEventListener("regimen:items-changed", onChange);
+    };
   }, [load]);
 
   // --- Mutations -----------------------------------------------------------

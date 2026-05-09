@@ -470,8 +470,8 @@ function AnalysisDisplay({
     const name = analysis.name as string | undefined;
     if (!name?.trim()) return;
     let alive = true;
-    setCatalogLoading(true);
     (async () => {
+      setCatalogLoading(true);
       try {
         const res = await fetch(
           `/api/catalog/search?q=${encodeURIComponent(name.trim())}`,

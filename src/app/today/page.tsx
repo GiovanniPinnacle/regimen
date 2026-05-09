@@ -121,7 +121,16 @@ export default function TodayPage() {
   const [skipTarget, setSkipTarget] = useState<Item | null>(null);
   const [swapTarget, setSwapTarget] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userCollapsed, setUserCollapsed] = useState<Record<string, boolean>>({});
+  const [userCollapsed, setUserCollapsed] = useState<Record<string, boolean>>(
+    () => {
+      if (typeof window === "undefined") return {};
+      try {
+        const raw = localStorage.getItem(COLLAPSE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {}
+      return {};
+    },
+  );
   const [activeSlot, setActiveSlot] = useState<TimingSlot | "all">("all");
   // Track if user explicitly chose a slot this session — if so, don't
   // auto-shift them when the hour rolls over.
@@ -242,10 +251,6 @@ export default function TodayPage() {
         );
       }
     })();
-    try {
-      const raw = localStorage.getItem(COLLAPSE_KEY);
-      if (raw) setUserCollapsed(JSON.parse(raw));
-    } catch {}
   }, [today]);
 
   function changeSlot(slot: TimingSlot | "all") {
@@ -349,25 +354,28 @@ export default function TodayPage() {
   // to the time-of-day slot.
   useEffect(() => {
     if (loading) return;
-    setActiveSlot((prev) => {
-      if (userPickedSlot) return prev;
-      try {
-        const raw = localStorage.getItem(ACTIVE_SLOT_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as {
-            date: string;
-            slot: TimingSlot | "all";
-          };
-          // Honor same-day restore but never restore "all" — start
-          // focused on whatever slot is current.
-          if (parsed.date === today && parsed.slot !== "all") {
-            return parsed.slot;
+    const id = setTimeout(() => {
+      setActiveSlot((prev) => {
+        if (userPickedSlot) return prev;
+        try {
+          const raw = localStorage.getItem(ACTIVE_SLOT_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw) as {
+              date: string;
+              slot: TimingSlot | "all";
+            };
+            // Honor same-day restore but never restore "all" — start
+            // focused on whatever slot is current.
+            if (parsed.date === today && parsed.slot !== "all") {
+              return parsed.slot;
+            }
           }
-        }
-      } catch {}
-      const hour = new Date().getHours();
-      return pickDefaultSlot(hour, grouped);
-    });
+        } catch {}
+        const hour = new Date().getHours();
+        return pickDefaultSlot(hour, grouped);
+      });
+    }, 0);
+    return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, grouped, today]);
 
@@ -459,9 +467,11 @@ export default function TodayPage() {
           },
         }),
       );
-      setActiveSlot(next);
+      const nextSlot = next;
+      const id = setTimeout(() => setActiveSlot(nextSlot), 0);
+      return () => clearTimeout(id);
     }
-     
+
   }, [taken, skipReasons, snoozedIds, grouped, loading, activeSlot]);
 
   // Fire confetti when a slot newly transitions to 100% complete. Compares

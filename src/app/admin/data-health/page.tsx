@@ -9,7 +9,7 @@
 // boundaries. This page surfaces that class of bug before the user
 // hits a wall.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import { showToast } from "@/lib/toast";
@@ -76,7 +76,7 @@ export default function DataHealthPage() {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [healingAll, setHealingAll] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setFindings(null);
     setSummary(null);
     setNearDuplicates(null);
@@ -101,7 +101,7 @@ export default function DataHealthPage() {
       setFindings([]);
       setNearDuplicates([]);
     }
-  }
+  }, []);
 
   function reviewWithCoach(group: NearDuplicateGroup) {
     const list = group.items
@@ -123,8 +123,9 @@ export default function DataHealthPage() {
   }
 
   useEffect(() => {
-    void load();
-  }, []);
+    const id = setTimeout(() => void load(), 0);
+    return () => clearTimeout(id);
+  }, [load]);
 
   async function healOne(f: Finding) {
     setBusy((s) => new Set(s).add(f.key));

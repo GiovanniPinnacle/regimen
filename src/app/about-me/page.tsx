@@ -134,7 +134,11 @@ export default function AboutMePage() {
   const [basics, setBasics] = useState<ProfileBasics | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
-  const [savedAt, setSavedAt] = useState<Record<string, number>>({});
+  // Tracks which fields just saved — set true on save, auto-flipped
+  // false 3s later via setTimeout. Avoids the Date.now() during render
+  // pattern (impure render → React 19 lints flagged it as a hydration
+  // / memoization risk).
+  const [savedAt, setSavedAt] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     (async () => {
@@ -164,7 +168,12 @@ export default function AboutMePage() {
     setData(next);
     await client.from("profiles").update({ about_me: next }).select();
     setSaving((s) => ({ ...s, [key]: false }));
-    setSavedAt((s) => ({ ...s, [key]: Date.now() }));
+    setSavedAt((s) => ({ ...s, [key]: true }));
+    // Auto-clear the "just saved" flag after 3 seconds — keeps the
+    // render-time check pure (no Date.now() during render).
+    setTimeout(() => {
+      setSavedAt((s) => ({ ...s, [key]: false }));
+    }, 3000);
   }
 
   if (loading) {
@@ -329,7 +338,7 @@ function SectionBlock({
   data: AboutMe;
   saveField: (key: keyof AboutMe, value: string) => void;
   saving: Record<string, boolean>;
-  savedAt: Record<string, number>;
+  savedAt: Record<string, boolean>;
   collapsedDefault: boolean;
 }) {
   const filled = fields.filter(
@@ -363,7 +372,9 @@ function SectionBlock({
       <div className="flex flex-col gap-4 mt-2">
         {fields.map((f) => {
           const isSaving = saving[f.key];
-          const recentSave = savedAt[f.key] && Date.now() - savedAt[f.key] < 3000;
+          // savedAt[key] is now a bool that's auto-cleared 3s after
+          // save. Pure render — no Date.now() / readNow().
+          const recentSave = !!savedAt[f.key];
           return (
             <div key={String(f.key)}>
               <label

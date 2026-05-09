@@ -5,7 +5,7 @@
 // vs targets, recent entries. Designed for the "society is lazy" UX
 // principle: one tap should be the maximum effort to log most things.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import { uploadPhoto } from "@/lib/photo";
 
@@ -62,23 +62,24 @@ export default function IntakeTracker({ targets }: Props) {
   const [loading, setLoading] = useState(true);
   const [logSheet, setLogSheet] = useState<"meal" | null>(null);
 
-  useEffect(() => {
-    void load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const res = await fetch("/api/intake");
       if (!res.ok) return;
       const data = await res.json();
       setEntries(data.entries ?? []);
-      setTotals(data.totals ?? totals);
+      setTotals((prev) => data.totals ?? prev);
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const id = setTimeout(() => void load(), 0);
+    return () => clearTimeout(id);
+  }, [load]);
 
   async function addWater(oz: number) {
     // Optimistic

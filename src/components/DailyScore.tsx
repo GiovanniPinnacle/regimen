@@ -81,7 +81,8 @@ export default function DailyScore({
   }, []);
 
   useEffect(() => {
-    void load();
+    const id = setTimeout(() => void load(), 0);
+    return () => clearTimeout(id);
   }, [load]);
 
   const score = useMemo(() => {

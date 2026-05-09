@@ -88,13 +88,9 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false);
   // Recent searches — populated lazily on mount so SSR doesn't hit
   // localStorage. Updated whenever a non-empty query lands a hit.
-  const [recent, setRecent] = useState<string[]>([]);
+  const [recent, setRecent] = useState<string[]>(() => loadRecentSearches());
   const inputRef = useRef<HTMLInputElement | null>(null);
   const debouncerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setRecent(loadRecentSearches());
-  }, []);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -103,12 +99,14 @@ export default function SearchPage() {
   useEffect(() => {
     if (debouncerRef.current) clearTimeout(debouncerRef.current);
     if (q.trim().length < 2) {
-      setHits([]);
-      setCounts(null);
-      return;
+      const id = setTimeout(() => {
+        setHits([]);
+        setCounts(null);
+      }, 0);
+      return () => clearTimeout(id);
     }
-    setLoading(true);
     debouncerRef.current = setTimeout(async () => {
+      setLoading(true);
       try {
         const res = await fetch(
           `/api/search?q=${encodeURIComponent(q.trim())}`,

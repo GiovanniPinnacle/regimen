@@ -10,7 +10,7 @@
 // runs, photo scans, deep research, affiliate rebate. Reinforces "you're
 // already getting your money's worth."
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
 
@@ -32,13 +32,12 @@ type Stats = {
 };
 
 export default function ProBenefits() {
-  const [isPro, setIsPro] = useState<boolean | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setIsPro(localStorage.getItem(PRO_KEY) === "true");
-
+  const [isPro] = useState<boolean | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(PRO_KEY) === "true";
+  });
+  const [stats] = useState<Stats | null>(() => {
+    if (typeof window === "undefined") return null;
     // Best-effort stats — this is currently approximated client-side.
     // When Pro launches with Stripe, swap to a real /api/pro/stats endpoint.
     let claudeRuns = 0;
@@ -46,14 +45,13 @@ export default function ProBenefits() {
       const u = JSON.parse(localStorage.getItem(USAGE_KEY) ?? "{}");
       if (u.count) claudeRuns = u.count;
     } catch {}
-
-    setStats({
+    return {
       claude_runs_this_month: claudeRuns,
       photo_scans_this_month: 0,
       deep_research_this_month: 0,
       affiliate_spend_this_month: 0,
-    });
-  }, []);
+    };
+  });
 
   if (isPro === null) return null;
 

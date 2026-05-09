@@ -63,7 +63,8 @@ export default function HardNosPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const id = setTimeout(() => void load(), 0);
+    return () => clearTimeout(id);
   }, [load]);
 
   // Live catalog autocomplete for the hard-no name input. Debounced so

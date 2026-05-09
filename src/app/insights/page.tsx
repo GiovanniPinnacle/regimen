@@ -191,7 +191,8 @@ export default function InsightsPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const id = setTimeout(() => void load(), 0);
+    return () => clearTimeout(id);
   }, [load]);
 
   async function runAudit() {

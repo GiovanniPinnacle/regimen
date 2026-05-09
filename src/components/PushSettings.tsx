@@ -1,23 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { subscribeToPush, sendTestPush } from "@/lib/push";
 
 type State = "unknown" | "unsupported" | "denied" | "granted" | "default";
 
 export default function PushSettings() {
-  const [state, setState] = useState<State>("unknown");
+  const [state, setState] = useState<State>(() => {
+    if (typeof window === "undefined") return "unknown";
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+      return "unsupported";
+    }
+    return Notification.permission as State;
+  });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-      setState("unsupported");
-      return;
-    }
-    setState(Notification.permission as State);
-  }, []);
 
   async function handleEnable() {
     setBusy(true);

@@ -141,8 +141,8 @@ export default function StackPage() {
   useEffect(() => {
     let alive = true;
     const isTabSwitch = reloadKey === 0 || items.length === 0;
-    if (isTabSwitch) setLoading(true);
     (async () => {
+      if (isTabSwitch) setLoading(true);
       const all = await getItemsByStatus(statusTab);
       if (!alive) return;
       setItems(all);

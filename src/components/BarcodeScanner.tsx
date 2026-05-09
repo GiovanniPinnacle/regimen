@@ -93,12 +93,16 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setErr(null);
-    setResult(null);
+    const resetId = setTimeout(() => {
+      setErr(null);
+      setResult(null);
+    }, 0);
 
     const hasDetector =
       typeof window !== "undefined" && Boolean(window.BarcodeDetector);
-    if (!hasDetector) return;
+    if (!hasDetector) {
+      return () => clearTimeout(resetId);
+    }
 
     let alive = true;
     let detectInterval: ReturnType<typeof setInterval> | null = null;
@@ -141,6 +145,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
     })();
 
     return () => {
+      clearTimeout(resetId);
       alive = false;
       setScanning(false);
       if (detectInterval) clearInterval(detectInterval);
