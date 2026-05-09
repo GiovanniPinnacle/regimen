@@ -238,7 +238,7 @@ export default function StackFilterSheet({
                         className="text-[10px] px-1.5 rounded-full tabular-nums"
                         style={{
                           background: active
-                            ? "rgba(251, 250, 246, 0.2)"
+                            ? "rgba(255, 255, 255, 0.2)"
                             : "var(--border)",
                           color: active ? "#FFFFFF" : "var(--muted)",
                           fontWeight: 600,

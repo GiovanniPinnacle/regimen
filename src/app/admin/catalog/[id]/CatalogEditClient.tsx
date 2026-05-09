@@ -121,7 +121,7 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
               onClick={() => setEdits({})}
               className="text-[12px] px-3 py-1.5 rounded-lg"
               style={{
-                background: "rgba(251, 250, 246, 0.18)",
+                background: "rgba(255, 255, 255, 0.18)",
                 color: "#FFFFFF",
                 fontWeight: 600,
               }}
@@ -133,7 +133,7 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
               disabled={saving}
               className="text-[12px] px-3 py-1.5 rounded-lg"
               style={{
-                background: "rgba(251, 250, 246, 0.96)",
+                background: "rgba(255, 255, 255, 0.96)",
                 color: "var(--accent-deep)",
                 fontWeight: 700,
                 opacity: saving ? 0.6 : 1,

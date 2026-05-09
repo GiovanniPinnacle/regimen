@@ -273,7 +273,7 @@ function HeroEnrolledCard({
             <span
               className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
               style={{
-                background: "rgba(251, 250, 246, 0.18)",
+                background: "rgba(255, 255, 255, 0.18)",
                 color: "#FFFFFF",
                 fontWeight: 600,
                 letterSpacing: "0.06em",
@@ -300,14 +300,14 @@ function HeroEnrolledCard({
       {/* Progress bar */}
       <div
         className="h-1.5 rounded-full overflow-hidden"
-        style={{ background: "rgba(251, 250, 246, 0.18)" }}
+        style={{ background: "rgba(255, 255, 255, 0.18)" }}
         aria-label={`${progress}% complete`}
       >
         <div
           className="h-full rounded-full"
           style={{
             width: `${progress}%`,
-            background: "rgba(251, 250, 246, 0.85)",
+            background: "rgba(255, 255, 255, 0.85)",
           }}
         />
       </div>

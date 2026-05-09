@@ -116,7 +116,7 @@ export default function ProtocolCompletionModal() {
             <span
               className="h-16 w-16 rounded-2xl flex items-center justify-center"
               style={{
-                background: "rgba(251, 250, 246, 0.18)",
+                background: "rgba(255, 255, 255, 0.18)",
                 color: "#FFFFFF",
               }}
             >
@@ -156,7 +156,7 @@ export default function ProtocolCompletionModal() {
               onClick={applyLearnings}
               className="w-full py-3 rounded-xl text-[14px] flex items-center justify-center gap-1.5"
               style={{
-                background: "rgba(251, 250, 246, 0.96)",
+                background: "rgba(255, 255, 255, 0.96)",
                 color: "var(--premium-deep)",
                 fontWeight: 700,
               }}
@@ -168,7 +168,7 @@ export default function ProtocolCompletionModal() {
               onClick={close}
               className="w-full py-2.5 rounded-xl text-[13px]"
               style={{
-                background: "rgba(251, 250, 246, 0.18)",
+                background: "rgba(255, 255, 255, 0.18)",
                 color: "#FFFFFF",
                 fontWeight: 600,
               }}

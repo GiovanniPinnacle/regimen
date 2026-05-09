@@ -137,7 +137,7 @@ export default function MagicMomentPrompt() {
           onClick={fireCoach}
           className="text-[12.5px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
           style={{
-            background: "rgba(251, 250, 246, 0.96)",
+            background: "rgba(255, 255, 255, 0.96)",
             color: "var(--olive-deep)",
             fontWeight: 700,
           }}
@@ -154,7 +154,7 @@ export default function MagicMomentPrompt() {
           }}
           className="text-[12.5px] px-3 py-2 rounded-lg"
           style={{
-            background: "rgba(251, 250, 246, 0.18)",
+            background: "rgba(255, 255, 255, 0.18)",
             color: "#FFFFFF",
             fontWeight: 600,
           }}
@@ -165,7 +165,7 @@ export default function MagicMomentPrompt() {
       <button
         onClick={dismiss}
         className="absolute top-3 right-3 leading-none px-1"
-        style={{ color: "rgba(251, 250, 246, 0.7)" }}
+        style={{ color: "rgba(255, 255, 255, 0.7)" }}
         aria-label="Dismiss"
       >
         <Icon name="plus" size={14} className="rotate-45" />

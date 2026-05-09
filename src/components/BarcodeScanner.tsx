@@ -239,7 +239,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
             </div>
             <div
               className="text-[12.5px] text-center"
-              style={{ color: "rgba(251, 250, 246, 0.85)" }}
+              style={{ color: "rgba(255, 255, 255, 0.85)" }}
             >
               {scanning
                 ? "Aim the green box at the barcode"

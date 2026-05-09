@@ -198,7 +198,7 @@ export default function ScanPage() {
           >
             <span
               className="shrink-0 h-11 w-11 rounded-xl flex items-center justify-center"
-              style={{ background: "rgba(251, 250, 246, 0.18)" }}
+              style={{ background: "rgba(255, 255, 255, 0.18)" }}
             >
               <Icon name="search" size={20} strokeWidth={1.8} />
             </span>

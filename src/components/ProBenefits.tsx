@@ -175,7 +175,7 @@ function FreeUpsellCard() {
         <span
           className="shrink-0 mt-0.5 h-9 w-9 rounded-lg flex items-center justify-center"
           style={{
-            background: "rgba(251, 250, 246, 0.18)",
+            background: "rgba(255, 255, 255, 0.18)",
           }}
         >
           <Icon name="sparkle" size={18} strokeWidth={1.8} />

@@ -317,7 +317,7 @@ export default function FitDemoPage() {
                 className="text-[10px] uppercase tracking-wider"
                 style={{
                   color: w.current
-                    ? "rgba(251, 250, 246, 0.7)"
+                    ? "rgba(255, 255, 255, 0.7)"
                     : "var(--muted)",
                   fontWeight: 500,
                 }}
@@ -496,7 +496,7 @@ function PhaseStrip({
                 className="text-[10px] uppercase tracking-wider"
                 style={{
                   color: isActive
-                    ? "rgba(251, 250, 246, 0.78)"
+                    ? "rgba(255, 255, 255, 0.78)"
                     : "var(--muted)",
                   fontWeight: 500,
                 }}

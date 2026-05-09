@@ -247,7 +247,7 @@ export default function OnboardPage() {
                   style={{
                     color:
                       focus === opt.key
-                        ? "rgba(251, 250, 246, 0.78)"
+                        ? "rgba(255, 255, 255, 0.78)"
                         : "var(--muted)",
                   }}
                 >
@@ -427,7 +427,7 @@ export default function OnboardPage() {
                         className="text-[12px] mt-0.5 leading-relaxed"
                         style={{
                           color: active
-                            ? "rgba(251, 250, 246, 0.82)"
+                            ? "rgba(255, 255, 255, 0.82)"
                             : "var(--muted)",
                         }}
                       >
@@ -437,7 +437,7 @@ export default function OnboardPage() {
                         className="text-[11px] mt-1"
                         style={{
                           color: active
-                            ? "rgba(251, 250, 246, 0.7)"
+                            ? "rgba(255, 255, 255, 0.7)"
                             : "var(--muted)",
                         }}
                       >

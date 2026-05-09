@@ -230,7 +230,7 @@ export default function UpgradePage() {
                     <span
                       className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
                       style={{
-                        background: "rgba(251, 250, 246, 0.22)",
+                        background: "rgba(255, 255, 255, 0.22)",
                         color: "#FFFFFF",
                         fontWeight: 700,
                         letterSpacing: "0.06em",
@@ -295,7 +295,7 @@ export default function UpgradePage() {
                   className="w-full rounded-xl px-4 py-3 text-[14px]"
                   style={{
                     background: t.highlight
-                      ? "rgba(251, 250, 246, 0.95)"
+                      ? "rgba(255, 255, 255, 0.95)"
                       : "var(--pro)",
                     color: t.highlight ? "var(--pro-deep)" : "#FFFFFF",
                     fontWeight: 700,

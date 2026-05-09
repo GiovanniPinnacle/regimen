@@ -302,7 +302,7 @@ export default function InsightsPage() {
             disabled={loading || limitReached || dataIsThin}
             className="w-full mt-3 py-2.5 rounded-xl text-[13.5px] flex items-center justify-center gap-1.5"
             style={{
-              background: "rgba(251, 250, 246, 0.96)",
+              background: "rgba(255, 255, 255, 0.96)",
               color: "var(--pro-deep)",
               fontWeight: 700,
               opacity: loading || limitReached || dataIsThin ? 0.55 : 1,
@@ -324,7 +324,7 @@ export default function InsightsPage() {
               href="/upgrade"
               className="block w-full mt-2 py-2 rounded-xl text-center text-[12.5px]"
               style={{
-                background: "rgba(251, 250, 246, 0.16)",
+                background: "rgba(255, 255, 255, 0.16)",
                 color: "#FFFFFF",
                 fontWeight: 600,
               }}

@@ -117,7 +117,7 @@ export default function NextStep({
           <span
             className="shrink-0 mt-0.5 h-9 w-9 rounded-xl flex items-center justify-center"
             style={{
-              background: "rgba(251, 250, 246, 0.20)",
+              background: "rgba(255, 255, 255, 0.20)",
               color: "#FFFFFF",
             }}
           >
@@ -154,7 +154,7 @@ export default function NextStep({
               href={step.primary.href}
               className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
               style={{
-                background: "rgba(251, 250, 246, 0.96)",
+                background: "rgba(255, 255, 255, 0.96)",
                 color: `color-mix(in oklab, ${step.accent} 80%, black)`,
                 fontWeight: 700,
               }}
@@ -169,7 +169,7 @@ export default function NextStep({
               }
               className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
               style={{
-                background: "rgba(251, 250, 246, 0.96)",
+                background: "rgba(255, 255, 255, 0.96)",
                 color: `color-mix(in oklab, ${step.accent} 80%, black)`,
                 fontWeight: 700,
               }}
@@ -184,10 +184,10 @@ export default function NextStep({
                 href={step.secondary.href}
                 className="text-[13px] px-3.5 py-2.5 rounded-lg"
                 style={{
-                  background: "rgba(251, 250, 246, 0.32)",
+                  background: "rgba(255, 255, 255, 0.32)",
                   color: "#FFFFFF",
                   fontWeight: 600,
-                  border: "1px solid rgba(251, 250, 246, 0.38)",
+                  border: "1px solid rgba(255, 255, 255, 0.38)",
                   minHeight: 40,
                   display: "inline-flex",
                   alignItems: "center",
@@ -203,10 +203,10 @@ export default function NextStep({
                 }
                 className="text-[13px] px-3.5 py-2.5 rounded-lg"
                 style={{
-                  background: "rgba(251, 250, 246, 0.32)",
+                  background: "rgba(255, 255, 255, 0.32)",
                   color: "#FFFFFF",
                   fontWeight: 600,
-                  border: "1px solid rgba(251, 250, 246, 0.38)",
+                  border: "1px solid rgba(255, 255, 255, 0.38)",
                   minHeight: 40,
                 }}
               >

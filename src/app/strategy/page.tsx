@@ -812,7 +812,7 @@ export default function StrategyPage() {
               href="/fit"
               className="text-[13px] px-3.5 py-2 rounded-xl"
               style={{
-                background: "rgba(251, 250, 246, 0.18)",
+                background: "rgba(255, 255, 255, 0.18)",
                 color: "#FFFFFF",
                 fontWeight: 500,
               }}
@@ -823,7 +823,7 @@ export default function StrategyPage() {
               href="/welcome"
               className="text-[13px] px-3.5 py-2 rounded-xl"
               style={{
-                background: "rgba(251, 250, 246, 0.18)",
+                background: "rgba(255, 255, 255, 0.18)",
                 color: "#FFFFFF",
                 fontWeight: 500,
               }}
@@ -834,7 +834,7 @@ export default function StrategyPage() {
               href="/today"
               className="text-[13px] px-3.5 py-2 rounded-xl"
               style={{
-                background: "rgba(251, 250, 246, 0.18)",
+                background: "rgba(255, 255, 255, 0.18)",
                 color: "#FFFFFF",
                 fontWeight: 500,
               }}
