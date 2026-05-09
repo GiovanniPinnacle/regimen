@@ -20,7 +20,9 @@ export default function MoreFab() {
     pathname.startsWith("/signin") ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/onboard") ||
-    pathname.startsWith("/welcome")
+    pathname.startsWith("/welcome") ||
+    pathname.startsWith("/privacy") ||
+    pathname.startsWith("/terms")
   ) {
     return null;
   }

@@ -517,8 +517,15 @@ export default function Coach() {
      
   }, []);
 
-  // Don't render the FAB on auth pages — but only AFTER all hooks have run
-  if (pathname?.startsWith("/signin") || pathname?.startsWith("/auth/")) {
+  // Don't render the FAB on auth/compliance pages — Coach needs a signed-
+  // in user, and these pages are reachable while logged out (per
+  // middleware PUBLIC_PATHS for /privacy + /terms).
+  if (
+    pathname?.startsWith("/signin") ||
+    pathname?.startsWith("/auth/") ||
+    pathname?.startsWith("/privacy") ||
+    pathname?.startsWith("/terms")
+  ) {
     return null;
   }
 

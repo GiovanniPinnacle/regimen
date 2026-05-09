@@ -41,12 +41,16 @@ export default function FeedbackFab() {
   >("ux");
   const [busy, setBusy] = useState(false);
 
-  // Hide on signin / onboarding / welcome — feedback button on those
-  // surfaces makes no sense + crowds the Coach button.
+  // Hide on auth/compliance pages — these can be hit while signed
+  // out (per middleware PUBLIC_PATHS), and a "tell us what sucks"
+  // button on the Privacy policy is the wrong affordance.
   if (
     pathname === "/signin" ||
     pathname === "/onboard" ||
-    pathname === "/welcome"
+    pathname === "/welcome" ||
+    pathname?.startsWith("/auth/") ||
+    pathname?.startsWith("/privacy") ||
+    pathname?.startsWith("/terms")
   ) {
     return null;
   }

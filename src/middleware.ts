@@ -7,6 +7,11 @@ const PUBLIC_PATHS = [
   "/auth/confirm",
   "/api/cron",
   "/logos", // logo mockup previews (and subpaths) — no user data
+  // Compliance pages — App Store + GDPR + CCPA require these be
+  // reachable WITHOUT auth so prospective users + regulators can read
+  // them before creating an account. Linked from /signin footer.
+  "/privacy",
+  "/terms",
 ];
 
 // 90 days — beyond iOS Safari ITP's 7-day storage cap for inactive sites,
