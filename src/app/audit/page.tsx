@@ -54,14 +54,20 @@ export default function AuditPage() {
     let alive = true;
     (async () => {
       const supabase = createClient();
+      // Project only fields the audit UI renders (id/name/brand/
+      // dose/item_type/status/review_trigger/owned/purchase_state).
+      // Audit always pages through the full set so cap at 500.
       const { data } = await supabase
         .from("items")
-        .select("*")
+        .select(
+          "id, name, brand, dose, item_type, status, review_trigger, owned, purchase_state",
+        )
         .in("status", ["active", "queued"])
         .in("item_type", AUDITABLE_TYPES)
         .is("owned", null)
         .order("item_type")
-        .order("name");
+        .order("name")
+        .limit(500);
       if (!alive) return;
       setItems((data ?? []) as Item[]);
       setLoading(false);

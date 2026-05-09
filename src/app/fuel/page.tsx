@@ -17,13 +17,13 @@ import { createClient } from "@/lib/supabase/client";
 import { calcMacros, type MacroTargets } from "@/lib/macros";
 import { POSTOP_DATE_ZERO } from "@/lib/constants";
 import { showToast } from "@/lib/toast";
-import type { Item } from "@/lib/types";
 
 type FrequentMeal = { content: string; count: number };
+type FoodRow = { id: string; name: string; brand: string | null };
 
 export default function FuelPage() {
   const [macros, setMacros] = useState<MacroTargets | null>(null);
-  const [foods, setFoods] = useState<Item[]>([]);
+  const [foods, setFoods] = useState<FoodRow[]>([]);
   const [frequentMeals, setFrequentMeals] = useState<FrequentMeal[]>([]);
   const [logging, setLogging] = useState<string | null>(null);
 
@@ -38,12 +38,15 @@ export default function FuelPage() {
             "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date",
           )
           .maybeSingle(),
+        // Project only columns actually rendered (id/name/brand). select("*")
+        // was pulling 30+ columns per food item.
         client
           .from("items")
-          .select("*")
+          .select("id, name, brand")
           .eq("item_type", "food")
           .in("status", ["active", "queued"])
-          .order("name"),
+          .order("name")
+          .limit(200),
         fetch("/api/intake/frequent", { credentials: "include" }).then((r) =>
           r.ok ? r.json() : { meals: [] },
         ),
@@ -73,7 +76,7 @@ export default function FuelPage() {
           }),
         );
       }
-      setFoods((foodsRes.data ?? []) as Item[]);
+      setFoods((foodsRes.data ?? []) as FoodRow[]);
       const mealsJson = (mealsRes ?? {}) as {
         meals?: { content: string; count?: number }[];
       };

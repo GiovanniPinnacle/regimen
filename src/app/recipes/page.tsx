@@ -11,7 +11,8 @@ export default async function RecipesPage() {
     .from("recipes")
     .select("*")
     .order("is_favorite", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(200);
 
   const recipes = (data ?? []) as Recipe[];
   const favorites = recipes.filter((r) => r.is_favorite);

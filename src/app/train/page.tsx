@@ -66,13 +66,18 @@ export default function TrainPage() {
       const client = createClient();
       const today = todayISO();
       const [itemsRes, ouraRes] = await Promise.all([
+        // Project only fields the train UI + TrainItemCard render
+        // (id/name/timing_slot/item_type/usage_notes/how_to/media_url).
         client
           .from("items")
-          .select("*")
+          .select(
+            "id, name, brand, status, timing_slot, item_type, usage_notes, how_to, media_url",
+          )
           .in("status", ["active", "queued"])
           .in("item_type", ["practice", "device"])
           .order("timing_slot")
-          .order("name"),
+          .order("name")
+          .limit(300),
         client
           .from("oura_data")
           .select("sleep_score, readiness, hrv")

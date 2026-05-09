@@ -64,7 +64,8 @@ export default async function PurchasesPage() {
     .in("purchase_state", STATE_ORDER)
     .in("status", ["active", "queued"])
     .order("item_type")
-    .order("name");
+    .order("name")
+    .limit(500);
 
   const items = (data ?? []) as Item[];
   const grouped: Record<PurchaseState, Item[]> = {

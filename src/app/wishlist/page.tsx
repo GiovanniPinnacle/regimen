@@ -81,7 +81,8 @@ export default function WishlistPage() {
       .from("wishlist_items")
       .select("*")
       .is("promoted_to_item_id", null)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(200);
     setItems((data ?? []) as WishlistItem[]);
     setLoading(false);
   }, []);

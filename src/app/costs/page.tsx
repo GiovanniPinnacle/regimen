@@ -30,10 +30,14 @@ export default async function CostsPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  // Cap at 500 active items — far above any realistic stack size
+  // but bounds the worst case so a runaway insert can't blow up
+  // the costs page.
   const { data } = await supabase
     .from("items")
     .select("*")
-    .eq("status", "active");
+    .eq("status", "active")
+    .limit(500);
   const items = (data ?? []) as Item[];
   const breakdown = computeCostBreakdown(items);
 
