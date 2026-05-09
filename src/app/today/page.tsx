@@ -15,6 +15,7 @@ import EmptyToday from "@/components/EmptyToday";
 import ProBenefits from "@/components/ProBenefits";
 import StreakCounter from "@/components/StreakCounter";
 import MetricRing from "@/components/MetricRing";
+import MetricDelta from "@/components/MetricDelta";
 import DailyScore from "@/components/DailyScore";
 import AchievementsChecker from "@/components/AchievementsChecker";
 import StreakAtRiskBanner from "@/components/StreakAtRiskBanner";
@@ -132,6 +133,11 @@ export default function TodayPage() {
     },
   );
   const [activeSlot, setActiveSlot] = useState<TimingSlot | "all">("all");
+  /** Last-7-days average daily adherence (excluding today). Powers the
+   *  "today vs 7d avg" MetricDelta in the /today header so the user
+   *  sees today's progress in the context of recent history. Null
+   *  means we haven't loaded yet OR there's no prior data. */
+  const [sevenDayAvgPct, setSevenDayAvgPct] = useState<number | null>(null);
   // Track if user explicitly chose a slot this session — if so, don't
   // auto-shift them when the hour rolls over.
   const [userPickedSlot, setUserPickedSlot] = useState(false);
@@ -210,6 +216,53 @@ export default function TodayPage() {
       setOura(ouraData);
       await refreshLogs();
       setLoading(false);
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today, reloadKey]);
+
+  // 7-day rolling adherence average (excluding today) for the "today vs
+  // 7d avg" MetricDelta chip in the header. Runs once per mount /
+  // reloadKey bump — independent of the slot/items state so we don't
+  // fan out into N+1.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const client = createClient();
+        const sevenDaysAgo = new Date(Date.now() - 7 * 86400000)
+          .toISOString()
+          .slice(0, 10);
+        const { data } = await client
+          .from("stack_log")
+          .select("date, taken")
+          .gte("date", sevenDaysAgo)
+          .lt("date", today);
+        if (!alive) return;
+        type Row = { date: string; taken: boolean };
+        const byDay = new Map<string, { taken: number; total: number }>();
+        for (const r of (data ?? []) as Row[]) {
+          if (!byDay.has(r.date)) byDay.set(r.date, { taken: 0, total: 0 });
+          const c = byDay.get(r.date)!;
+          c.total += 1;
+          if (r.taken) c.taken += 1;
+        }
+        const dailyPcts: number[] = [];
+        for (const c of byDay.values()) {
+          if (c.total > 0) dailyPcts.push((c.taken / c.total) * 100);
+        }
+        if (dailyPcts.length === 0) {
+          setSevenDayAvgPct(null);
+        } else {
+          const avg =
+            dailyPcts.reduce((s, v) => s + v, 0) / dailyPcts.length;
+          setSevenDayAvgPct(Math.round(avg));
+        }
+      } catch {
+        // silent — header just hides the comparison if it fails
+      }
     })();
     return () => {
       alive = false;
@@ -648,12 +701,26 @@ export default function TodayPage() {
           </span>
         </div>
         <div className="flex items-center justify-between gap-3 mt-1">
-          <h1
-            className="text-[34px] leading-tight"
-            style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-          >
-            Today
-          </h1>
+          <div className="min-w-0">
+            <h1
+              className="text-[34px] leading-tight"
+              style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
+            >
+              Today
+            </h1>
+            {/* Today-vs-7d-avg comparative chip — gives the ring's raw
+                progress some context. Hidden until 7-day data exists. */}
+            {totalActive > 0 && sevenDayAvgPct != null && (
+              <div className="mt-1.5">
+                <MetricDelta
+                  delta={progressPct - sevenDayAvgPct}
+                  baseline={`vs ${sevenDayAvgPct}% 7d avg`}
+                  direction="good_higher"
+                  unit="pp"
+                />
+              </div>
+            )}
+          </div>
           {/* Adherence ring — replaces the old "5 / 10" + thin bar
               with a single Apple-Watch-style circle. The fraction
               still reads inside the ring; the ARC fills as the user
