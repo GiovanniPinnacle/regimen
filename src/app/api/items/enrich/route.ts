@@ -69,9 +69,12 @@ async function generateTutorial(
   userId: string,
 ): Promise<TutorialResponse> {
   // STEP A — curated whitelist. For canonical practices (mewing, scalp
-  // massage, 4-7-8 breath, Zone 2, the big lifts, etc.) we ALREADY know
-  // the authoritative video. Skip the LLM call, save tokens + time, and
-  // guarantee no hallucination.
+  // massage, 4-7-8 breath, Zone 2, the big lifts, etc.) we ALREADY have
+  // verified instructions. Skip the LLM call, save tokens + time.
+  // Note: `curated.url` may be null when we don't have a current
+  // verified video (e.g. Mike Mew banned from YouTube). In that case
+  // we save the howTo only — the view-time fallback shows a YouTube
+  // search button instead of a dead link.
   const curated = findCurated(name);
   if (curated) {
     return { media_url: curated.url, how_to: curated.howTo };
