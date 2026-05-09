@@ -9,7 +9,6 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   Category,
   ItemType,
@@ -65,10 +64,10 @@ export async function POST(request: NextRequest) {
   }
 
   const status: Status = body.status === "active" ? "active" : "queued";
-  const admin = createAdminClient();
+  // Cookied SSR client — RLS enforces user_id + catalog moderation gate.
 
   // Fetch the catalog entries we're about to mirror into items
-  const { data: catalogData, error: catErr } = await admin
+  const { data: catalogData, error: catErr } = await supabase
     .from("catalog_items")
     .select("id, name, brand, item_type, category")
     .in("id", body.ids);
@@ -89,7 +88,7 @@ export async function POST(request: NextRequest) {
 
   // Skip catalog entries that already exist in the user's stack —
   // safe to bulk-call multiple times.
-  const { data: existingData } = await admin
+  const { data: existingData } = await supabase
     .from("items")
     .select("name, catalog_item_id")
     .eq("user_id", user.id);
@@ -130,7 +129,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const { data: inserted, error: insErr } = await admin
+  const { data: inserted, error: insErr } = await supabase
     .from("items")
     .insert(inserts)
     .select("id, name");

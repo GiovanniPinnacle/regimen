@@ -14,7 +14,6 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,7 +40,7 @@ export async function GET() {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
+  // Cookied SSR client — RLS enforces user_id + catalog moderation gate.
   const todayUtc = new Date();
   const since14 = new Date(Date.now() - 14 * 86400000)
     .toISOString()
@@ -51,17 +50,17 @@ export async function GET() {
     .slice(0, 10);
 
   const [itemsRes, logRes, reactRes] = await Promise.all([
-    admin
+    supabase
       .from("items")
       .select("id, name, status")
       .eq("user_id", user.id)
       .eq("status", "active"),
-    admin
+    supabase
       .from("stack_log")
       .select("item_id, date, taken")
       .eq("user_id", user.id)
       .gte("date", since14),
-    admin
+    supabase
       .from("item_reactions")
       .select("item_id, reaction, reacted_on, items(name)")
       .eq("user_id", user.id)

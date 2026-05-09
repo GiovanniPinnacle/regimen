@@ -21,7 +21,6 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import type { Item, Status } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -198,10 +197,10 @@ export async function POST(_request: NextRequest) {
     return NextResponse.json({ ok: true, merged_count: 0, groups: [] });
   }
 
-  // Use admin client for the FK re-points + deletes — RLS on
-  // stack_log/changelog/item_reactions varies and admin keeps it
-  // straightforward. All operations stay scoped to this user_id.
-  const admin = createAdminClient();
+  // Use the cookied SSR client — RLS on items / stack_log /
+  // item_reactions / changelog all enforce auth.uid() = user_id
+  // (migration 001 + 016). The .eq("user_id", user.id) below is
+  // defense-in-depth.
   const merged: { survivor_id: string; loser_ids: string[]; key: string }[] = [];
 
   for (const g of groups) {
@@ -247,7 +246,7 @@ export async function POST(_request: NextRequest) {
       }
     }
     if (Object.keys(patch).length > 0) {
-      await admin
+      await supabase
         .from("items")
         .update(patch)
         .eq("id", survivor.id)
@@ -257,23 +256,23 @@ export async function POST(_request: NextRequest) {
     // Re-point dependent rows from each loser to survivor.
     for (const loserId of g.loser_ids) {
       // stack_log + item_reactions + changelog point at item_id
-      await admin
+      await supabase
         .from("stack_log")
         .update({ item_id: survivor.id })
         .eq("user_id", user.id)
         .eq("item_id", loserId);
-      await admin
+      await supabase
         .from("item_reactions")
         .update({ item_id: survivor.id })
         .eq("user_id", user.id)
         .eq("item_id", loserId);
-      await admin
+      await supabase
         .from("changelog")
         .update({ item_id: survivor.id })
         .eq("user_id", user.id)
         .eq("item_id", loserId);
       // Companion-of pointers from any other items
-      await admin
+      await supabase
         .from("items")
         .update({ companion_of: survivor.id })
         .eq("user_id", user.id)
@@ -281,14 +280,14 @@ export async function POST(_request: NextRequest) {
     }
 
     // Hard-delete losers
-    await admin
+    await supabase
       .from("items")
       .delete()
       .eq("user_id", user.id)
       .in("id", g.loser_ids);
 
     // Audit log
-    await admin.from("changelog").insert({
+    await supabase.from("changelog").insert({
       user_id: user.id,
       change_type: "dedupe",
       item_id: survivor.id,

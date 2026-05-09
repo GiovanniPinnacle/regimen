@@ -7,7 +7,6 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
   findSymptomCorrelations,
   type ChangelogRow,
@@ -26,17 +25,17 @@ export async function GET() {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
+  // Cookied SSR client — RLS enforces user_id + catalog moderation gate.
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
 
   const [symRes, chRes] = await Promise.all([
-    admin
+    supabase
       .from("symptom_log")
       .select("date, feel_score, sleep_quality, seb_derm_score, stress, energy_pm")
       .eq("user_id", user.id)
       .order("date", { ascending: false })
       .limit(21),
-    admin
+    supabase
       .from("changelog")
       .select("changed_at, date, change_type, item_name, reasoning")
       .eq("user_id", user.id)

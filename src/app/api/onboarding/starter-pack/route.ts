@@ -16,7 +16,6 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -150,10 +149,10 @@ export async function GET(req: NextRequest) {
     20,
   );
 
-  const admin = createAdminClient();
+  // Cookied SSR client — RLS enforces user_id + catalog moderation gate.
 
   // What does the user already have?
-  const { data: itemsData } = await admin
+  const { data: itemsData } = await supabase
     .from("items")
     .select("name, catalog_item_id, status")
     .eq("user_id", user.id)
@@ -170,7 +169,7 @@ export async function GET(req: NextRequest) {
   );
 
   // Pull the enriched A/B catalog. Cast a wide net; we'll dedupe + sort.
-  const { data: catalogData } = await admin
+  const { data: catalogData } = await supabase
     .from("catalog_items")
     .select(
       "id, name, brand, item_type, category, coach_summary, " +

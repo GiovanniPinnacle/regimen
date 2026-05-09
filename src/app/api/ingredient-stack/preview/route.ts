@@ -18,7 +18,6 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
   classifyIngredient,
   computeIngredientStack,
@@ -59,11 +58,11 @@ export async function GET(request: NextRequest) {
   // Find the candidate active_ingredients we're projecting onto the
   // user's stack. catalog_item_id is preferred — exact lookup. Fallback
   // to a fuzzy name match on the catalog.
-  const admin = createAdminClient();
+  // Cookied SSR client — RLS enforces user_id + catalog moderation gate.
   let candidate: CandidateRow | null = null;
 
   if (catalogId) {
-    const { data } = await admin
+    const { data } = await supabase
       .from("catalog_items")
       .select("id, name, active_ingredients")
       .eq("id", catalogId)
@@ -73,7 +72,7 @@ export async function GET(request: NextRequest) {
     const q = rawName.trim();
     // Prefer enriched rows so we get ingredients when the catalog has
     // multiple entries for the same product family.
-    const { data } = await admin
+    const { data } = await supabase
       .from("catalog_items")
       .select("id, name, active_ingredients")
       .ilike("name", `%${q}%`)

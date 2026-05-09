@@ -12,7 +12,6 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,10 +37,10 @@ export async function GET() {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
+  // Cookied SSR client — RLS enforces user_id + catalog moderation gate.
 
   // Pull user's active items (we need names + catalog_item_ids to dedupe)
-  const { data: itemsData } = await admin
+  const { data: itemsData } = await supabase
     .from("items")
     .select("name, catalog_item_id, status")
     .eq("user_id", user.id)
@@ -62,7 +61,7 @@ export async function GET() {
   // Pull top-grade enriched catalog candidates. Cast a slightly wider
   // net than context.ts (40 → 60) so dedupe leaves us a few choices to
   // surface.
-  const { data: catalogData } = await admin
+  const { data: catalogData } = await supabase
     .from("catalog_items")
     .select(
       "id, name, brand, item_type, category, coach_summary, mechanism, " +

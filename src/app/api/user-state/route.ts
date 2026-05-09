@@ -6,7 +6,6 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserStage, UserSignals } from "@/lib/context";
 
 export const runtime = "nodejs";
@@ -29,7 +28,9 @@ export async function GET() {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
+  // Reads only — uses cookied SSR client so RLS enforces user_id
+  // isolation at the DB layer. The .eq("user_id", userId) filters are
+  // belt-and-suspenders.
   const userId = user.id;
 
   const since14 = new Date(Date.now() - 14 * 86400000)
@@ -41,26 +42,26 @@ export async function GET() {
 
   const [itemsRes, log14Res, reactRes, enrollRes, refineRes, displayNameRes] =
     await Promise.all([
-      admin.from("items").select(
+      supabase.from("items").select(
         "id, status, item_type, owned, purchase_state",
       ).eq("user_id", userId),
-      admin
+      supabase
         .from("stack_log")
         .select("date")
         .eq("user_id", userId)
         .eq("taken", true)
         .gte("date", since14),
-      admin
+      supabase
         .from("item_reactions")
         .select("item_id, reaction")
         .eq("user_id", userId)
         .gte("reacted_on", since30),
-      admin
+      supabase
         .from("protocol_enrollments")
         .select("protocol_slug, current_day, duration_days, status")
         .eq("user_id", userId)
         .in("status", ["active", "completed"]),
-      admin
+      supabase
         .from("changelog")
         .select("changed_at")
         .eq("user_id", userId)
@@ -70,7 +71,7 @@ export async function GET() {
           new Date(Date.now() - 7 * 86400000).toISOString(),
         )
         .limit(1),
-      admin
+      supabase
         .from("profiles")
         .select("display_name")
         .eq("id", userId)

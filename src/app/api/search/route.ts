@@ -5,7 +5,6 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { listProtocols } from "@/lib/protocols";
 
 export const runtime = "nodejs";
@@ -70,7 +69,7 @@ export async function GET(request: NextRequest) {
   }
 
   const like = `%${q.replace(/[%_]/g, " ")}%`;
-  const admin = createAdminClient();
+  // Cookied SSR client — RLS enforces user_id + catalog moderation gate.
 
   // Run queries in parallel — catalog uses admin client because it's
   // shared reference data, but RLS on catalog_items already allows
@@ -95,7 +94,7 @@ export async function GET(request: NextRequest) {
       .eq("user_id", user.id)
       .ilike("name", like)
       .limit(8),
-    admin
+    supabase
       .from("catalog_items")
       .select("id, name, brand, item_type, evidence_grade")
       .or(`name.ilike.${like},brand.ilike.${like}`)

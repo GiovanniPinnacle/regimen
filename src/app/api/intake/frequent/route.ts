@@ -10,7 +10,6 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,12 +49,14 @@ export async function GET() {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
+  // RLS on intake_log restricts to auth.uid() = user_id, so the
+  // cookied client is the safer default. Removed the admin escalation
+  // — there's nothing here that needs to bypass RLS.
   const since = new Date(Date.now() - 30 * 86400000)
     .toISOString()
     .slice(0, 10);
 
-  const { data } = await admin
+  const { data } = await supabase
     .from("intake_log")
     .select(
       "content, kind, calories, protein_g, fat_g, carbs_g, serving, date, logged_at",
