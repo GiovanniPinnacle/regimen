@@ -6,7 +6,6 @@ import InsightsBanner from "@/components/InsightsBanner";
 import OnboardingBanner from "@/components/OnboardingBanner";
 import SkipReasonSheet from "@/components/SkipReasonSheet";
 import SwapSheet from "@/components/SwapSheet";
-import MoodPing from "@/components/MoodPing";
 import DayStrip, { type SlotStat, SLOT_TIME } from "@/components/DayStrip";
 import PatternCard from "@/components/PatternCard";
 import VoiceMemo from "@/components/VoiceMemo";
@@ -723,15 +722,13 @@ export default function TodayPage() {
       ) : (
         <>
       {/* === ALWAYS-VISIBLE TIER ===
-          Quick check-in, daily score, intake tracker — small,
-          high-utility, used daily. Stay inline above the fold. */}
-      {/* MoodPing — one row, three emoji, one tap. Replaces the
-          old QuickCheckin window-aware prompts (stress/trigger/flare
-          in the afternoon was heavy). User can still log richer mood
-          via the + button (universal capture handles it). */}
-      <SectionBoundary label="Mood ping" silent>
-        <MoodPing date={today} />
-      </SectionBoundary>
+          Daily score, intake tracker — small, high-utility, used
+          daily. Stay inline above the fold.
+          MoodPing was removed 2026-05-09 — felt cheesy and low-
+          utility. Mood is still captured via the universal "+"
+          capture flow when the user actually wants to log it
+          ("feeling off today" → daily_checkins.mood). Coach context
+          reads from the same column either way. */}
 
       <SectionBoundary label="Achievements" silent>
         <AchievementsChecker />

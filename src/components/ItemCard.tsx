@@ -8,7 +8,8 @@ import ReactionRow, { shouldShowReaction } from "./ReactionRow";
 import ItemQuickActions from "./ItemQuickActions";
 import SwipeDismiss from "./SwipeDismiss";
 import TutorialLink from "./TutorialLink";
-import { GOAL_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
+import ItemTypeIcon from "./ItemTypeIcon";
+import { GOAL_LABELS } from "@/lib/constants";
 import {
   snoozeItem,
   clearSnooze,
@@ -59,7 +60,6 @@ export default function ItemCard({
   onSwipeRetire,
 }: Props) {
   const interactive = typeof onToggle === "function";
-  const typeIcon = ITEM_TYPE_ICONS[item.item_type] ?? "";
   const skipped = !taken && !!skipReason;
   const swapped = skipped && skipReason?.startsWith("Swapped:");
   const [expanded, setExpanded] = useState(false);
@@ -132,12 +132,9 @@ export default function ItemCard({
             </svg>
           )}
         </button>
-      ) : showTypeIcon && typeIcon ? (
-        <div
-          className="mt-0.5 shrink-0 h-6 w-6 flex items-center justify-center text-[15px] leading-none"
-          aria-hidden
-        >
-          {typeIcon}
+      ) : showTypeIcon ? (
+        <div className="mt-0.5">
+          <ItemTypeIcon type={item.item_type} size={26} />
         </div>
       ) : null}
 

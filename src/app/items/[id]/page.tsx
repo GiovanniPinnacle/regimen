@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import CategoryBadge from "@/components/CategoryBadge";
 import {
   GOAL_LABELS,
-  ITEM_TYPE_ICONS,
   ITEM_TYPE_LABELS,
   TIMING_LABELS,
 } from "@/lib/constants";
@@ -16,6 +15,7 @@ import RegenerateResearchButton from "@/components/RegenerateResearchButton";
 import DeepResearchButton from "@/components/DeepResearchButton";
 import BuyButton from "@/components/BuyButton";
 import TutorialLink from "@/components/TutorialLink";
+import ItemTypeIcon from "@/components/ItemTypeIcon";
 
 function getNow(): number {
   return Date.now();
@@ -41,7 +41,6 @@ export default async function ItemDetailPage({
 
   const item = data as Item;
   const info = getItemInfo(item.seed_id);
-  const typeIcon = ITEM_TYPE_ICONS[item.item_type] ?? "";
 
   // Pull the linked catalog row (if any) so we can render Coach's
   // shared enrichment — mechanism, timing, brand picks, cautions —
@@ -183,12 +182,12 @@ export default async function ItemDetailPage({
 
       <header className="mb-6">
         <div className="flex items-start gap-3">
-          <div className="text-[28px] leading-none shrink-0">{typeIcon}</div>
+          <ItemTypeIcon type={item.item_type} size={44} tone="accent" />
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <h1
-                className="text-[22px] leading-tight"
-                style={{ fontWeight: 500 }}
+                className="text-[24px] leading-tight"
+                style={{ fontWeight: 700, letterSpacing: "-0.018em" }}
               >
                 {item.name}
               </h1>
@@ -1024,9 +1023,7 @@ export default async function ItemDetailPage({
                 href={`/items/${r.id}`}
                 className="border-hair rounded-xl p-3 flex items-center gap-3"
               >
-                <div className="text-[18px]">
-                  {ITEM_TYPE_ICONS[r.item_type]}
-                </div>
+                <ItemTypeIcon type={r.item_type} size={32} />
                 <div className="flex-1 min-w-0">
                   <div className="text-[14px]" style={{ fontWeight: 500 }}>
                     {r.name}

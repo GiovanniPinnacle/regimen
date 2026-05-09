@@ -62,6 +62,9 @@ export const ITEM_TYPE_LABELS: Record<ItemType, string> = {
   test: "Test",
 };
 
+// Legacy emoji map — still referenced in a handful of places that
+// haven't migrated to the vector ItemTypeIcon component yet. Sweep
+// is in progress; new code should use ITEM_TYPE_ICON_NAME below.
 export const ITEM_TYPE_ICONS: Record<ItemType, string> = {
   supplement: "💊",
   topical: "🧴",
@@ -71,6 +74,30 @@ export const ITEM_TYPE_ICONS: Record<ItemType, string> = {
   food: "🥑",
   gear: "🛏️",
   test: "🧪",
+};
+
+// Vector icon names from src/components/Icon.tsx. Use with the
+// ItemTypeIcon component for premium consistency — drops the
+// emoji/vector mismatch we had in v2 cards.
+export const ITEM_TYPE_ICON_NAME: Record<
+  ItemType,
+  | "pill"
+  | "droplet"
+  | "battery"
+  | "shield"
+  | "leaf"
+  | "utensils"
+  | "dumbbell"
+  | "test-tube"
+> = {
+  supplement: "pill",
+  topical: "droplet",
+  device: "battery",
+  procedure: "shield",
+  practice: "leaf",
+  food: "utensils",
+  gear: "dumbbell",
+  test: "test-tube",
 };
 
 // Types that appear on Today tab (daily check-off worthy).

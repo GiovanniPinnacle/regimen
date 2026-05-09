@@ -7,7 +7,8 @@ import { getItemsByStatus, getAdherenceMap } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/client";
 import { showToast } from "@/lib/toast";
 import type { Category, Goal, Item, ItemType, Status } from "@/lib/types";
-import { ITEM_TYPE_LABELS, ITEM_TYPE_ICONS } from "@/lib/constants";
+import { ITEM_TYPE_LABELS } from "@/lib/constants";
+import ItemTypeIcon from "@/components/ItemTypeIcon";
 import EmptyState from "@/components/EmptyState";
 import StackFilterSheet from "@/components/StackFilterSheet";
 import AskCoachButton from "@/components/AskCoachButton";
@@ -724,12 +725,13 @@ export default function StackPage() {
               <details key={t} className="group" open>
                 <summary className="cursor-pointer list-none flex items-center justify-between gap-3 py-2 px-1 rounded-lg">
                   <div className="flex items-center gap-2">
-                    <span className="text-[16px]">{ITEM_TYPE_ICONS[t]}</span>
+                    <ItemTypeIcon type={t} size={26} />
                     <span
                       className="text-[13px] uppercase tracking-wider"
                       style={{
                         color: "var(--foreground-soft)",
-                        fontWeight: 600,
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
                       }}
                     >
                       {ITEM_TYPE_LABELS[t]}s
