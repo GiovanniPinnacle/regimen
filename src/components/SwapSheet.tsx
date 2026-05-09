@@ -215,8 +215,8 @@ export default function SwapSheet({
             disabled={busy || !text.trim()}
             className="px-4 py-2.5 rounded-lg text-[14px]"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
               opacity: busy || !text.trim() ? 0.5 : 1,
             }}

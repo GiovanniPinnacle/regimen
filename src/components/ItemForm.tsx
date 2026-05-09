@@ -412,8 +412,8 @@ export default function ItemForm({ initial, onSaved }: Props) {
             htmlFor="item-photo"
             className="flex-1 text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 600,
               opacity: photoBusy ? 0.6 : 1,
               pointerEvents: photoBusy ? "none" : "auto",

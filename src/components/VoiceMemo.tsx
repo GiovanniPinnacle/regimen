@@ -193,8 +193,8 @@ export default function VoiceMemo() {
         onClick={() => setOpen(true)}
         className="fixed bottom-20 right-4 z-40 h-14 w-14 rounded-full flex items-center justify-center"
         style={{
-          background: "var(--olive)",
-          color: "#FFFFFF",
+          background: "var(--primary)",
+          color: "var(--primary-fg)",
           boxShadow: "0 8px 24px var(--accent-glow)",
           paddingBottom: "env(safe-area-inset-bottom, 0)",
         }}
@@ -274,8 +274,8 @@ export default function VoiceMemo() {
                   onClick={startRecording}
                   className="h-20 w-20 mx-auto rounded-full flex items-center justify-center"
                   style={{
-                    background: "var(--olive)",
-                    color: "#FFFFFF",
+                    background: "var(--primary)",
+                    color: "var(--primary-fg)",
                     boxShadow: "0 8px 24px var(--accent-glow)",
                   }}
                   aria-label="Start recording"
@@ -417,8 +417,8 @@ export default function VoiceMemo() {
                     disabled={stage === "saving" || !transcript.trim()}
                     className="flex-1 px-4 py-2.5 rounded-xl text-[14px]"
                     style={{
-                      background: "var(--olive)",
-                      color: "#FFFFFF",
+                      background: "var(--primary)",
+                      color: "var(--primary-fg)",
                       fontWeight: 500,
                       opacity:
                         stage === "saving" || !transcript.trim() ? 0.5 : 1,

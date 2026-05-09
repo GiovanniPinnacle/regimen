@@ -159,8 +159,8 @@ export default function WelcomePage() {
             onClick={startScan}
             className="text-[15px] px-6 py-3 rounded-2xl"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
               boxShadow: "0 4px 14px var(--accent-glow)",
             }}
@@ -255,8 +255,8 @@ export default function WelcomePage() {
             href="/today"
             className="text-[14px] px-5 py-2.5 rounded-2xl inline-block"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
             }}
           >
@@ -302,8 +302,8 @@ export default function WelcomePage() {
               href="/today"
               className="text-[14px] px-5 py-2.5 rounded-2xl"
               style={{
-                background: "var(--olive)",
-                color: "#FFFFFF",
+                background: "var(--primary)",
+                color: "var(--primary-fg)",
                 fontWeight: 500,
               }}
             >
@@ -348,8 +348,8 @@ export default function WelcomePage() {
             }}
             className="text-[14px] px-5 py-2.5 rounded-2xl"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
             }}
           >

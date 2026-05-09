@@ -374,8 +374,8 @@ export default function StarterPack({
           disabled={selected.size === 0 || busy}
           className="flex-1 rounded-xl px-3 py-2.5 text-[13.5px]"
           style={{
-            background: "var(--olive)",
-            color: "#FFFFFF",
+            background: "var(--primary)",
+            color: "var(--primary-fg)",
             fontWeight: 700,
             opacity: selected.size === 0 || busy ? 0.5 : 1,
             minHeight: 38,

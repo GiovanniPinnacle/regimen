@@ -35,10 +35,20 @@
   --foreground-soft: rgba(250, 250, 250, 0.74);
   --muted: rgba(250, 250, 250, 0.50);
 
-  /* ─── Accent — sage emerald. Was #00D680 (read as candy/neon),
-     now #34C28E — same green family but desaturated to feel like
-     a premium health-tech color (Whoop / Eight Sleep / Oura). Used
-     for primary CTAs, active states, progress, success. ────────────── */
+  /* ─── Primary — white-on-dark. The Linear / Stripe / Vercel /
+     Whoop pattern: monochrome primary CTAs with color reserved for
+     data semantics. Replaces the v3 sage emerald primary that the
+     user kept finding too "candy" no matter how desaturated. The
+     CTAs now feel premium-neutral, not branded-by-color.  ─────────── */
+  --primary: #F5F5F7;
+  --primary-deep: #E0E0E4;
+  --primary-fg: #0E1014;
+
+  /* ─── Accent — sage emerald, NOW SUCCESS-ONLY. Reserved for
+     completion checkmarks, ring fills at 100%, "you crushed it"
+     moments. No longer the brand color — that's --primary now.
+     Kept the same hex so the rare green moments still feel premium-
+     muted instead of candy. ────────────────────────────────────────── */
   --olive: #34C28E;
   --olive-deep: #1F9C70;
   --olive-light: #5FD9A6;
@@ -236,9 +246,19 @@ button {
   border: none;
   padding: 0;
   cursor: pointer;
-  /* Buttons must never clip their text — overflow visible by default.
-     Components that intentionally ellipsize override this locally. */
+  /* Layout discipline: nowrap + box-border + min-width:0 prevents the
+     "label spills past the button edge" pattern the user was seeing.
+     box-border keeps padding inside the declared min-height/width.
+     min-width:0 lets the button shrink inside flex parents that have
+     a constrained width (the #1 cause of clipped buttons in this app). */
   white-space: nowrap;
+  box-sizing: border-box;
+  min-width: 0;
+  /* If a label genuinely overruns its container, ellipsize at the
+     last glyph instead of letting the text spill or wrap awkwardly.
+     The 'no-truncate' utility class opts out of this for header CTAs. */
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition:
     transform 120ms cubic-bezier(0.4, 0, 0.2, 1),
     background 200ms ease,
@@ -517,23 +537,37 @@ a:active {
 
 /* ============== Buttons ==============
    Base classes — components still use inline styles for color so this
-   stays a foundation. Common rule: never let label clip. */
+   stays a foundation. Common rule: never let label clip.
+
+   Layout safety:
+   - max-width: 100% so the button never overflows its parent.
+   - text-overflow: clip (not ellipsis) — paired with white-space: nowrap
+     this keeps short labels intact and prevents the "…" stub the user
+     was seeing on overflowing buttons.
+   - min-width: 0 lets the button shrink inside flex parents that have
+     constrained widths (the most common cause of clipped CTAs).
+   - box-sizing: border-box so padding doesn't push past 100%. */
 .btn-primary {
-  background: var(--olive);
-  color: #0A0B0D;
+  background: var(--primary);
+  color: var(--primary-fg);
   font-weight: 700;
   border-radius: 12px;
   padding: 0.75rem 1.125rem;
   white-space: nowrap;
   min-height: 44px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  letter-spacing: -0.005em;
+  box-shadow: var(--shadow-button);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 .btn-primary:hover {
-  box-shadow: var(--shadow-lift);
+  background: var(--primary-deep);
 }
 .btn-primary:active {
   transform: scale(0.98);

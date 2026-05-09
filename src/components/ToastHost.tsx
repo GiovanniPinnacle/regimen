@@ -119,8 +119,8 @@ export default function ToastHost() {
                 }}
                 className="text-[13px] px-2.5 py-1 rounded-lg shrink-0"
                 style={{
-                  background: "var(--olive)",
-                  color: "#FFFFFF",
+                  background: "var(--primary)",
+                  color: "var(--primary-fg)",
                   fontWeight: 500,
                 }}
               >
@@ -137,8 +137,8 @@ export default function ToastHost() {
                 }}
                 className="text-[13px] px-2.5 py-1 rounded-lg shrink-0"
                 style={{
-                  background: "var(--olive)",
-                  color: "#FFFFFF",
+                  background: "var(--primary)",
+                  color: "var(--primary-fg)",
                   fontWeight: 500,
                 }}
               >

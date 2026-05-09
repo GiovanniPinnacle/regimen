@@ -246,8 +246,8 @@ export default function FeedbackFab() {
                 disabled={!body.trim() || busy}
                 className="flex-1 px-4 py-3 rounded-xl text-[14px]"
                 style={{
-                  background: "var(--olive)",
-                  color: "#FFFFFF",
+                  background: "var(--primary)",
+                  color: "var(--primary-fg)",
                   fontWeight: 700,
                   opacity: !body.trim() || busy ? 0.5 : 1,
                   minHeight: 44,

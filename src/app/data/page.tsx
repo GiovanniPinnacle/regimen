@@ -108,8 +108,8 @@ export default function DataPage() {
             disabled={!file || uploading}
             className="px-4 py-2.5 rounded-lg text-[14px]"
             style={{
-              background: "var(--accent)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
               opacity: !file || uploading ? 0.5 : 1,
             }}

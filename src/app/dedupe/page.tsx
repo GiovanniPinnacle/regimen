@@ -141,8 +141,8 @@ export default function DedupePage() {
             href="/today"
             className="inline-block mt-4 text-[13px] px-4 py-2 rounded-lg"
             style={{
-              background: "var(--accent)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 600,
             }}
           >
@@ -193,8 +193,8 @@ export default function DedupePage() {
               disabled={merging}
               className="w-full mt-4 px-3 py-2.5 rounded-lg flex items-center justify-center gap-1.5"
               style={{
-                background: "var(--accent)",
-                color: "#FFFFFF",
+                background: "var(--primary)",
+                color: "var(--primary-fg)",
                 fontWeight: 700,
                 fontSize: 13,
                 opacity: merging ? 0.5 : 1,

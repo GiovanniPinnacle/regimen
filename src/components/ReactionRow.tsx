@@ -160,8 +160,8 @@ export default function ReactionRow({ itemId, compact = true }: Props) {
             }}
             className="text-[12px] px-3 py-1.5 rounded-lg"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
             }}
           >

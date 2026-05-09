@@ -175,8 +175,8 @@ export default function CoachPulse({
             className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
             style={{
               background:
-                "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
-              color: "#FFFFFF",
+                "var(--primary)",
+              color: "var(--primary-fg)",
             }}
           >
             <Icon name="sparkle" size={16} strokeWidth={2} />

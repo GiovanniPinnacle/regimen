@@ -271,8 +271,8 @@ export default function FitDemoPage() {
           <button
             className="text-[13px] px-3.5 py-2 rounded-xl"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
             }}
           >
@@ -410,8 +410,8 @@ export default function FitDemoPage() {
             href="/strategy"
             className="text-[13px] px-3.5 py-2 rounded-xl"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
             }}
           >

@@ -794,8 +794,8 @@ export default function StrategyPage() {
         <div
           className="rounded-2xl p-5"
           style={{
-            background: "var(--olive)",
-            color: "#FFFFFF",
+            background: "var(--primary)",
+            color: "var(--primary-fg)",
           }}
         >
           <div

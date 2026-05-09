@@ -96,8 +96,8 @@ export default function Error({
             onClick={() => reset()}
             className="flex-1 px-4 py-2.5 rounded-lg text-[13px]"
             style={{
-              background: "var(--accent)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 700,
             }}
           >

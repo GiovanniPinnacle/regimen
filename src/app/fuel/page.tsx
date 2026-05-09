@@ -251,8 +251,8 @@ export default function FuelPage() {
                   disabled={logging === f.name}
                   className="shrink-0 text-[12px] px-3 py-1.5 rounded-lg"
                   style={{
-                    background: "var(--olive)",
-                    color: "#FFFFFF",
+                    background: "var(--primary)",
+                    color: "var(--primary-fg)",
                     fontWeight: 700,
                     minHeight: 32,
                     opacity: logging === f.name ? 0.5 : 1,

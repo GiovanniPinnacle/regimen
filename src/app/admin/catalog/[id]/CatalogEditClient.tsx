@@ -107,8 +107,8 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
         <div
           className="sticky top-2 z-10 rounded-xl mb-4 p-3 flex items-center justify-between gap-2"
           style={{
-            background: "var(--accent)",
-            color: "#FFFFFF",
+            background: "var(--primary)",
+            color: "var(--primary-fg)",
             boxShadow: "0 6px 16px var(--accent-glow)",
           }}
         >

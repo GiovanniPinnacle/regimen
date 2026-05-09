@@ -118,8 +118,8 @@ export default async function Home() {
             href="/signin"
             className="inline-block text-[15px] px-6 py-3 rounded-2xl"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
               boxShadow: "0 8px 24px var(--accent-glow)",
             }}
@@ -309,8 +309,8 @@ export default async function Home() {
           href="/signin"
           className="inline-block text-[15px] px-6 py-3 rounded-2xl"
           style={{
-            background: "var(--olive)",
-            color: "#FFFFFF",
+            background: "var(--primary)",
+            color: "var(--primary-fg)",
             fontWeight: 500,
             boxShadow: "0 8px 24px var(--accent-glow)",
           }}

@@ -200,8 +200,8 @@ export default function OnboardPage() {
             disabled={displayName.trim().length < 1}
             className="w-full rounded-xl px-5 py-3.5 text-[15px]"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
               opacity: displayName.trim().length < 1 ? 0.5 : 1,
             }}
@@ -269,8 +269,8 @@ export default function OnboardPage() {
               disabled={!focus}
               className="flex-[2] rounded-xl px-5 py-3 text-[15px]"
               style={{
-                background: "var(--olive)",
-                color: "#FFFFFF",
+                background: "var(--primary)",
+                color: "var(--primary-fg)",
                 fontWeight: 500,
                 opacity: !focus ? 0.5 : 1,
               }}
@@ -317,8 +317,8 @@ export default function OnboardPage() {
               onClick={() => setStep("recovery")}
               className="flex-[2] rounded-xl px-5 py-3 text-[15px]"
               style={{
-                background: "var(--olive)",
-                color: "#FFFFFF",
+                background: "var(--primary)",
+                color: "var(--primary-fg)",
                 fontWeight: 500,
               }}
             >
@@ -368,8 +368,8 @@ export default function OnboardPage() {
               onClick={() => setStep("protocol")}
               className="flex-[2] rounded-xl px-5 py-3 text-[15px]"
               style={{
-                background: "var(--olive)",
-                color: "#FFFFFF",
+                background: "var(--primary)",
+                color: "var(--primary-fg)",
                 fontWeight: 500,
               }}
             >
@@ -488,8 +488,8 @@ export default function OnboardPage() {
               disabled={saving}
               className="flex-[2] rounded-xl px-5 py-3 text-[15px]"
               style={{
-                background: "var(--olive)",
-                color: "#FFFFFF",
+                background: "var(--primary)",
+                color: "var(--primary-fg)",
                 fontWeight: 500,
                 opacity: saving ? 0.5 : 1,
               }}

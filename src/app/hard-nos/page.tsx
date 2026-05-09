@@ -361,8 +361,8 @@ export default function HardNosPage() {
                       disabled={!draft.name.trim()}
                       className="flex-1 rounded-lg px-3 py-2 text-[13px]"
                       style={{
-                        background: "var(--accent)",
-                        color: "#FFFFFF",
+                        background: "var(--primary)",
+                        color: "var(--primary-fg)",
                         fontWeight: 500,
                         opacity: !draft.name.trim() ? 0.5 : 1,
                       }}

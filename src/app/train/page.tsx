@@ -283,8 +283,8 @@ export default function TrainPage() {
                     onClick={captureWorkout}
                     className="flex-1 mt-3 px-3 py-2 rounded-lg text-[12.5px] flex items-center justify-center gap-1.5"
                     style={{
-                      background: "var(--olive)",
-                      color: "#FFFFFF",
+                      background: "var(--primary)",
+                      color: "var(--primary-fg)",
                       fontWeight: 700,
                       minHeight: 36,
                     }}
@@ -372,8 +372,8 @@ export default function TrainPage() {
             href="/items/new"
             className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl text-[13px]"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 700,
             }}
           >

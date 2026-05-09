@@ -495,8 +495,8 @@ export default function UniversalCapture({ open, onClose }: Props) {
               disabled={busy || (!text.trim() && !imageData)}
               className="flex-1 px-4 py-3 rounded-xl text-[14px]"
               style={{
-                background: "var(--accent)",
-                color: "#FFFFFF",
+                background: "var(--primary)",
+                color: "var(--primary-fg)",
                 fontWeight: 700,
                 opacity: busy || (!text.trim() && !imageData) ? 0.5 : 1,
                 minHeight: 44,

@@ -61,8 +61,8 @@ export default function EmptyState({
                 href={primary.href}
                 className="text-[13px] px-4 py-2 rounded-xl"
                 style={{
-                  background: "var(--olive)",
-                  color: "#FFFFFF",
+                  background: "var(--primary)",
+                  color: "var(--primary-fg)",
                   fontWeight: 500,
                 }}
               >
@@ -73,8 +73,8 @@ export default function EmptyState({
                 onClick={primary.onClick}
                 className="text-[13px] px-4 py-2 rounded-xl"
                 style={{
-                  background: "var(--olive)",
-                  color: "#FFFFFF",
+                  background: "var(--primary)",
+                  color: "var(--primary-fg)",
                   fontWeight: 500,
                 }}
               >

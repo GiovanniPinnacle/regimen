@@ -377,8 +377,8 @@ function ChoiceButton({
   const styles =
     variant === "have"
       ? {
-          background: "var(--accent)",
-          color: "#FFFFFF",
+          background: "var(--primary)",
+          color: "var(--primary-fg)",
           fontWeight: 700 as const,
         }
       : variant === "need"

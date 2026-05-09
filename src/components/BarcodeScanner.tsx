@@ -286,8 +286,8 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
                 disabled={!manualUpc.trim() || manualBusy}
                 className="px-4 rounded-xl text-[14px]"
                 style={{
-                  background: "var(--accent)",
-                  color: "#FFFFFF",
+                  background: "var(--primary)",
+                  color: "var(--primary-fg)",
                   fontWeight: 700,
                   opacity: !manualUpc.trim() || manualBusy ? 0.5 : 1,
                 }}
@@ -375,8 +375,8 @@ function ResultCard({
         onClick={onConfirm}
         className="w-full mt-4 py-3 rounded-xl text-[14px] flex items-center justify-center gap-1.5"
         style={{
-          background: "var(--accent)",
-          color: "#FFFFFF",
+          background: "var(--primary)",
+          color: "var(--primary-fg)",
           fontWeight: 700,
         }}
       >

@@ -204,8 +204,8 @@ export default function RecapPage() {
             href="/today"
             className="inline-flex items-center gap-1.5 mt-4 text-[13px] px-4 py-2.5 rounded-xl"
             style={{
-              background: "var(--accent)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 700,
               minHeight: 40,
             }}
@@ -220,8 +220,8 @@ export default function RecapPage() {
             className="rounded-2xl p-6"
             style={{
               background:
-                "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
-              color: "#FFFFFF",
+                "var(--primary)",
+              color: "var(--primary-fg)",
               boxShadow: "0 12px 32px var(--accent-glow)",
             }}
           >

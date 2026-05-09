@@ -374,8 +374,8 @@ export default function StackFilterSheet({
             onClick={onClose}
             className="w-full px-4 py-3 rounded-xl text-[14px]"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 700,
               minHeight: 44,
             }}

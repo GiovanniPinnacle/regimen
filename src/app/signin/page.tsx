@@ -179,13 +179,13 @@ function SignInForm() {
             <button
               type="submit"
               disabled={status === "sending" || !email.trim()}
-              className="rounded-xl mt-2 inline-flex items-center justify-center no-truncate"
+              className="rounded-xl mt-2 inline-flex items-center justify-center no-truncate w-full"
               style={{
-                background:
-                  "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
-                color: "#FFFFFF",
+                background: "var(--primary)",
+                color: "var(--primary-fg)",
                 fontWeight: 700,
                 fontSize: 15,
+                letterSpacing: "-0.005em",
                 minHeight: 48,
                 padding: "12px 16px",
                 boxShadow: "var(--shadow-button)",

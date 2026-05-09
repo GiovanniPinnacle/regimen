@@ -193,8 +193,8 @@ export default function ProtocolDetailPage() {
                 <span
                   className="text-[10px] px-1.5 py-0.5 rounded-full"
                   style={{
-                    background: "var(--olive)",
-                    color: "#FFFFFF",
+                    background: "var(--primary)",
+                    color: "var(--primary-fg)",
                     fontWeight: 600,
                   }}
                 >
@@ -233,8 +233,8 @@ export default function ProtocolDetailPage() {
           <div
             className="rounded-2xl p-5 text-center"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
             }}
           >
             <div
@@ -276,8 +276,8 @@ export default function ProtocolDetailPage() {
               href="/today"
               className="text-[13px] px-3.5 py-2 rounded-xl shrink-0"
               style={{
-                background: "var(--olive)",
-                color: "#FFFFFF",
+                background: "var(--primary)",
+                color: "var(--primary-fg)",
                 fontWeight: 500,
               }}
             >
@@ -310,8 +310,8 @@ export default function ProtocolDetailPage() {
             disabled={enrolling}
             className="w-full rounded-2xl px-5 py-4 text-[15px]"
             style={{
-              background: "var(--olive)",
-              color: "#FFFFFF",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
               fontWeight: 500,
               opacity: enrolling ? 0.6 : 1,
               boxShadow: "0 4px 14px var(--accent-glow)",

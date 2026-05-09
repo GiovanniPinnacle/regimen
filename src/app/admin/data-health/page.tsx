@@ -309,8 +309,8 @@ export default function DataHealthPage() {
                 disabled={healingAll}
                 className="text-[12.5px] px-3 py-2 rounded-lg flex items-center gap-1.5"
                 style={{
-                  background: "var(--olive)",
-                  color: "#FFFFFF",
+                  background: "var(--primary)",
+                  color: "var(--primary-fg)",
                   fontWeight: 700,
                   minHeight: 36,
                   opacity: healingAll ? 0.5 : 1,
