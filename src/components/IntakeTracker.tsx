@@ -265,25 +265,48 @@ function ProgressRow({
   color: string;
 }) {
   const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
+  // Surface "X% to target" as a small uppercase label and color the
+  // value if the user has hit at least 80% of target. Below 80% reads
+  // as muted neutral so users aren't shamed mid-day.
+  const hitMost = pct >= 80;
+  const valueColor = hitMost ? color : "var(--foreground)";
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2 mb-1.5">
         <span
           className="text-[13px]"
-          style={{ color: "var(--foreground)", fontWeight: 500 }}
+          style={{
+            color: "var(--foreground)",
+            fontWeight: 600,
+            letterSpacing: "-0.005em",
+          }}
         >
           {label}
         </span>
-        <span className="text-[13px] tabular-nums">
+        <span className="text-[13px] tabular-nums inline-flex items-baseline gap-1.5">
           <span
-            style={{ fontWeight: 600, color: "var(--foreground)" }}
+            style={{
+              fontWeight: 700,
+              color: valueColor,
+              letterSpacing: "-0.005em",
+            }}
           >
             {Math.round(value)}
           </span>
-          <span style={{ color: "var(--muted)" }}>
-            {" / "}
-            {target}
+          <span style={{ color: "var(--muted)", fontWeight: 600 }}>
+            / {target}
             {unit && ` ${unit}`}
+          </span>
+          <span
+            className="text-[10px] uppercase tracking-wider"
+            style={{
+              color: hitMost ? color : "var(--muted)",
+              fontWeight: 700,
+              letterSpacing: "0.06em",
+              opacity: hitMost ? 1 : 0.7,
+            }}
+          >
+            {Math.round(pct)}%
           </span>
         </span>
       </div>
@@ -296,7 +319,10 @@ function ProgressRow({
           style={{
             width: `${pct}%`,
             background: color,
-            boxShadow: pct > 0 ? "inset 0 1px 0 rgba(255, 255, 255, 0.18)" : undefined,
+            boxShadow:
+              pct > 0
+                ? "inset 0 1px 0 rgba(255, 255, 255, 0.18)"
+                : undefined,
           }}
         />
       </div>
