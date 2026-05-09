@@ -15,7 +15,7 @@ import { getEnrollments } from "@/lib/storage";
 import type { Protocol, ProtocolCategory } from "@/lib/types";
 import Icon from "@/components/Icon";
 import EmptyState from "@/components/EmptyState";
-import { SkeletonLine, SkeletonCard } from "@/components/Skeleton";
+import { SkeletonCard } from "@/components/Skeleton";
 
 const CATEGORIES: ("all" | ProtocolCategory)[] = [
   "all",
@@ -68,8 +68,8 @@ export default function ProtocolsBrowsePage() {
     <div className="pb-24">
       <header className="mb-7">
         <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+          className="text-[34px] leading-tight"
+          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
         >
           Protocols
         </h1>

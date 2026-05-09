@@ -22,6 +22,10 @@ function isOwner(email: string | null | undefined): boolean {
   return list.includes(email.toLowerCase());
 }
 
+function getNow(): number {
+  return Date.now();
+}
+
 const SOURCE_LABEL: Record<string, string> = {
   off: "Open Food Facts",
   usda: "USDA",
@@ -62,6 +66,7 @@ export default async function AdminCatalogPage({
   }
 
   const admin = createAdminClient();
+  const NOW = getNow();
 
   type StatRow = { source: string; count: number; enriched: number };
 
@@ -114,7 +119,7 @@ export default async function AdminCatalogPage({
       .not("item_id", "is", null)
       .gte(
         "clicked_at",
-        new Date(Date.now() - 30 * 86400000).toISOString(),
+        new Date(NOW - 30 * 86400000).toISOString(),
       )
       .limit(2000),
     // Items table linked to catalog (count via group-style aggregation
@@ -132,7 +137,7 @@ export default async function AdminCatalogPage({
       .not("enriched_at", "is", null)
       .lt(
         "enriched_at",
-        new Date(Date.now() - 30 * 86400000).toISOString(),
+        new Date(NOW - 30 * 86400000).toISOString(),
       )
       .order("enriched_at", { ascending: true })
       .limit(20),
@@ -648,7 +653,7 @@ export default async function AdminCatalogPage({
                   style={{ color: "var(--muted)" }}
                 >
                   {Math.round(
-                    (Date.now() - new Date(r.enriched_at).getTime()) /
+                    (NOW - new Date(r.enriched_at).getTime()) /
                       86400000,
                   )}
                   d ago

@@ -8,7 +8,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ACHIEVEMENTS,
-  ACHIEVEMENTS_BY_KEY,
   TIER_COLORS,
   type Achievement,
   type AchievementKey,
@@ -72,8 +71,8 @@ export default function AchievementsPage() {
     <div className="pb-24">
       <header className="mb-7">
         <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+          className="text-[34px] leading-tight"
+          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
         >
           Achievements
         </h1>

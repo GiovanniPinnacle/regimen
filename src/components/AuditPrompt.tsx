@@ -7,15 +7,13 @@ import Icon from "@/components/Icon";
 
 export default function AuditPrompt() {
   const [unauditedCount, setUnauditedCount] = useState<number | null>(null);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("regimen.audit.dismissed") === "1";
+  });
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (localStorage.getItem("regimen.audit.dismissed") === "1") {
-        setDismissed(true);
-        return;
-      }
-    }
+    if (dismissed) return;
     (async () => {
       const supabase = createClient();
       const { count } = await supabase
@@ -33,7 +31,7 @@ export default function AuditPrompt() {
         ]);
       setUnauditedCount(count ?? 0);
     })();
-  }, []);
+  }, [dismissed]);
 
   function dismiss() {
     localStorage.setItem("regimen.audit.dismissed", "1");

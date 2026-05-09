@@ -5,7 +5,7 @@
 // new users; user adds their own rather than inheriting someone else's
 // seeded list.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
 import EmptyState from "@/components/EmptyState";
@@ -51,9 +51,20 @@ export default function HardNosPage() {
    *  handles dropdown + keyboard nav for free. */
   const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
 
+  const load = useCallback(async () => {
+    const client = createClient();
+    const { data } = await client
+      .from("profiles")
+      .select("hard_nos")
+      .maybeSingle();
+    const stored = (data?.hard_nos as HardNo[] | null) ?? [];
+    setList(stored);
+    setLoaded(true);
+  }, []);
+
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   // Live catalog autocomplete for the hard-no name input. Debounced so
   // a fast typist doesn't fire a request per keystroke.
@@ -61,8 +72,8 @@ export default function HardNosPage() {
     if (!adding) return;
     const q = draft.name.trim();
     if (q.length < 2) {
-      setNameSuggestions([]);
-      return;
+      const id = setTimeout(() => setNameSuggestions([]), 0);
+      return () => clearTimeout(id);
     }
     const t = setTimeout(async () => {
       try {
@@ -91,17 +102,6 @@ export default function HardNosPage() {
     }, 220);
     return () => clearTimeout(t);
   }, [draft.name, adding]);
-
-  async function load() {
-    const client = createClient();
-    const { data } = await client
-      .from("profiles")
-      .select("hard_nos")
-      .maybeSingle();
-    const stored = (data?.hard_nos as HardNo[] | null) ?? [];
-    setList(stored);
-    setLoaded(true);
-  }
 
   async function persist(next: HardNo[]) {
     const client = createClient();

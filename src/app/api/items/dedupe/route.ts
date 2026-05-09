@@ -19,7 +19,7 @@
 //
 // Auth: signed-in user only. Always scoped to their own user_id.
 
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Item, Status } from "@/lib/types";
 
@@ -177,7 +177,7 @@ export async function GET() {
   });
 }
 
-export async function POST(_request: NextRequest) {
+export async function POST() {
   const supabase = await createClient();
   const {
     data: { user },

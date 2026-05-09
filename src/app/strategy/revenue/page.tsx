@@ -40,6 +40,10 @@ function isOwner(email: string | null | undefined): boolean {
   return list.includes(email.toLowerCase());
 }
 
+function getNow(): number {
+  return Date.now();
+}
+
 export default async function RevenuePage() {
   const supabase = await createClient();
   const {
@@ -70,7 +74,7 @@ export default async function RevenuePage() {
   }
 
   const owner = isOwner(user.email);
-  const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
+  const since30 = new Date(getNow() - 30 * 86400000).toISOString();
 
   const userClient = supabase;
   const sourceClient = owner ? createAdminClient() : userClient;

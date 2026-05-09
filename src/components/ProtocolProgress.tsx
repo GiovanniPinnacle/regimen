@@ -24,6 +24,7 @@ type Enrollment = {
 export default function ProtocolProgress() {
   const protocols = useMemo(() => listProtocols(), []);
   const [enrollments, setEnrollments] = useState<Enrollment[] | null>(null);
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     let alive = true;
@@ -76,7 +77,7 @@ export default function ProtocolProgress() {
           const dayN =
             Math.max(
               0,
-              Math.floor((Date.now() - start.getTime()) / 86400000),
+              Math.floor((now - start.getTime()) / 86400000),
             ) + 1;
           const total = protocol.duration_days;
           const pct = Math.min(100, Math.round((dayN / total) * 100));

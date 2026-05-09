@@ -52,8 +52,8 @@ export default async function TestsPage() {
           </Link>
         </div>
         <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+          className="text-[34px] leading-tight"
+          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
         >
           Bloodwork & tests
         </h1>

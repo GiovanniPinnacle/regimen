@@ -9,7 +9,7 @@
 // On unsupported browsers, we render a manual UPC input fallback so
 // the flow always works.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "@/components/Icon";
 
 // Browser typings for BarcodeDetector — not in TS lib by default
@@ -56,12 +56,40 @@ type Props = {
 export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [supported, setSupported] = useState<boolean | null>(null);
+  const [supported] = useState<boolean | null>(() => {
+    if (typeof window === "undefined") return null;
+    return Boolean(window.BarcodeDetector);
+  });
   const [scanning, setScanning] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [manualUpc, setManualUpc] = useState("");
   const [manualBusy, setManualBusy] = useState(false);
+
+  const lookup = useCallback(async (upc: string) => {
+    setScanning(false);
+    try {
+      const res = await fetch("/api/catalog/lookup-upc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upc }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        item: ScanResult["item"] | null;
+        source: string | null;
+      };
+      if (data.ok && data.item) {
+        setResult({ upc, item: data.item, source: data.source ?? "unknown" });
+      } else {
+        setErr(
+          `No match for barcode ${upc}. Try a different angle, or add it manually.`,
+        );
+      }
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -70,7 +98,6 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
 
     const hasDetector =
       typeof window !== "undefined" && Boolean(window.BarcodeDetector);
-    setSupported(hasDetector);
     if (!hasDetector) return;
 
     let alive = true;
@@ -122,32 +149,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
         streamRef.current = null;
       }
     };
-  }, [open]);
-
-  async function lookup(upc: string) {
-    setScanning(false);
-    try {
-      const res = await fetch("/api/catalog/lookup-upc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upc }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        item: ScanResult["item"] | null;
-        source: string | null;
-      };
-      if (data.ok && data.item) {
-        setResult({ upc, item: data.item, source: data.source ?? "unknown" });
-      } else {
-        setErr(
-          `No match for barcode ${upc}. Try a different angle, or add it manually.`,
-        );
-      }
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  }
+  }, [open, lookup]);
 
   async function handleManual() {
     if (!manualUpc.trim()) return;

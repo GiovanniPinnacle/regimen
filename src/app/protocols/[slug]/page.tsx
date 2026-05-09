@@ -34,6 +34,7 @@ export default function ProtocolDetailPage() {
   const [err, setErr] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [unenrolling, setUnenrolling] = useState(false);
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     (async () => {
@@ -63,7 +64,7 @@ export default function ProtocolDetailPage() {
   const dayN = startDate
     ? Math.max(
         0,
-        Math.floor((Date.now() - startDate.getTime()) / 86400000),
+        Math.floor((now - startDate.getTime()) / 86400000),
       ) + 1
     : 0;
 

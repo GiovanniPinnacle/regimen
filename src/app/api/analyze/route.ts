@@ -71,26 +71,6 @@ type FoodResult = {
   verdict: string;
   reasoning: string;
 };
-type SupplementResult = {
-  name: string;
-  brand: string;
-  ingredients: { name: string; dose: string }[];
-  hard_no_hits: string[];
-  duplicates: string[];
-  proposal: Record<string, unknown>;
-  verdict: string;
-  reasoning: string;
-};
-type ScalpResult = {
-  day_post_op: number;
-  crusting: string;
-  redness: string;
-  anomalies: string[];
-  positive: string[];
-  verdict: string;
-  narrative: string;
-};
-
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {

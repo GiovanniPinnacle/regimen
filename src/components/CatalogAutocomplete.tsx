@@ -66,14 +66,16 @@ export default function CatalogAutocomplete({
 
   useEffect(() => {
     if (disabled) {
-      setOpen(false);
-      return;
+      const id = setTimeout(() => setOpen(false), 0);
+      return () => clearTimeout(id);
     }
     const q = query.trim();
     if (q.length < 2) {
-      setHits([]);
-      setOpen(false);
-      return;
+      const id = setTimeout(() => {
+        setHits([]);
+        setOpen(false);
+      }, 0);
+      return () => clearTimeout(id);
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {

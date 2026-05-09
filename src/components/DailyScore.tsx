@@ -10,7 +10,7 @@
 //   - Intake (20 pts): water + protein hit %
 //   - Reactions/feedback (15 pts): logged any reaction recently?
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Props = {
   /** Today's items taken / total */
@@ -35,23 +35,23 @@ export default function DailyScore({
 }: Props) {
   const [streak, setStreak] = useState(0);
   const [reactionsThisWeek, setReactionsThisWeek] = useState(0);
-  const [yesterdayScore, setYesterdayScore] = useState<number | null>(null);
-
-  useEffect(() => {
-    void load();
+  const [yesterdayScore] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
     try {
       const raw = localStorage.getItem(SCORE_KEY_YESTERDAY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { date: string; score: number };
-        const yesterday = new Date(Date.now() - 86400000)
-          .toISOString()
-          .slice(0, 10);
-        if (parsed.date === yesterday) setYesterdayScore(parsed.score);
-      }
-    } catch {}
-  }, []);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { date: string; score: number };
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .slice(0, 10);
+      if (parsed.date === yesterday) return parsed.score;
+      return null;
+    } catch {
+      return null;
+    }
+  });
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const { createClient } = await import("@/lib/supabase/client");
       const c = createClient();
@@ -78,7 +78,11 @@ export default function DailyScore({
       setStreak(computeStreak(Array.from(days)));
       setReactionsThisWeek((rxRes.data ?? []).length);
     } catch {}
-  }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const score = useMemo(() => {
     const adherencePct =

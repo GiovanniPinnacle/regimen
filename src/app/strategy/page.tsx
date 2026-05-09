@@ -243,7 +243,7 @@ export default function StrategyPage() {
           Strategy doc
         </div>
         <h1
-          className="text-[32px] leading-tight"
+          className="text-[34px] leading-tight"
           style={{ fontWeight: 500 }}
         >
           One app. Many regimens.

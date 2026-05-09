@@ -17,6 +17,10 @@ import DeepResearchButton from "@/components/DeepResearchButton";
 import BuyButton from "@/components/BuyButton";
 import TutorialLink from "@/components/TutorialLink";
 
+function getNow(): number {
+  return Date.now();
+}
+
 export default async function ItemDetailPage({
   params,
 }: {
@@ -101,13 +105,14 @@ export default async function ItemDetailPage({
 
   // Personal history with this item — last 30d reactions, last 14d memos,
   // last 14d skips. The "what's MY relationship with this item" view.
-  const since30 = new Date(Date.now() - 30 * 86400000)
+  const NOW = getNow();
+  const since30 = new Date(NOW - 30 * 86400000)
     .toISOString()
     .slice(0, 10);
-  const since14 = new Date(Date.now() - 14 * 86400000)
+  const since14 = new Date(NOW - 14 * 86400000)
     .toISOString()
     .slice(0, 10);
-  const since14Iso = new Date(Date.now() - 14 * 86400000).toISOString();
+  const since14Iso = new Date(NOW - 14 * 86400000).toISOString();
 
   const [reactionsHistRes, memosHistRes, skipsHistRes] = await Promise.all([
     supabase
@@ -1114,13 +1119,6 @@ function Section({
       </details>
     </section>
   );
-}
-
-/** Word count helper for the badge — gives the user a sense of how
- *  much they're about to expand without having to commit. */
-function wordCount(s: string | null | undefined): number {
-  if (!s) return 0;
-  return s.trim().split(/\s+/).filter(Boolean).length;
 }
 
 function NutStat({ label, value }: { label: string; value: string }) {

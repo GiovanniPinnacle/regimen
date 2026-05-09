@@ -69,14 +69,14 @@ export default function ChangelogPage() {
           </Link>
         </div>
         <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+          className="text-[34px] leading-tight"
+          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
         >
           Changelog
         </h1>
         <p
           className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
+          style={{ color: "var(--foreground-soft)" }}
         >
           {entries.length} {entries.length === 1 ? "change" : "changes"} ·
           every protocol edit logged with reasoning.

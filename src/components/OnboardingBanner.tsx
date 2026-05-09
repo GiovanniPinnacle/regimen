@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { subscribeToPush } from "@/lib/push";
 import Icon from "@/components/Icon";
 
@@ -8,19 +8,8 @@ type Env = "loading" | "desktop" | "ios_browser" | "ios_pwa" | "android";
 type PushState = "unknown" | "unsupported" | "default" | "granted" | "denied";
 
 export default function OnboardingBanner() {
-  const [env, setEnv] = useState<Env>("loading");
-  const [pushState, setPushState] = useState<PushState>("unknown");
-  const [busy, setBusy] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    if (localStorage.getItem("regimen.onboarding.dismissed") === "1") {
-      setDismissed(true);
-    }
-
+  const [env] = useState<Env>(() => {
+    if (typeof window === "undefined") return "loading";
     const ua = navigator.userAgent;
     const isIOS = /iPad|iPhone|iPod/.test(ua);
     const isAndroid = /Android/.test(ua);
@@ -28,18 +17,24 @@ export default function OnboardingBanner() {
       window.matchMedia?.("(display-mode: standalone)").matches ||
       // @ts-expect-error iOS Safari
       window.navigator.standalone === true;
-
-    if (isIOS && !isStandalone) setEnv("ios_browser");
-    else if (isIOS && isStandalone) setEnv("ios_pwa");
-    else if (isAndroid) setEnv("android");
-    else setEnv("desktop");
-
+    if (isIOS && !isStandalone) return "ios_browser";
+    if (isIOS && isStandalone) return "ios_pwa";
+    if (isAndroid) return "android";
+    return "desktop";
+  });
+  const [pushState, setPushState] = useState<PushState>(() => {
+    if (typeof window === "undefined") return "unknown";
     if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-      setPushState("unsupported");
-    } else {
-      setPushState(Notification.permission as PushState);
+      return "unsupported";
     }
-  }, []);
+    return Notification.permission as PushState;
+  });
+  const [busy, setBusy] = useState(false);
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("regimen.onboarding.dismissed") === "1";
+  });
+  const [msg, setMsg] = useState<string | null>(null);
 
   async function handleEnable() {
     setBusy(true);

@@ -8,7 +8,7 @@
 // Coach reads recent memos in the refine context, so anything you say
 // shows up in the next refinement run automatically.
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 type Stage = "idle" | "recording" | "review" | "saving" | "saved";
 
@@ -46,17 +46,15 @@ export default function VoiceMemo() {
   const [interim, setInterim] = useState("");
   const [tag, setTag] = useState<string>("note");
   const [err, setErr] = useState<string | null>(null);
-  const [supported, setSupported] = useState<boolean | null>(null);
+  const [supported] = useState<boolean | null>(() => {
+    if (typeof window === "undefined") return null;
+    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    return Boolean(SR);
+  });
   const [linkedToName, setLinkedToName] = useState<string | null>(null);
   const [loggedAsMeal, setLoggedAsMeal] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const startedAtRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    setSupported(Boolean(SR));
-  }, []);
 
   function startRecording() {
     setErr(null);

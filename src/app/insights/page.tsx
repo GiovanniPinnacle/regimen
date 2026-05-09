@@ -6,7 +6,7 @@
 // Coach prompts, then supporting metrics + reactions + memos. Every data
 // section ends in a clear next action — never dead-end.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PatternCard from "@/components/PatternCard";
 import { createClient } from "@/lib/supabase/client";
@@ -109,14 +109,9 @@ export default function InsightsPage() {
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [usage, setUsage] = useState<Usage>({ date: "", count: 0 });
+  const [usage, setUsage] = useState<Usage>(() => readUsage());
 
-  useEffect(() => {
-    setUsage(readUsage());
-    void load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     const client = createClient();
     const since14 = new Date(Date.now() - 14 * 86400000)
       .toISOString()
@@ -193,7 +188,11 @@ export default function InsightsPage() {
       .order("created_at", { ascending: false })
       .limit(5);
     setMemos((memosRes.data ?? []) as VoiceMemo[]);
-  }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function runAudit() {
     setLoading(true);

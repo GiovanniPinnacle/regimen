@@ -11,7 +11,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import IntakeTracker from "@/components/IntakeTracker";
-import Icon from "@/components/Icon";
 import AskCoachButton from "@/components/AskCoachButton";
 import { createClient } from "@/lib/supabase/client";
 import { calcMacros, type MacroTargets } from "@/lib/macros";

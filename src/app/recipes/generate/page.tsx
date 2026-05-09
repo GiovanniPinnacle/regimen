@@ -59,7 +59,7 @@ export default function GenerateRecipePage() {
       </div>
 
       <header className="mb-6">
-        <h1 className="text-[32px] leading-tight" style={{ fontWeight: 600, letterSpacing: "-0.02em" }}>
+        <h1 className="text-[34px] leading-tight" style={{ fontWeight: 700, letterSpacing: "-0.024em" }}>
           Generate a meal
         </h1>
         <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>

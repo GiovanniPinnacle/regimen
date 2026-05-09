@@ -7,7 +7,6 @@
 
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import Icon from "@/components/Icon";
 import CoachMarkdown from "@/components/CoachMarkdown";
 
@@ -45,8 +44,10 @@ export default async function CoachHistoryPage() {
       </div>
     );
   }
-  const admin = createAdminClient();
-  const { data } = await admin
+  // RLS on claude_conversations restricts to auth.uid() = user_id
+  // (migration 001 generic owner policy). Cookied client is the
+  // safer default — admin escalation here was unnecessary.
+  const { data } = await supabase
     .from("claude_conversations")
     .select("id, created_at, messages_json")
     .eq("user_id", user.id)
@@ -80,14 +81,14 @@ export default async function CoachHistoryPage() {
           </Link>
         </div>
         <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
+          className="text-[34px] leading-tight"
+          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
         >
           Coach history
         </h1>
         <p
           className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
+          style={{ color: "var(--foreground-soft)" }}
         >
           Past conversations, newest first. Coach references the most-recent
           turn automatically; older threads stay here for your reference.
@@ -96,15 +97,31 @@ export default async function CoachHistoryPage() {
 
       {rows.length === 0 ? (
         <div
-          className="rounded-2xl card-glass p-8 text-center"
-          style={{ color: "var(--muted)" }}
+          className="rounded-2xl card-glass p-7 text-center"
+          style={{ borderLeft: "3px solid var(--pro)" }}
         >
-          <div className="text-[14px]" style={{ fontWeight: 500 }}>
-            No saved conversations yet.
+          <div
+            className="text-[10px] uppercase tracking-wider mb-2"
+            style={{
+              color: "var(--pro)",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+            }}
+          >
+            No history yet
           </div>
-          <div className="text-[12px] mt-1.5">
-            Open Coach from the floating button on /today and ask anything —
-            this archive starts filling immediately.
+          <div
+            className="text-[15px]"
+            style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
+          >
+            Open Coach to start
+          </div>
+          <div
+            className="text-[12.5px] mt-2 leading-relaxed"
+            style={{ color: "var(--foreground-soft)" }}
+          >
+            Tap the sparkle button on any tab to ask Coach about your stack.
+            Every conversation lands here automatically — newest first.
           </div>
         </div>
       ) : (

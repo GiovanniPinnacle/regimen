@@ -1,6 +1,16 @@
 "use client";
 
+// Sign-in — magic link only. Plain email + button, no third-party
+// auth wired up yet (Apple OAuth would be next when we wrap for the
+// App Store).
+//
+// UX touches: handles ?deleted=1 from /account so post-deletion users
+// see a confirmation instead of a blank login. Privacy + Terms links
+// inline below the button — required disclosure for App Store +
+// GDPR. Uses v2 design tokens throughout.
+
 import { Suspense, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -15,6 +25,12 @@ export default function SignInPage() {
 function SignInForm() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/today";
+  const justDeleted = searchParams.get("deleted") === "1";
+  // /api/auth/callback redirects here with ?error=auth_failed when the
+  // magic-link exchange fails (expired link, replayed code, etc.).
+  // Surface a clear message instead of silently dumping the user back
+  // on the form.
+  const callbackError = searchParams.get("error") === "auth_failed";
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
     "idle",
@@ -27,10 +43,7 @@ function SignInForm() {
     setErrorMsg("");
 
     const supabase = createClient();
-    const callbackUrl = new URL(
-      "/auth/callback",
-      window.location.origin,
-    );
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
     callbackUrl.searchParams.set("next", next);
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -50,47 +63,106 @@ function SignInForm() {
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center -mt-8">
       <div className="w-full max-w-sm">
+        {/* Account-deletion confirmation banner. Shows once when the
+            /account delete flow redirects here with ?deleted=1. */}
+        {justDeleted && (
+          <div
+            className="rounded-2xl p-3.5 mb-6 text-[13px] leading-relaxed"
+            style={{
+              background: "var(--accent-tint)",
+              border: "1px solid rgba(0, 214, 128, 0.24)",
+              color: "var(--foreground)",
+            }}
+          >
+            Account deleted. Every row of your data has been removed.
+          </div>
+        )}
+
+        {/* Auth callback failure — magic link expired, replayed, or
+            tampered. Tell the user why they bounced back instead of
+            silently dropping them on the form. */}
+        {callbackError && !justDeleted && (
+          <div
+            className="rounded-2xl p-3.5 mb-6 text-[13px] leading-relaxed"
+            style={{
+              background: "rgba(255, 86, 112, 0.08)",
+              border: "1px solid rgba(255, 86, 112, 0.24)",
+              color: "var(--foreground)",
+            }}
+          >
+            That sign-in link didn&apos;t work. They expire after one
+            use — request a fresh one below.
+          </div>
+        )}
+
         <h1
-          className="text-[28px] leading-tight text-center"
-          style={{ fontWeight: 500 }}
+          className="text-[34px] leading-tight text-center"
+          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
         >
           Regimen
         </h1>
         <div
-          className="text-[13px] text-center mt-1 mb-10"
-          style={{ color: "var(--muted)" }}
+          className="text-[13.5px] text-center mt-2 mb-9 leading-relaxed"
+          style={{ color: "var(--foreground-soft)" }}
         >
-          Personal health protocol management
+          Your stack, your data, your call.
         </div>
 
         {status === "sent" ? (
-          <div className="border-hair rounded-xl p-6 text-center">
-            <div className="text-[16px]" style={{ fontWeight: 500 }}>
-              Check your email
+          <div
+            className="rounded-2xl p-6 text-center card-glass"
+            style={{ borderLeft: "3px solid var(--accent)" }}
+          >
+            <div
+              className="text-[10px] uppercase tracking-wider mb-2"
+              style={{
+                color: "var(--accent)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Check your inbox
             </div>
             <div
-              className="text-[13px] mt-2"
-              style={{ color: "var(--muted)" }}
+              className="text-[15px]"
+              style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
             >
-              We sent a sign-in link to
-              <br />
-              <span style={{ color: "var(--foreground)", fontWeight: 500 }}>
+              Magic link sent
+            </div>
+            <div
+              className="text-[12.5px] mt-2 leading-relaxed"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              Check{" "}
+              <span
+                style={{ color: "var(--foreground)", fontWeight: 600 }}
+              >
                 {email}
-              </span>
+              </span>{" "}
+              and tap the link to sign in.
             </div>
             <div
-              className="text-[12px] mt-4"
+              className="text-[11px] mt-4"
               style={{ color: "var(--muted)" }}
             >
-              Click the link in the email to sign in. You can close this tab.
+              You can close this tab.
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <label className="text-[13px]" style={{ fontWeight: 500 }}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
+            <label
+              className="text-[10px] uppercase tracking-wider px-0.5"
+              style={{
+                color: "var(--muted)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+              htmlFor="signin-email"
+            >
               Email
             </label>
             <input
+              id="signin-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -98,41 +170,68 @@ function SignInForm() {
               required
               autoComplete="email"
               autoFocus
-              className="border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
+              className="rounded-xl px-3.5 py-3 text-[15px] focus:outline-none"
               style={{
-                background: "var(--background)",
+                background: "var(--surface)",
                 color: "var(--foreground)",
+                border: "1px solid var(--border-strong)",
+                minHeight: 48,
               }}
             />
             <button
               type="submit"
-              disabled={status === "sending"}
-              className="px-4 py-2.5 rounded-lg text-[14px] mt-2"
+              disabled={status === "sending" || !email.trim()}
+              className="rounded-xl mt-2 inline-flex items-center justify-center no-truncate"
               style={{
-                background: "var(--foreground)",
-                color: "var(--background)",
-                fontWeight: 500,
-                opacity: status === "sending" ? 0.5 : 1,
+                background:
+                  "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
+                color: "#FFFFFF",
+                fontWeight: 700,
+                fontSize: 14,
+                minHeight: 48,
+                padding: "12px 16px",
+                boxShadow:
+                  "0 6px 18px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
+                opacity:
+                  status === "sending" || !email.trim() ? 0.55 : 1,
               }}
             >
               {status === "sending" ? "Sending…" : "Send magic link"}
             </button>
             {status === "error" && (
               <div
-                className="text-[12px] mt-1"
-                style={{ color: "#b00020" }}
+                className="text-[12px] mt-1 px-1"
+                style={{ color: "var(--error)" }}
               >
                 {errorMsg}
               </div>
             )}
             <div
-              className="text-[11px] text-center mt-4"
+              className="text-[11.5px] text-center mt-5 leading-relaxed"
               style={{ color: "var(--muted)" }}
             >
-              No password. We email you a link to sign in.
+              No password. We email a one-tap sign-in link.
             </div>
           </form>
         )}
+
+        {/* Required compliance disclosure — App Store + GDPR ask for
+            this on any account-creating screen. Renders for both the
+            form and the post-send states so the user sees it once. */}
+        <div
+          className="mt-8 text-center text-[11px] leading-relaxed"
+          style={{ color: "var(--muted)" }}
+        >
+          By continuing you agree to our{" "}
+          <Link href="/terms" className="underline">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline">
+            Privacy
+          </Link>
+          .
+        </div>
       </div>
     </div>
   );

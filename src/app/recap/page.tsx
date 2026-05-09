@@ -4,7 +4,7 @@
 // Pulls real data: adherence trend, streak, achievements unlocked,
 // top items, total reactions, voice memos, intake totals.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
@@ -27,11 +27,7 @@ export default function RecapPage() {
   const [data, setData] = useState<RecapData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    void load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const c = createClient();
       const today = new Date();
@@ -128,7 +124,11 @@ export default function RecapPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const delta = useMemo(
     () =>

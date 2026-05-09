@@ -686,7 +686,6 @@ export default function Coach() {
                     className="relative h-12 w-12 rounded-lg overflow-hidden"
                     style={{ background: "var(--surface-alt)" }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={pendingImage.preview}
                       alt="Attached"
@@ -1154,7 +1153,6 @@ function MessageBubble({
           className="rounded-2xl overflow-hidden max-w-[70%]"
           style={{ background: "var(--surface-alt)" }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageData}
             alt="Attached photo"

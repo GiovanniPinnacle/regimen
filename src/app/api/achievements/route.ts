@@ -2,7 +2,7 @@
 // achievements. Runs cheaply on /today mount; client fires unlock toasts
 // for anything returned in `newly_unlocked`.
 
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   ACHIEVEMENTS,

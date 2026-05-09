@@ -8,6 +8,10 @@ import Link from "next/link";
 import Icon from "@/components/Icon";
 import { showToast } from "@/lib/toast";
 
+// Pricing copy is honest — we only promise what's actually shipped.
+// Anything not yet implemented (rebate program, Apple Health, Discord
+// community, voting on roadmap) is OFF the page until it lands. Apple
+// + Google Play both pull listings that overpromise; FTC cares too.
 const TIERS = [
   {
     key: "free",
@@ -18,8 +22,9 @@ const TIERS = [
     features: [
       "Track up to 30 items",
       "1 active protocol pack",
-      "3 Coach refinements/day",
-      "5 photo scans/month",
+      "Coach: 30 messages/day",
+      "5 deep-research memos/month",
+      "10 photo + bloodwork scans/month",
       "Basic patterns + skip-with-reason",
     ],
   },
@@ -33,11 +38,11 @@ const TIERS = [
     badge: "Best value",
     features: [
       "Unlimited items + protocols",
-      "Unlimited Coach (chat, refinement, deep research)",
-      "Unlimited photo scans + bloodwork analysis",
-      "Apple Health + Oura sync",
-      "5% rebate on items ordered through Regimen",
-      "Weekly automated refinement reports",
+      "Coach: 200 messages/day",
+      "Unlimited deep-research memos",
+      "50 photo + bloodwork scans/month",
+      "Oura sync (Apple Health coming soon)",
+      "Weekly refinement digest",
       "Priority new-protocol access",
     ],
   },
@@ -48,11 +53,10 @@ const TIERS = [
     period: "once · cap 1,000 users",
     cta: "Founder tier",
     features: [
-      "All Pro forever — no recurring charge",
-      "Founder's Discord community",
-      "Beta access to new protocol packs",
-      "Vote on roadmap priorities",
+      "All Pro features — no recurring charge",
       "Locked-in pricing — never goes up",
+      "Beta access to new protocol packs",
+      "Founder badge in-app",
     ],
   },
 ];
@@ -60,27 +64,27 @@ const TIERS = [
 const VALUE_BREAKDOWN = [
   {
     icon: "sparkle" as const,
-    title: "Unlimited Coach",
+    title: "Coach with your stack in context",
     detail:
-      "Ask anything, refine your stack daily, deep-research any item — no caps. ($60+/mo retail value)",
+      "Ask anything about your regimen, get refinement memos that reference your actual items + logs + bloodwork. Pro raises the daily cap to 200 messages.",
   },
   {
     icon: "camera" as const,
-    title: "Photo + scan everything",
+    title: "Photo + bloodwork parsing",
     detail:
-      "Meals, supplement labels, scalp/skin progress photos. Auto-extract macros, ingredients, ingredients triggers. ($30+/mo retail)",
+      "Snap a meal, a supplement label, a lab report. Coach extracts macros, ingredients, biomarker values. Pro: 50 scans/month vs 10 on Free.",
   },
   {
     icon: "trend-down" as const,
-    title: "5% rebate on supps",
+    title: "Deep research on any item",
     detail:
-      "Order through Regimen, earn 5% back. The avg user ordering $200/mo gets $10/mo back — Pro pays for itself.",
+      "1500-word memos with mechanism, dose-response, stack interactions, citations — generated on demand. Free is capped at 5/month; Pro is unlimited.",
   },
   {
     icon: "graph" as const,
-    title: "Weekly auto-reports",
+    title: "Weekly refinement digest",
     detail:
-      "Email + in-app reports surfacing patterns, drop candidates, adherence trends. Without lifting a finger.",
+      "Auto-generated rundown of last week — adherence, reactions, patterns, drop candidates. Surfaces what changed without you asking.",
   },
 ];
 
@@ -130,7 +134,7 @@ export default function UpgradePage() {
           className="text-[36px] sm:text-[44px] leading-tight mb-3"
           style={{ fontWeight: 700, letterSpacing: "-0.025em" }}
         >
-          Pro pays
+          Coach without
           <br />
           <span
             style={{
@@ -141,7 +145,7 @@ export default function UpgradePage() {
               backgroundClip: "text",
             }}
           >
-            for itself
+            the limits
           </span>
           .
         </h1>
@@ -149,8 +153,9 @@ export default function UpgradePage() {
           className="text-[15px] leading-relaxed max-w-md mx-auto"
           style={{ color: "var(--foreground-soft)" }}
         >
-          The 5% rebate on supplements ordered through Regimen typically saves
-          you more than the membership costs — the rest is profit.
+          Pro raises every cap that matters — Coach messages, deep-research
+          memos, photo + bloodwork scans. Same data, same Coach, more room
+          to use them.
         </p>
       </header>
 

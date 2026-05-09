@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { listProtocols, formatDuration } from "@/lib/protocols";
+import { listProtocols } from "@/lib/protocols";
 import type { Item } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +22,13 @@ type Checkpoint = {
   source: "item" | "protocol_milestone" | "protocol_phase" | "expiring";
 };
 
+function getNow(): number {
+  return Date.now();
+}
+
 export default async function ReviewsPage() {
   const supabase = await createClient();
+  const NOW = getNow();
 
   const [itemsRes, enrollRes] = await Promise.all([
     supabase
@@ -60,7 +65,7 @@ export default async function ReviewsPage() {
     if (item.ends_on) {
       const endsAt = new Date(item.ends_on);
       const daysUntil = Math.floor(
-        (endsAt.getTime() - Date.now()) / 86400000,
+        (endsAt.getTime() - NOW) / 86400000,
       );
       if (daysUntil >= 0 && daysUntil <= 30) {
         checkpoints.push({
@@ -84,7 +89,7 @@ export default async function ReviewsPage() {
     for (const milestone of protocol.expected_timeline ?? []) {
       const dateMs = startMs + milestone.starts_on_day * 86400000;
       // Only future or recent (within last 7 days) milestones
-      const daysFromNow = Math.floor((dateMs - Date.now()) / 86400000);
+      const daysFromNow = Math.floor((dateMs - NOW) / 86400000);
       if (daysFromNow < -7 || daysFromNow > 365) continue;
 
       checkpoints.push({
@@ -105,7 +110,7 @@ export default async function ReviewsPage() {
     // Phase transitions
     for (const phase of protocol.phases ?? []) {
       const phaseStart = startMs + phase.starts_on_day * 86400000;
-      const daysFromNow = Math.floor((phaseStart - Date.now()) / 86400000);
+      const daysFromNow = Math.floor((phaseStart - NOW) / 86400000);
       if (daysFromNow < 0 || daysFromNow > 365) continue;
 
       checkpoints.push({

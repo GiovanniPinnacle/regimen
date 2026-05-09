@@ -30,6 +30,7 @@ export default function ProfilePage() {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     (async () => {
@@ -61,7 +62,7 @@ export default function ProfilePage() {
       ? parseFloat(heightCm)
       : (parseFloat(heightFt || "0") * 12 + parseFloat(heightIn || "0")) * 2.54;
   const postOp =
-    postOpDate && new Date(postOpDate).getTime() > Date.now() - 180 * 86400000;
+    postOpDate && new Date(postOpDate).getTime() > now - 180 * 86400000;
 
   const macros = useMemo(() => {
     if (!computedKg || !computedCm || !age) return null;
