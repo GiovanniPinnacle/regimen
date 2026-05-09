@@ -217,7 +217,7 @@ export default function UpgradePage() {
                   ? "1px solid var(--pro)"
                   : "1px solid var(--border)",
                 boxShadow: t.highlight
-                  ? "0 14px 38px rgba(168, 85, 247, 0.30)"
+                  ? "0 14px 38px rgba(139, 124, 252, 0.30)"
                   : "var(--shadow-card)",
               }}
             >

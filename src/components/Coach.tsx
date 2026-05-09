@@ -530,10 +530,10 @@ export default function Coach() {
         className="fixed bottom-24 right-5 z-40 h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-95 coach-fab"
         style={{
           background:
-            "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
+            "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
           color: "#FFFFFF",
           boxShadow:
-            "0 12px 32px rgba(168, 85, 247, 0.40), 0 4px 12px rgba(109, 40, 217, 0.30)",
+            "0 10px 28px var(--pro-glow), 0 2px 6px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
         }}
       >
         <Icon name="sparkle" size={22} strokeWidth={1.8} />
@@ -552,7 +552,7 @@ export default function Coach() {
             className="px-5 py-3 flex items-center justify-between"
             style={{
               background:
-                "linear-gradient(135deg, rgba(139, 124, 252, 0.14) 0%, rgba(0, 214, 128, 0.04) 100%)",
+                "linear-gradient(135deg, rgba(139, 124, 252, 0.14) 0%, rgba(52, 194, 142, 0.05) 100%)",
               borderBottom: "1px solid var(--border)",
             }}
           >
@@ -905,7 +905,7 @@ export default function Coach() {
                   className="shrink-0 h-[42px] px-4 rounded-xl text-[14px] flex items-center gap-1.5"
                   style={{
                     background:
-                      "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
+                      "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
                     color: "#FFFFFF",
                     fontWeight: 600,
                     opacity:
@@ -1070,7 +1070,7 @@ function AssistantOrUserBubble({
       className="rounded-2xl px-4 py-3 max-w-[88%] text-[14.5px]"
       style={{
         background: isUser
-          ? "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)"
+          ? "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)"
           : "var(--surface-alt)",
         color: isUser ? "#FFFFFF" : "var(--foreground)",
         borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",

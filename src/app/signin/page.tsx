@@ -70,7 +70,7 @@ function SignInForm() {
             className="rounded-2xl p-3.5 mb-6 text-[13px] leading-relaxed"
             style={{
               background: "var(--accent-tint)",
-              border: "1px solid rgba(0, 214, 128, 0.24)",
+              border: "1px solid rgba(52, 194, 142, 0.26)",
               color: "var(--foreground)",
             }}
           >
@@ -170,14 +170,12 @@ function SignInForm() {
               required
               autoComplete="email"
               autoFocus
-              className="rounded-xl px-3.5 py-3 text-[15px] focus:outline-none"
-              style={{
-                background: "var(--surface)",
-                color: "var(--foreground)",
-                border: "1px solid var(--border-strong)",
-                minHeight: 48,
-              }}
+              className="input-field"
             />
+            {/* Note: no inline `opacity` on disabled — the global
+                button:disabled rule swaps to a readable surface fill
+                with muted text. Was the v2 disabled state (white text
+                on faded green) read as gray on gray. */}
             <button
               type="submit"
               disabled={status === "sending" || !email.trim()}
@@ -187,13 +185,10 @@ function SignInForm() {
                   "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
                 color: "#FFFFFF",
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: 15,
                 minHeight: 48,
                 padding: "12px 16px",
-                boxShadow:
-                  "0 6px 18px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
-                opacity:
-                  status === "sending" || !email.trim() ? 0.55 : 1,
+                boxShadow: "var(--shadow-button)",
               }}
             >
               {status === "sending" ? "Sending…" : "Send magic link"}

@@ -165,7 +165,7 @@ export default function MediaEmbed({
                 backgroundSize: "cover",
                 backgroundPosition: "center",
                 background: thumbBroken
-                  ? "linear-gradient(135deg, rgba(0, 214, 128, 0.10) 0%, rgba(139, 124, 252, 0.10) 100%)"
+                  ? "linear-gradient(135deg, var(--accent-tint) 0%, rgba(139, 124, 252, 0.10) 100%)"
                   : undefined,
               }}
             >

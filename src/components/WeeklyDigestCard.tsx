@@ -142,14 +142,14 @@ export default function WeeklyDigestCard() {
     <SwipeDismiss onDismiss={dismiss}>
     <section
       className="rounded-2xl card-glass mb-5 overflow-hidden"
-      style={{ borderColor: "rgba(168, 85, 247, 0.30)" }}
+      style={{ borderColor: "rgba(139, 124, 252, 0.30)" }}
     >
       <div className="px-4 py-3.5">
         <div className="flex items-start gap-3">
           <span
             className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
             style={{
-              background: "rgba(168, 85, 247, 0.15)",
+              background: "var(--pro-tint)",
               color: "var(--pro)",
             }}
           >
@@ -243,7 +243,7 @@ export default function WeeklyDigestCard() {
             className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5 active:scale-[0.98] transition-transform"
             style={{
               background:
-                "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
+                "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
               color: "#FFFFFF",
               fontWeight: 700,
               minHeight: 36,

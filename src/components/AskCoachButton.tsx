@@ -46,12 +46,19 @@ export default function AskCoachButton({
   const styles =
     size === "md"
       ? {
-          fontSize: 14,
-          padding: "12px 16px",
+          fontSize: 15,
+          padding: "13px 18px",
           minHeight: 48,
           gap: 8,
+          letterSpacing: "-0.01em",
         }
-      : { fontSize: 12.5, padding: "9px 14px", minHeight: 36, gap: 6 };
+      : {
+          fontSize: 13,
+          padding: "10px 14px",
+          minHeight: 38,
+          gap: 6,
+          letterSpacing: "-0.005em",
+        };
   return (
     <button
       onClick={fire}
@@ -62,7 +69,7 @@ export default function AskCoachButton({
         color: "#FFFFFF",
         fontWeight: 700,
         boxShadow:
-          "0 6px 18px rgba(139, 124, 252, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
+          "0 4px 14px var(--pro-glow), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
         whiteSpace: "nowrap",
         flexShrink: 0,
         ...styles,
@@ -70,7 +77,7 @@ export default function AskCoachButton({
     >
       <Icon
         name="sparkle"
-        size={size === "md" ? 14 : 12}
+        size={size === "md" ? 15 : 13}
         strokeWidth={2.4}
       />
       {label}

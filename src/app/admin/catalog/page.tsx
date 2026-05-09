@@ -276,9 +276,9 @@ export default async function AdminCatalogPage({
         className="rounded-2xl p-5 mb-5"
         style={{
           background:
-            "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
+            "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
           color: "#FFFFFF",
-          boxShadow: "0 12px 32px rgba(168, 85, 247, 0.30)",
+          boxShadow: "0 12px 32px rgba(139, 124, 252, 0.30)",
         }}
       >
         <div className="grid grid-cols-3 gap-3">

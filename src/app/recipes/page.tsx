@@ -53,10 +53,10 @@ export default async function RecipesPage() {
           className="flex-1 px-4 py-3 rounded-xl text-[14px] text-center flex items-center justify-center gap-1.5"
           style={{
             background:
-              "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
+              "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
             color: "#FFFFFF",
             fontWeight: 700,
-            boxShadow: "0 6px 16px rgba(168, 85, 247, 0.30)",
+            boxShadow: "0 6px 16px rgba(139, 124, 252, 0.30)",
           }}
         >
           <Icon name="sparkle" size={14} strokeWidth={2.2} />

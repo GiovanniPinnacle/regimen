@@ -1,57 +1,70 @@
 @import "tailwindcss";
 
 /* =====================================================================
-   Regimen design system v2 — cleaner, tighter, more premium.
-   Goals:
-     - One strong accent (emerald) used sparingly
-     - Pure neutrals everywhere else (no warm tint, no green-bias)
-     - Coach (violet) and Premium (gold) reserved for their domains only
-     - Typography tightened — bigger sizes, tighter spacing, better
-       digit feature settings on Apple devices
-     - Removed ambient radial gradient pools (was making the bg busy)
-     - Soft, not punchy shadows
+   Regimen design system v3 — sophisticated, premium, real-world tested.
+   What changed from v2 (and why):
+     - Accent emerald was too saturated (read as candy/Mountain Dew).
+       Pulled to a sage-emerald that feels closer to Whoop / Eight Sleep.
+     - Background was so dark it created harsh contrast with surfaces.
+       Bumped to a slightly warmer near-black so the eye relaxes.
+     - Borders at 7% were invisible — the dark inputs had no visual
+       boundary unless focused. Up to 11% (visible without being heavy).
+     - Disabled buttons used to multiply opacity, which makes white text
+       on a colored background unreadable. Now disabled states swap to
+       a neutral surface fill with muted text — readable, clear.
+     - Focus rings used to be neon-bright outlines. Now soft halo
+       (3px ring at low alpha) — premium, not 1990s.
+     - Shadow stack tightened — less aggressive depth, more crispness.
+     - Coach violet and Premium gold kept their hues but slightly
+       muted so the whole palette feels like one family.
    ===================================================================== */
 
 :root {
-  /* ─── Surfaces — flat, cool-leaning dark. Was warm-green-tinted; now
-     neutral so the accent emerald reads as the only color. ──────────── */
-  --background: #0A0B0D;
-  --surface: #14171B;
-  --surface-alt: #1C2026;
-  --surface-glass: rgba(20, 23, 26, 0.74);
-  --surface-glass-strong: rgba(20, 23, 26, 0.92);
-  --surface-glass-tint: rgba(0, 214, 128, 0.04);
+  /* ─── Surfaces — slightly warmer near-black. Pure #0A0B0D was so
+     stark that any surface above it created visual tension. The new
+     base reads as "near black" without the harshness. ──────────────── */
+  --background: #0E1014;
+  --surface: #181B21;
+  --surface-alt: #21252C;
+  --surface-glass: rgba(24, 27, 33, 0.74);
+  --surface-glass-strong: rgba(24, 27, 33, 0.92);
+  --surface-glass-tint: rgba(52, 194, 142, 0.04);
 
   /* ─── Inks — pure white hierarchy via opacity ───────────────────────── */
   --foreground: #FAFAFA;
-  --foreground-soft: rgba(250, 250, 250, 0.72);
-  --muted: rgba(250, 250, 250, 0.48);
+  --foreground-soft: rgba(250, 250, 250, 0.74);
+  --muted: rgba(250, 250, 250, 0.50);
 
-  /* ─── Accent — single emerald. Used for primary CTAs, active states,
-     progress, success. The brand color. ─────────────────────────────── */
-  --olive: #00D680;
-  --olive-deep: #00B36B;
-  --olive-light: #4DEAA0;
-  --olive-tint: rgba(0, 214, 128, 0.10);
-  --accent: #00D680;
-  --accent-deep: #00B36B;
-  --accent-tint: rgba(0, 214, 128, 0.10);
-  --accent-glow: rgba(0, 214, 128, 0.22);
+  /* ─── Accent — sage emerald. Was #00D680 (read as candy/neon),
+     now #34C28E — same green family but desaturated to feel like
+     a premium health-tech color (Whoop / Eight Sleep / Oura). Used
+     for primary CTAs, active states, progress, success. ────────────── */
+  --olive: #34C28E;
+  --olive-deep: #1F9C70;
+  --olive-light: #5FD9A6;
+  --olive-tint: rgba(52, 194, 142, 0.12);
+  --accent: #34C28E;
+  --accent-deep: #1F9C70;
+  --accent-soft: #5FD9A6;
+  --accent-tint: rgba(52, 194, 142, 0.12);
+  --accent-glow: rgba(52, 194, 142, 0.28);
 
-  /* ─── Premium — refined gold. ONLY for affiliate / buy / unlock
-     moments. Was a loud amber; now a more sophisticated honey gold. ── */
-  --premium: #D4A645;
-  --premium-deep: #B8862F;
-  --premium-tint: rgba(212, 166, 69, 0.10);
-  --premium-glow: rgba(212, 166, 69, 0.22);
+  /* ─── Premium — refined gold. Slightly desaturated from v2 so it
+     speaks the same restrained palette as accent. Used ONLY for
+     affiliate / buy / unlock moments. ──────────────────────────────── */
+  --premium: #C8A24E;
+  --premium-deep: #9D7F33;
+  --premium-tint: rgba(200, 162, 78, 0.12);
+  --premium-glow: rgba(200, 162, 78, 0.24);
 
-  /* ─── Pro / Coach — soft violet. ONLY for Coach surfaces (FAB, Coach
-     buttons, Pro paywall). Toned down from the previous candy violet
-     to a more sophisticated indigo-leaning tone. ────────────────────── */
+  /* ─── Pro / Coach — soft indigo-violet. Tuned to feel like a sister
+     hue to accent and premium (same saturation register). Used ONLY
+     for Coach surfaces. ────────────────────────────────────────────── */
   --pro: #8B7CFC;
   --pro-soft: #A89BFC;
   --pro-deep: #6E5DF0;
-  --pro-tint: rgba(139, 124, 252, 0.10);
+  --pro-tint: rgba(139, 124, 252, 0.12);
+  --pro-glow: rgba(139, 124, 252, 0.26);
 
   /* Legacy aliases — kept so old components resolve while we sweep */
   --tan: var(--surface-alt);
@@ -62,27 +75,39 @@
   --purple-deep: var(--pro-deep);
   --purple-tint: var(--pro-tint);
 
-  /* ─── Borders — pure white at low alpha. Crisper than the previous
-     warm-tinted borders. ────────────────────────────────────────────── */
-  --border: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  /* ─── Borders — visible without being heavy. v2's 7% was so faint
+     that empty inputs had NO visual boundary. 11% reads as a clear
+     edge while still feeling subtle. ───────────────────────────────── */
+  --border: rgba(255, 255, 255, 0.11);
+  --border-strong: rgba(255, 255, 255, 0.20);
+  --border-input: rgba(255, 255, 255, 0.16);
 
-  /* ─── Shadows — softer, layered with a subtle inset highlight on
-     elevated surfaces for premium depth. ───────────────────────────── */
+  /* ─── Shadows — tightened. v2's 0.48 alpha + 48px blur read as a
+     gauzy halo. Now: smaller blur, lower spread, sharper edge. ─────── */
   --shadow-glass:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 16px 48px rgba(0, 0, 0, 0.48);
-  --shadow-card:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    0 8px 24px rgba(0, 0, 0, 0.32);
-  --shadow-lift:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 24px 64px rgba(0, 0, 0, 0.55);
+    0 12px 32px rgba(0, 0, 0, 0.36);
+  --shadow-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 6px 18px rgba(0, 0, 0, 0.24);
+  --shadow-lift:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 48px rgba(0, 0, 0, 0.42);
+  --shadow-button:
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
 
   /* ─── Semantic — sat-tuned to feel less alarming, more clinical ─── */
-  --success: #00D680;
-  --warn: #F0B43E;
-  --error: #FF5670;
+  --success: #34C28E;
+  --warn: #E8B547;
+  --error: #F26B7E;
+  --error-tint: rgba(242, 107, 126, 0.10);
+
+  /* ─── Focus ring — soft halo. Was a 2px solid neon outline.
+     Now a 3px low-alpha glow that reads as "lifted" instead of
+     "alarmed." ─────────────────────────────────────────────────────── */
+  --focus-ring:
+    0 0 0 3px rgba(52, 194, 142, 0.35);
 }
 
 /* Light scheme — kept as an opt-in for users who explicitly prefer it.
@@ -225,6 +250,83 @@ button {
 
 button:active:not(:disabled) {
   transform: scale(0.97);
+}
+
+/* GLOBAL DISABLED STATE for buttons. Replaces the old `opacity: 0.5`
+   pattern which produced unreadable text on colored backgrounds (white
+   on green at 50% reads as light gray on dark green — invisible). The
+   new pattern: swap to neutral surface + muted text. Always readable.
+   `opacity: 1 !important` defangs any leftover inline opacity from
+   components that haven't been swept yet. */
+button:disabled {
+  background: var(--surface-alt) !important;
+  background-image: none !important;
+  color: var(--muted) !important;
+  box-shadow: none !important;
+  border-color: var(--border) !important;
+  opacity: 1 !important;
+  cursor: not-allowed;
+  transform: none !important;
+}
+button:disabled svg {
+  opacity: 0.5;
+}
+
+/* GLOBAL FOCUS RING. Replaces aggressive neon outlines with a soft
+   3-pixel halo at 35% alpha — reads as "lifted" instead of "alarmed."
+   Components opt out via :focus { outline: none } if they have their
+   own focus styling. */
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: inherit;
+}
+
+/* INPUT PRIMITIVE — visible borders by default. v2 used 7% borders
+   which made empty inputs look like ghost rectangles on dark
+   backgrounds. v3 inputs have a real edge.
+   Apply via class .input-field or inline styles. */
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--foreground);
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--accent);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.input-field {
+  background: var(--surface);
+  color: var(--foreground);
+  border: 1px solid var(--border-input);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.4;
+  min-height: 48px;
+  width: 100%;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+.input-field:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+.input-field:focus,
+.input-field:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.input-field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 a {
@@ -380,11 +482,11 @@ a:active {
   background: linear-gradient(
     135deg,
     var(--accent-tint) 0%,
-    rgba(0, 214, 128, 0.03) 100%
+    rgba(52, 194, 142, 0.04) 100%
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(0, 214, 128, 0.18);
+  border: 1px solid rgba(52, 194, 142, 0.20);
 }
 .glass-tint-tan {
   background: linear-gradient(
@@ -493,7 +595,7 @@ a:active {
 .chip-olive {
   background: var(--olive-tint);
   color: var(--olive);
-  border-color: rgba(0, 214, 128, 0.24);
+  border-color: rgba(52, 194, 142, 0.26);
 }
 
 /* ============== Accent text ============== */

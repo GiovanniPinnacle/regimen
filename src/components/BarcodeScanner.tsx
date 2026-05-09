@@ -230,7 +230,7 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
                   right: "10%",
                   top: "40%",
                   bottom: "40%",
-                  border: "2px solid rgba(34, 197, 94, 0.85)",
+                  border: "2px solid rgba(52, 194, 142, 0.85)",
                   borderRadius: 8,
                   boxShadow: "0 0 0 200vmax rgba(0,0,0,0.45) inset",
                 }}

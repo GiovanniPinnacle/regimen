@@ -265,9 +265,9 @@ export default function InsightsPage() {
         className="rounded-2xl mb-5 overflow-hidden"
         style={{
           background:
-            "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
+            "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
           color: "#FFFFFF",
-          boxShadow: "0 12px 32px rgba(168, 85, 247, 0.30)",
+          boxShadow: "0 12px 32px rgba(139, 124, 252, 0.30)",
         }}
       >
         <div className="px-5 py-4">

@@ -128,10 +128,10 @@ export default function TabNav() {
                 width: 52,
                 borderRadius: 18,
                 background:
-                  "linear-gradient(135deg, var(--pro) 0%, #6D28D9 100%)",
+                  "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
                 color: "#FFFFFF",
                 boxShadow:
-                  "0 12px 28px rgba(168, 85, 247, 0.40), 0 4px 10px rgba(109, 40, 217, 0.30)",
+                  "0 12px 28px var(--pro-glow), 0 4px 10px rgba(110, 93, 240, 0.32)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
