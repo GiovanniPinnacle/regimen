@@ -245,12 +245,17 @@ export default async function ItemDetailPage({
 
       {/* Tutorial / how-to — surfaced near the top so users see the
           link before scrolling through research notes etc. */}
-      {(item.media_url || item.how_to) && (
+      {/* Always render — TutorialLink handles missing-URL state with a
+          "search YouTube for X" fallback so the user never hits a
+          dead end on items without curated tutorials. */}
+      {(item.media_url || item.how_to || item.item_type === "practice" ||
+        item.item_type === "device" || item.item_type === "gear") && (
         <Section title="How to do this">
           <TutorialLink
             mediaUrl={item.media_url}
             howTo={item.how_to}
             variant="row"
+            itemName={item.name}
           />
         </Section>
       )}

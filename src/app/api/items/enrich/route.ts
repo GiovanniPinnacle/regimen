@@ -27,6 +27,29 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnthropic, MODELS } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import { userSubmission } from "@/lib/catalog/moderation";
+import { findCurated } from "@/lib/tutorials/curated";
+
+/** HEAD-request a URL to confirm it actually resolves. Used as the
+ *  last gate before writing a media_url so Coach can't hand us a
+ *  format-valid but 404-broken link. Times out fast — we don't want
+ *  the enrichment pipeline blocked on a slow site. */
+async function urlIsLive(url: string): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    const res = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    // Some video hosts don't honor HEAD (return 405). Treat 405 as a
+    // soft pass since the URL probably exists.
+    return res.ok || res.status === 405;
+  } catch {
+    return false;
+  }
+}
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -66,6 +89,16 @@ async function generateTutorial(
   itemType: string,
   userId: string,
 ): Promise<TutorialResponse> {
+  // STEP A — curated whitelist. For canonical practices (mewing, scalp
+  // massage, 4-7-8 breath, Zone 2, the big lifts, etc.) we ALREADY know
+  // the authoritative video. Skip the LLM call, save tokens + time, and
+  // guarantee no hallucination.
+  const curated = findCurated(name);
+  if (curated) {
+    return { media_url: curated.url, how_to: curated.howTo };
+  }
+
+  // STEP B — LLM fallback for everything else.
   try {
     const anthropic = getAnthropic();
     const res = await anthropic.messages.create({
@@ -85,8 +118,12 @@ async function generateTutorial(
     if (!block || block.type !== "text") return { media_url: null, how_to: null };
     const raw = block.text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
     const parsed = JSON.parse(raw) as TutorialResponse;
-    // Defensive: drop URLs that don't match a known-real pattern
-    // (Coach sometimes hallucinates plausible-looking but fake URLs).
+
+    // STEP C — gate the URL through 3 layers before saving:
+    //   1. Format check (regex) — drops obvious garbage.
+    //   2. Host allow-list — drops URLs that don't match known good hosts.
+    //   3. HEAD request — confirms the URL actually resolves.
+    // If any layer fails, drop the media_url. how_to text stays.
     if (parsed.media_url) {
       const url = parsed.media_url;
       const hasRealWatchId =
@@ -98,6 +135,12 @@ async function generateTutorial(
         );
       if (!hasRealWatchId && !isKnownTrustedHost) {
         parsed.media_url = null;
+      } else {
+        // Final gate: actually fetch it. Skips when the URL host blocks
+        // HEAD (urlIsLive treats 405 as pass) but catches the common
+        // hallucination pattern of a real-looking ID that 404s.
+        const live = await urlIsLive(url);
+        if (!live) parsed.media_url = null;
       }
     }
     return parsed;
