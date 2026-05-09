@@ -11,6 +11,7 @@
 //   - Reactions/feedback (15 pts): logged any reaction recently?
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Sparkline from "@/components/Sparkline";
 
 type Props = {
   /** Today's items taken / total */
@@ -35,6 +36,12 @@ export default function DailyScore({
 }: Props) {
   const [streak, setStreak] = useState(0);
   const [reactionsThisWeek, setReactionsThisWeek] = useState(0);
+  /** 14-day adherence trajectory — derived from stack_log per-day
+   *  taken-fraction. Powers the Sparkline shown beside the score.
+   *  Each entry is 0..1 or null if no log on that day. */
+  const [adherenceSeries, setAdherenceSeries] = useState<(number | null)[]>(
+    [],
+  );
   const [yesterdayScore] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -61,7 +68,10 @@ export default function DailyScore({
       const since7 = new Date(Date.now() - 7 * 86400000)
         .toISOString()
         .slice(0, 10);
-      const [stackRes, rxRes] = await Promise.all([
+      const since14 = new Date(Date.now() - 14 * 86400000)
+        .toISOString()
+        .slice(0, 10);
+      const [stackRes, rxRes, seriesRes] = await Promise.all([
         c
           .from("stack_log")
           .select("date")
@@ -71,12 +81,41 @@ export default function DailyScore({
           .from("item_reactions")
           .select("id")
           .gte("reacted_on", since7),
+        c
+          .from("stack_log")
+          .select("date, taken")
+          .gte("date", since14),
       ]);
       const days = new Set(
         (stackRes.data ?? []).map((r) => r.date as string),
       );
       setStreak(computeStreak(Array.from(days)));
       setReactionsThisWeek((rxRes.data ?? []).length);
+
+      // Build the 14-day adherence sparkline series. For each day,
+      // the value is "fraction of logged items that were taken" —
+      // null when no log exists on that day. Chronological order
+      // (oldest left, today right) so the sparkline reads naturally.
+      type LogRow = { date: string; taken: boolean };
+      const byDay = new Map<string, { taken: number; total: number }>();
+      for (const row of (seriesRes.data ?? []) as LogRow[]) {
+        const d = row.date;
+        if (!byDay.has(d)) byDay.set(d, { taken: 0, total: 0 });
+        const cnt = byDay.get(d)!;
+        cnt.total += 1;
+        if (row.taken) cnt.taken += 1;
+      }
+      const series: (number | null)[] = [];
+      for (let offset = 13; offset >= 0; offset--) {
+        const d = new Date(Date.now() - offset * 86400000)
+          .toISOString()
+          .slice(0, 10);
+        const cnt = byDay.get(d);
+        series.push(
+          cnt && cnt.total > 0 ? cnt.taken / cnt.total : null,
+        );
+      }
+      setAdherenceSeries(series);
     } catch {}
   }, []);
 
@@ -199,7 +238,7 @@ export default function DailyScore({
         </div>
         <div
           className="text-[14px] mt-1 leading-snug"
-          style={{ fontWeight: 500 }}
+          style={{ fontWeight: 600 }}
         >
           {scoreLabel(score)}
         </div>
@@ -209,6 +248,32 @@ export default function DailyScore({
         >
           {scoreBreakdown(takenCount, totalActive, streak, reactionsThisWeek)}
         </div>
+        {/* 14-day adherence trajectory — gives the score a context
+            beyond "today vs yesterday." Bars show how your daily
+            adherence has moved; today is the rightmost bar. */}
+        {adherenceSeries.some((v) => v != null) && (
+          <div className="mt-2 flex items-center gap-2">
+            <Sparkline
+              values={adherenceSeries}
+              mode="bars"
+              width={84}
+              height={20}
+              max={1}
+              color={color}
+              ariaLabel="14-day adherence trend"
+            />
+            <span
+              className="text-[10px] uppercase tracking-wider"
+              style={{
+                color: "var(--muted)",
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+              }}
+            >
+              14d
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
