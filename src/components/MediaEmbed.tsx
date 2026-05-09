@@ -13,8 +13,9 @@
 // "Privacy-enhanced" embed for YouTube uses youtube-nocookie.com so we
 // don't drop tracking cookies on users who never asked for that.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import { youtubeSearchUrl } from "@/lib/tutorials/curated";
 
 type Props = {
   url: string;
@@ -23,6 +24,10 @@ type Props = {
   /** Lazy: only mount the iframe after the user taps. Saves bandwidth +
    *  YouTube's tracking pings. Default true. */
   lazy?: boolean;
+  /** Search-fallback target — passed to the "video unavailable" state
+   *  so we can offer "Search YouTube for {item}" instead of a dead end.
+   *  Falls back to the URL's hostname if not provided. */
+  searchTerm?: string;
 };
 
 const YT_RX =
@@ -39,10 +44,89 @@ function parseVimeoId(url: string): string | null {
   return m?.[1] ?? null;
 }
 
-export default function MediaEmbed({ url, source, lazy = true }: Props) {
+export default function MediaEmbed({
+  url,
+  source,
+  lazy = true,
+  searchTerm,
+}: Props) {
   const ytId = parseYouTubeId(url);
   const vimeoId = parseVimeoId(url);
   const [active, setActive] = useState(!lazy);
+  const [thumbBroken, setThumbBroken] = useState(false);
+  const [oembedDead, setOembedDead] = useState(false);
+
+  // YouTube doesn't fire onError on iframe even for deleted videos —
+  // the iframe just shows YouTube's "Video unavailable" page. Hit
+  // oEmbed once on mount to detect deletion BEFORE the user taps
+  // play. Same check the cron uses; cached aggressively by YouTube.
+  useEffect(() => {
+    if (!ytId) return;
+    let alive = true;
+    fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
+    )
+      .then((res) => {
+        if (!alive) return;
+        if (res.status !== 200) setOembedDead(true);
+      })
+      .catch(() => {
+        // Network error — don't show the fallback (might be a transient
+        // user-side connectivity issue, not a dead video).
+      });
+    return () => {
+      alive = false;
+    };
+  }, [ytId, url]);
+
+  // Dead-video fallback: search button styled like the embed card.
+  if ((ytId || vimeoId) && oembedDead) {
+    return (
+      <a
+        href={searchTerm ? youtubeSearchUrl(searchTerm) : url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block rounded-2xl p-4"
+        style={{
+          background: "var(--surface)",
+          border: "1px dashed var(--border-strong)",
+          boxShadow: "var(--shadow-card)",
+        }}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div
+              className="text-[10px] uppercase tracking-wider"
+              style={{
+                color: "var(--warn)",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Video no longer available
+            </div>
+            <div
+              className="text-[13.5px] mt-1"
+              style={{ color: "var(--foreground)", fontWeight: 600 }}
+            >
+              {searchTerm
+                ? `Search YouTube for "${searchTerm}"`
+                : "Open original link"}
+            </div>
+          </div>
+          <span
+            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
+            style={{
+              background: "var(--accent-tint)",
+              color: "var(--accent)",
+            }}
+          >
+            <Icon name="search" size={14} strokeWidth={2.2} />
+          </span>
+        </div>
+      </a>
+    );
+  }
 
   // === YouTube — privacy-enhanced embed ===
   if (ytId) {
@@ -77,16 +161,28 @@ export default function MediaEmbed({ url, source, lazy = true }: Props) {
               className="absolute inset-0 w-full h-full flex items-center justify-center"
               aria-label="Play tutorial"
               style={{
-                backgroundImage: `url(${thumb})`,
+                backgroundImage: thumbBroken ? "none" : `url(${thumb})`,
                 backgroundSize: "cover",
                 backgroundPosition: "center",
+                background: thumbBroken
+                  ? "linear-gradient(135deg, rgba(0, 214, 128, 0.10) 0%, rgba(139, 124, 252, 0.10) 100%)"
+                  : undefined,
               }}
             >
+              {/* Hidden img tag fires onError if YouTube serves a
+                  blank/missing thumb — flip to gradient fallback. */}
+              <img
+                src={thumb}
+                alt=""
+                className="hidden"
+                onError={() => setThumbBroken(true)}
+              />
               <span
                 className="absolute inset-0"
                 style={{
-                  background:
-                    "linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.55) 100%)",
+                  background: thumbBroken
+                    ? "transparent"
+                    : "linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.55) 100%)",
                 }}
               />
               <span

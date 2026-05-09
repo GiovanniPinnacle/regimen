@@ -28,28 +28,7 @@ import { getAnthropic, MODELS } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import { userSubmission } from "@/lib/catalog/moderation";
 import { findCurated } from "@/lib/tutorials/curated";
-
-/** HEAD-request a URL to confirm it actually resolves. Used as the
- *  last gate before writing a media_url so Coach can't hand us a
- *  format-valid but 404-broken link. Times out fast — we don't want
- *  the enrichment pipeline blocked on a slow site. */
-async function urlIsLive(url: string): Promise<boolean> {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 4000);
-    const res = await fetch(url, {
-      method: "HEAD",
-      redirect: "follow",
-      signal: ctrl.signal,
-    });
-    clearTimeout(t);
-    // Some video hosts don't honor HEAD (return 405). Treat 405 as a
-    // soft pass since the URL probably exists.
-    return res.ok || res.status === 405;
-  } catch {
-    return false;
-  }
-}
+import { validateMediaUrl } from "@/lib/tutorials/validate";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -122,7 +101,9 @@ async function generateTutorial(
     // STEP C — gate the URL through 3 layers before saving:
     //   1. Format check (regex) — drops obvious garbage.
     //   2. Host allow-list — drops URLs that don't match known good hosts.
-    //   3. HEAD request — confirms the URL actually resolves.
+    //   3. validateMediaUrl — oEmbed for YouTube/Vimeo (catches deleted
+    //      videos that HEAD would falsely pass), HEAD for everything
+    //      else.
     // If any layer fails, drop the media_url. how_to text stays.
     if (parsed.media_url) {
       const url = parsed.media_url;
@@ -136,10 +117,7 @@ async function generateTutorial(
       if (!hasRealWatchId && !isKnownTrustedHost) {
         parsed.media_url = null;
       } else {
-        // Final gate: actually fetch it. Skips when the URL host blocks
-        // HEAD (urlIsLive treats 405 as pass) but catches the common
-        // hallucination pattern of a real-looking ID that 404s.
-        const live = await urlIsLive(url);
+        const live = await validateMediaUrl(url);
         if (!live) parsed.media_url = null;
       }
     }
@@ -378,7 +356,13 @@ export async function POST(request: NextRequest) {
     const tut = await generateTutorial(item.name, item.item_type, user.id);
     if (tut.media_url || tut.how_to) {
       const updates: Record<string, unknown> = {};
-      if (tut.media_url) updates.media_url = tut.media_url;
+      if (tut.media_url) {
+        updates.media_url = tut.media_url;
+        // Stamp validation timestamp — generateTutorial already
+        // confirmed via validateMediaUrl that the URL is live, so
+        // the cron can defer rechecking this row for a while.
+        updates.media_url_last_checked_at = new Date().toISOString();
+      }
       if (tut.how_to && !item.how_to) updates.how_to = tut.how_to;
       await admin.from("items").update(updates).eq("id", item.id);
       // Write back to catalog ONLY if the calling user submitted this
@@ -388,7 +372,10 @@ export async function POST(request: NextRequest) {
       // backfill tutorials on verified rows manually.
       if (catalogId) {
         const catUpdates: Record<string, unknown> = {};
-        if (tut.media_url) catUpdates.media_url = tut.media_url;
+        if (tut.media_url) {
+          catUpdates.media_url = tut.media_url;
+          catUpdates.media_url_last_checked_at = new Date().toISOString();
+        }
         if (tut.how_to) catUpdates.how_to = tut.how_to;
         if (Object.keys(catUpdates).length > 0) {
           await admin

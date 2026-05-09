@@ -142,8 +142,13 @@ export default function TutorialLink({
 
       {mediaUrl ? (
         // Native inline embed — plays in-app for YouTube/Vimeo, falls
-        // back to a polished outbound card for other hosts.
-        <MediaEmbed url={mediaUrl} source={source} />
+        // back to a polished outbound card for other hosts. searchTerm
+        // is what we offer if the video is dead at view-time.
+        <MediaEmbed
+          url={mediaUrl}
+          source={source}
+          searchTerm={itemName}
+        />
       ) : itemName ? (
         // No tutorial URL — give the user a one-tap fallback to find
         // their own. Better than a dead end.
