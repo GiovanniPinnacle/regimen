@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ItemCard from "@/components/ItemCard";
-import { getItemsByStatus, getAdherenceMap } from "@/lib/storage";
+import {
+  getItemsByStatus,
+  getAdherenceMap,
+  getAdherenceSeriesMap,
+} from "@/lib/storage";
 import { createClient } from "@/lib/supabase/client";
 import { showToast } from "@/lib/toast";
 import type { Category, Goal, Item, ItemType, Status } from "@/lib/types";
@@ -47,6 +51,9 @@ function calcSupplyLeft(item: Item): number | null {
 export default function StackPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [adherenceMap, setAdherenceMap] = useState<Record<string, number>>({});
+  const [adherenceSeriesMap, setAdherenceSeriesMap] = useState<
+    Record<string, (number | null)[]>
+  >({});
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | ItemType>("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | Category>("all");
@@ -147,14 +154,21 @@ export default function StackPage() {
       const all = await getItemsByStatus(statusTab);
       if (!alive) return;
       setItems(all);
-      // Compute adherence only for active tab
+      // Compute adherence only for active tab. Fetch the series too
+      // (parallel with the rollup) so each ItemCard can render its
+      // 14-day sparkline without an N+1 fanout.
       if (statusTab === "active") {
         const ids = all.map((i) => i.id);
-        const adh = await getAdherenceMap(ids, 14);
+        const [adh, series] = await Promise.all([
+          getAdherenceMap(ids, 14),
+          getAdherenceSeriesMap(ids, 14),
+        ]);
         if (!alive) return;
         setAdherenceMap(adh);
+        setAdherenceSeriesMap(series);
       } else {
         setAdherenceMap({});
+        setAdherenceSeriesMap({});
       }
       setLoading(false);
     })();
@@ -756,6 +770,7 @@ export default function StackPage() {
                       key={item.id}
                       item={item}
                       adherence={adherenceMap[item.id] ?? null}
+                      adherenceSeries={adherenceSeriesMap[item.id] ?? null}
                       daysSupplyLeft={supplyMap[item.id]}
                       onSwipeRetire={() => retireItem(item)}
                       compact={dense}
@@ -775,6 +790,7 @@ export default function StackPage() {
               key={item.id}
               item={item}
               adherence={adherenceMap[item.id] ?? null}
+              adherenceSeries={adherenceSeriesMap[item.id] ?? null}
               daysSupplyLeft={supplyMap[item.id]}
               onSwipeRetire={() => retireItem(item)}
               compact={dense}

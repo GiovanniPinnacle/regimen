@@ -9,6 +9,7 @@ import ItemQuickActions from "./ItemQuickActions";
 import SwipeDismiss from "./SwipeDismiss";
 import TutorialLink from "./TutorialLink";
 import ItemTypeIcon from "./ItemTypeIcon";
+import Sparkline from "./Sparkline";
 import { GOAL_LABELS } from "@/lib/constants";
 import {
   snoozeItem,
@@ -32,6 +33,11 @@ type Props = {
   showTypeIcon?: boolean;
   /** Adherence fraction (0..1) over recent window — shows as small chip. */
   adherence?: number | null;
+  /** Per-day taken array for the same window (1 / 0 / null = no log).
+   *  When provided, renders as an inline Sparkline next to the
+   *  adherence chip — gives "12 of 14 days" the trend context that
+   *  a single percentage hides. */
+  adherenceSeries?: (number | null)[] | null;
   /** Days of supply remaining — negative = depleted. Shows warning chip. */
   daysSupplyLeft?: number | null;
   /** Compact mode (Today): hide usage_notes, notes, goals; show companions
@@ -55,6 +61,7 @@ export default function ItemCard({
   showTrigger = false,
   showTypeIcon = true,
   adherence = null,
+  adherenceSeries = null,
   daysSupplyLeft = null,
   compact = false,
   onSwipeRetire,
@@ -483,23 +490,42 @@ export default function ItemCard({
                 style={{ color: "var(--muted)" }}
               >
                 {adherence != null && (
-                  <span
-                    style={{
-                      color:
-                        adherence >= 0.8
-                          ? "var(--olive)"
-                          : adherence >= 0.5
-                            ? "var(--warn)"
-                            : "var(--error)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {Math.round(adherence * 100)}%
+                  <span className="inline-flex items-center gap-2">
                     <span
-                      style={{ color: "var(--muted)", fontWeight: 400 }}
+                      style={{
+                        color:
+                          adherence >= 0.8
+                            ? "var(--olive)"
+                            : adherence >= 0.5
+                              ? "var(--warn)"
+                              : "var(--error)",
+                        fontWeight: 700,
+                      }}
                     >
-                      {" "}adherence
+                      {Math.round(adherence * 100)}%
+                      <span
+                        style={{ color: "var(--muted)", fontWeight: 500 }}
+                      >
+                        {" "}adherence
+                      </span>
                     </span>
+                    {adherenceSeries && adherenceSeries.length > 0 && (
+                      <Sparkline
+                        values={adherenceSeries}
+                        mode="bars"
+                        width={56}
+                        height={16}
+                        max={1}
+                        color={
+                          adherence >= 0.8
+                            ? "var(--olive)"
+                            : adherence >= 0.5
+                              ? "var(--warn)"
+                              : "var(--error)"
+                        }
+                        ariaLabel={`${adherenceSeries.length}-day adherence trend`}
+                      />
+                    )}
                   </span>
                 )}
                 {daysSupplyLeft != null && daysSupplyLeft < 14 && (

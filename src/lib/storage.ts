@@ -438,6 +438,51 @@ export async function getAdherenceMap(
   return map;
 }
 
+/** Returns a per-day taken series (1 = taken, 0 = logged-not-taken,
+ *  null = no log) for each item over the last N days. Index 0 is the
+ *  oldest day, index N-1 is today — chronological left-to-right so the
+ *  Sparkline reads naturally.
+ *
+ *  Single bulk query; no N+1 fanout. Use alongside getAdherenceMap. */
+export async function getAdherenceSeriesMap(
+  itemIds: string[],
+  days = 14,
+): Promise<Record<string, (number | null)[]>> {
+  if (itemIds.length === 0) return {};
+  // Build chronological day list. Use UTC ISO date strings to match
+  // stack_log.date which is stored as a date column.
+  const dayKeys: string[] = [];
+  for (let offset = days - 1; offset >= 0; offset--) {
+    dayKeys.push(
+      new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10),
+    );
+  }
+  const since = dayKeys[0];
+  const { data, error } = await supa()
+    .from("stack_log")
+    .select("item_id, taken, date")
+    .in("item_id", itemIds)
+    .gte("date", since);
+  if (error) {
+    console.error("getAdherenceSeriesMap", error);
+    return {};
+  }
+  // index by (item_id, date) for O(1) lookup
+  const byKey = new Map<string, boolean>();
+  for (const row of data ?? []) {
+    byKey.set(`${row.item_id}|${row.date}`, !!row.taken);
+  }
+  const map: Record<string, (number | null)[]> = {};
+  for (const id of itemIds) {
+    map[id] = dayKeys.map((d) => {
+      const v = byKey.get(`${id}|${d}`);
+      if (v === undefined) return null; // no log → unknown
+      return v ? 1 : 0;
+    });
+  }
+  return map;
+}
+
 // ---------- Item reactions ----------
 
 export async function getReactionForToday(
