@@ -147,9 +147,10 @@ export default function ItemCard({
             <Link
               href={`/items/${item.id}`}
               onClick={(e) => e.stopPropagation()}
-              className="text-[14px] leading-snug truncate block hover:underline"
+              className="text-[14.5px] leading-snug truncate block hover:underline"
               style={{
-                fontWeight: 500,
+                fontWeight: 600,
+                letterSpacing: "-0.005em",
                 textDecoration: taken ? "line-through" : undefined,
                 textDecorationColor: "var(--muted)",
               }}
@@ -157,8 +158,8 @@ export default function ItemCard({
               {item.name}
             </Link>
             <div
-              className="text-[12px] truncate"
-              style={{ color: "var(--muted)" }}
+              className="text-[12px] truncate mt-0.5"
+              style={{ color: "var(--foreground-soft)" }}
             >
               {[item.dose, item.brand].filter(Boolean).join(" · ") || "—"}
             </div>
