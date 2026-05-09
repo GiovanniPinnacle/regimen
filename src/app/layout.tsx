@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import TabNav from "@/components/TabNav";
-import Coach from "@/components/Coach";
+// Heavy / non-critical surfaces are lazy — see CoachLazy.tsx and
+// FabsLazy.tsx for the rationale. Drops ~250KB off first paint on
+// every route and only pays the cost when the user actually engages.
+import CoachLazy from "@/components/CoachLazy";
+import FabsLazy from "@/components/FabsLazy";
 import SessionKeeper from "@/components/SessionKeeper";
 import ToastHost from "@/components/ToastHost";
-import FeedbackFab from "@/components/FeedbackFab";
-import MoreFab from "@/components/MoreFab";
 
 export const metadata: Metadata = {
   title: "Regimen",
@@ -51,9 +53,8 @@ export default function RootLayout({
         <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-8">
           {children}
         </main>
-        <Coach />
-        <FeedbackFab />
-        <MoreFab />
+        <CoachLazy />
+        <FabsLazy />
         <ToastHost />
         <TabNav />
       </body>

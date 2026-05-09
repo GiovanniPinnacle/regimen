@@ -303,7 +303,7 @@ export default function TodayPage() {
           ? item.timing_slot
           : "ongoing";
         if (slot !== item.timing_slot) {
-          // eslint-disable-next-line no-console
+           
           console.warn(
             `[today] item ${item.id} (${item.name}) has unknown timing_slot ` +
               `"${item.timing_slot}" — routing to "ongoing"`,
@@ -385,7 +385,7 @@ export default function TodayPage() {
       clearInterval(t);
       window.removeEventListener("regimen:snooze-changed", onSnoozeChange);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [reloadKey]);
   const snoozedIds = useMemo(() => {
     if (typeof window === "undefined") return new Set<string>();
@@ -453,7 +453,7 @@ export default function TodayPage() {
       );
       setActiveSlot(next);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [taken, skipReasons, snoozedIds, grouped, loading, activeSlot]);
 
   // Fire confetti when a slot newly transitions to 100% complete. Compares

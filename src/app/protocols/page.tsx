@@ -333,26 +333,10 @@ function DiscoverCard({ protocol }: { protocol: Protocol }) {
   const enrollable = isProtocolEnrollable(protocol);
   // Non-enrollable protocols can't be tapped through to a dead detail
   // page. Render as a plain div with reduced opacity instead.
-  const Wrapper = enrollable
-    ? ({ children }: { children: React.ReactNode }) => (
-        <Link
-          href={`/protocols/${protocol.slug}`}
-          className="rounded-2xl card-glass p-3.5 flex gap-3 items-start pressable"
-        >
-          {children}
-        </Link>
-      )
-    : ({ children }: { children: React.ReactNode }) => (
-        <div
-          className="rounded-2xl card-glass p-3.5 flex gap-3 items-start"
-          style={{ opacity: 0.7 }}
-          aria-disabled
-        >
-          {children}
-        </div>
-      );
-  return (
-    <Wrapper>
+  // (Inlined the conditional rather than building a Wrapper component
+  // mid-render — React 19's rules-of-hooks linter flags the latter.)
+  const inner = (
+    <>
       <div
         className="text-[26px] leading-none shrink-0 h-12 w-12 rounded-xl flex items-center justify-center"
         style={{
@@ -430,6 +414,23 @@ function DiscoverCard({ protocol }: { protocol: Protocol }) {
           )}
         </div>
       </div>
-    </Wrapper>
+    </>
+  );
+
+  return enrollable ? (
+    <Link
+      href={`/protocols/${protocol.slug}`}
+      className="rounded-2xl card-glass p-3.5 flex gap-3 items-start pressable"
+    >
+      {inner}
+    </Link>
+  ) : (
+    <div
+      className="rounded-2xl card-glass p-3.5 flex gap-3 items-start"
+      style={{ opacity: 0.7 }}
+      aria-disabled
+    >
+      {inner}
+    </div>
   );
 }

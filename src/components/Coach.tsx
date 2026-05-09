@@ -223,7 +223,7 @@ export default function Coach() {
         return hay.includes(token);
       })
       .slice(0, 6);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [mentionStart, input, userItems]);
 
   function insertMention(item: {
@@ -475,7 +475,7 @@ export default function Coach() {
   // instead of leaving it stuck on top of the new page.
   useEffect(() => {
     setOpen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [pathname]);
 
   // Cross-app trigger: anyone can dispatch `regimen:ask` to seed Coach
@@ -514,7 +514,7 @@ export default function Coach() {
     window.addEventListener("regimen:ask", onAsk as EventListener);
     return () =>
       window.removeEventListener("regimen:ask", onAsk as EventListener);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Don't render the FAB on auth pages — but only AFTER all hooks have run
