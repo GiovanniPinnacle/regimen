@@ -15,6 +15,7 @@ import ProtocolProgress from "@/components/ProtocolProgress";
 import EmptyToday from "@/components/EmptyToday";
 import ProBenefits from "@/components/ProBenefits";
 import StreakCounter from "@/components/StreakCounter";
+import MetricRing from "@/components/MetricRing";
 import DailyScore from "@/components/DailyScore";
 import AchievementsChecker from "@/components/AchievementsChecker";
 import StreakAtRiskBanner from "@/components/StreakAtRiskBanner";
@@ -647,57 +648,54 @@ export default function TodayPage() {
             <StreakCounter />
           </span>
         </div>
-        <div className="flex items-baseline justify-between gap-2 mt-1">
+        <div className="flex items-center justify-between gap-3 mt-1">
           <h1
             className="text-[34px] leading-tight"
             style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
           >
             Today
           </h1>
-          <div className="flex items-baseline gap-1">
-            <span
-              className="text-[26px] tabular-nums leading-none"
-              style={{
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-                color:
-                  progressPct >= 80
-                    ? "var(--olive)"
-                    : progressPct >= 50
-                      ? "var(--warn)"
-                      : "var(--foreground)",
-              }}
+          {/* Adherence ring — replaces the old "5 / 10" + thin bar
+              with a single Apple-Watch-style circle. The fraction
+              still reads inside the ring; the ARC fills as the user
+              checks items off, so it doubles as the progress bar. */}
+          {totalActive > 0 ? (
+            <MetricRing
+              value={takenCount}
+              max={totalActive}
+              size={64}
+              color={
+                progressPct >= 80
+                  ? "var(--olive)"
+                  : progressPct >= 50
+                    ? "var(--warn)"
+                    : "var(--olive-light)"
+              }
+              ariaLabel={`${takenCount} of ${totalActive} taken, ${progressPct}%`}
             >
-              {takenCount}
-            </span>
-            <span
-              className="text-[14px] leading-none"
-              style={{ color: "var(--muted)", fontWeight: 600 }}
-            >
-              /{totalActive}
-            </span>
-          </div>
+              <span
+                className="tabular-nums leading-none"
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  letterSpacing: "-0.02em",
+                  color: "var(--foreground)",
+                }}
+              >
+                {takenCount}
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: "var(--muted)",
+                    fontWeight: 600,
+                  }}
+                >
+                  /{totalActive}
+                </span>
+              </span>
+            </MetricRing>
+          ) : null}
         </div>
-        {totalActive > 0 && (
-          <div
-            className="mt-3 h-1 rounded-full overflow-hidden"
-            style={{ background: "var(--surface-alt)" }}
-            aria-label={`${progressPct}% complete`}
-          >
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${progressPct}%`,
-                background:
-                  progressPct >= 80
-                    ? "var(--olive)"
-                    : progressPct >= 50
-                      ? "var(--warn)"
-                      : "var(--olive-light)",
-              }}
-            />
-          </div>
-        )}
         {stats.length > 0 && (
           <div
             className="flex flex-wrap gap-x-5 gap-y-2 mt-4"

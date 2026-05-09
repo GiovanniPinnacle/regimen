@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Item, PurchaseState } from "@/lib/types";
 import PurchaseStateControl from "@/components/PurchaseStateControl";
 import Icon from "@/components/Icon";
+import EmptyGlyph from "@/components/EmptyGlyph";
 import BuyButton from "@/components/BuyButton";
 
 export const dynamic = "force-dynamic";
@@ -112,35 +113,33 @@ export default async function PurchasesPage() {
 
       {total === 0 ? (
         <div className="rounded-2xl card-glass p-8 text-center">
-          <span
-            className="inline-flex items-center justify-center h-12 w-12 rounded-2xl mb-3"
-            style={{
-              background: "var(--accent-tint)",
-              color: "var(--accent)",
-            }}
+          <div className="flex justify-center mb-4">
+            <EmptyGlyph icon="shopping-bag" tone="accent" size={64} />
+          </div>
+          <div
+            className="text-[16px]"
+            style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
           >
-            <Icon name="shopping-bag" size={22} strokeWidth={1.7} />
-          </span>
-          <div className="text-[16px]" style={{ fontWeight: 600 }}>
             Nothing to order
           </div>
           <div
             className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
+            style={{ color: "var(--foreground-soft)" }}
           >
             Run the stack audit to mark what you have vs. need.
           </div>
           <Link
             href="/audit"
-            className="inline-flex items-center gap-1 mt-4 px-4 py-2 rounded-xl text-[13px]"
+            className="inline-flex items-center gap-1.5 mt-4 px-4 py-2.5 rounded-xl text-[13px]"
             style={{
               background: "var(--foreground)",
               color: "var(--background)",
-              fontWeight: 600,
+              fontWeight: 700,
+              minHeight: 40,
             }}
           >
             Open stack audit
-            <Icon name="chevron-right" size={12} strokeWidth={2.2} />
+            <Icon name="chevron-right" size={12} strokeWidth={2.4} />
           </Link>
         </div>
       ) : (

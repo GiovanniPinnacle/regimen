@@ -8,6 +8,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import Icon from "@/components/Icon";
+import EmptyGlyph from "@/components/EmptyGlyph";
 import CoachMarkdown from "@/components/CoachMarkdown";
 
 export const dynamic = "force-dynamic";
@@ -96,10 +97,10 @@ export default async function CoachHistoryPage() {
       </header>
 
       {rows.length === 0 ? (
-        <div
-          className="rounded-2xl card-glass p-7 text-center"
-          style={{ borderLeft: "3px solid var(--pro)" }}
-        >
+        <div className="rounded-2xl card-glass p-7 text-center">
+          <div className="flex justify-center mb-4">
+            <EmptyGlyph icon="sparkle" tone="pro" size={64} />
+          </div>
           <div
             className="text-[10px] uppercase tracking-wider mb-2"
             style={{
@@ -111,13 +112,13 @@ export default async function CoachHistoryPage() {
             No history yet
           </div>
           <div
-            className="text-[15px]"
+            className="text-[16px]"
             style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
           >
             Open Coach to start
           </div>
           <div
-            className="text-[12.5px] mt-2 leading-relaxed"
+            className="text-[12.5px] mt-2 leading-relaxed max-w-sm mx-auto"
             style={{ color: "var(--foreground-soft)" }}
           >
             Tap the sparkle button on any tab to ask Coach about your stack.

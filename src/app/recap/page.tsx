@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
+import EmptyGlyph from "@/components/EmptyGlyph";
 
 type AdherenceDay = { date: string; taken: number; total: number };
 
@@ -184,22 +185,29 @@ export default function RecapPage() {
         </div>
       ) : data.totalSlots === 0 ? (
         <div className="rounded-2xl card-glass p-8 text-center">
-          <div className="text-[15px] mb-1" style={{ fontWeight: 500 }}>
+          <div className="flex justify-center mb-4">
+            <EmptyGlyph icon="graph" tone="accent" size={64} />
+          </div>
+          <div
+            className="text-[16px] mb-1"
+            style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
+          >
             No data yet
           </div>
           <div
-            className="text-[12px] leading-relaxed"
-            style={{ color: "var(--muted)" }}
+            className="text-[12.5px] leading-relaxed max-w-sm mx-auto"
+            style={{ color: "var(--foreground-soft)" }}
           >
             Come back at the end of the week — we&apos;ll have your stats.
           </div>
           <Link
             href="/today"
-            className="inline-block mt-4 text-[13px] px-4 py-2 rounded-xl"
+            className="inline-flex items-center gap-1.5 mt-4 text-[13px] px-4 py-2.5 rounded-xl"
             style={{
               background: "var(--accent)",
               color: "#FFFFFF",
-              fontWeight: 500,
+              fontWeight: 700,
+              minHeight: 40,
             }}
           >
             Go to Today →

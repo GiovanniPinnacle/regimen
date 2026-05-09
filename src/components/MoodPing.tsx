@@ -18,16 +18,53 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { showToast } from "@/lib/toast";
 
+// Inline mood face SVGs — same line-art family as Icon.tsx so they
+// sit visually next to the rest of the icon set instead of mixing
+// emoji + vector. 18×18 viewBox, 1.6px stroke, rounded caps.
+function MoodFace({
+  tone,
+  size = 16,
+  color,
+}: {
+  tone: "good" | "meh" | "off";
+  size?: number;
+  color?: string;
+}) {
+  const mouth =
+    tone === "good"
+      ? "M8 14c1.5 1.5 5 1.5 6 0" // upturn
+      : tone === "off"
+        ? "M8 15c1.5-1.5 5-1.5 6 0" // downturn
+        : "M8 14h6"; // flat
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 22 22"
+      fill="none"
+      stroke={color ?? "currentColor"}
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="11" cy="11" r="9" />
+      <circle cx="8.2" cy="9.5" r="0.8" fill={color ?? "currentColor"} stroke="none" />
+      <circle cx="13.8" cy="9.5" r="0.8" fill={color ?? "currentColor"} stroke="none" />
+      <path d={mouth} />
+    </svg>
+  );
+}
+
 const OPTIONS: Array<{
   label: string;
-  emoji: string;
   /** Maps to the existing daily_checkins.mood scale (1-5). */
   value: number;
   tone: "good" | "meh" | "off";
 }> = [
-  { label: "Good", emoji: "😀", value: 5, tone: "good" },
-  { label: "Meh", emoji: "😐", value: 3, tone: "meh" },
-  { label: "Off", emoji: "😩", value: 1, tone: "off" },
+  { label: "Good", value: 5, tone: "good" },
+  { label: "Meh", value: 3, tone: "meh" },
+  { label: "Off", value: 1, tone: "off" },
 ];
 
 export default function MoodPing({ date }: { date: string }) {
@@ -132,12 +169,12 @@ export default function MoodPing({ date }: { date: string }) {
                     : "1px solid var(--border)",
                   fontWeight: active ? 700 : 600,
                   fontSize: 12.5,
-                  minHeight: 32,
-                  opacity: picked != null && !active ? 0.5 : 1,
+                  minHeight: 34,
+                  opacity: picked != null && !active ? 0.55 : 1,
                 }}
                 aria-pressed={active}
               >
-                <span className="leading-none">{o.emoji}</span>
+                <MoodFace tone={o.tone} size={16} />
                 <span>{o.label}</span>
               </button>
             );

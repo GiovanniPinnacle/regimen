@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
+import EmptyGlyph from "@/components/EmptyGlyph";
 import StarterPack from "@/components/StarterPack";
 import { createClient } from "@/lib/supabase/client";
 
@@ -47,26 +48,32 @@ export default function EmptyToday({
   return (
     <section className="pb-12">
       <div className="text-center max-w-md mx-auto pt-2 mb-6">
+        {/* Hero glyph — visual anchor before the user has any data of
+            their own. Tinted accent block + sparkle icon reads as
+            "this is the start of something" instead of "empty list." */}
+        <div className="flex justify-center mb-4">
+          <EmptyGlyph icon="sparkle" tone="accent" size={68} />
+        </div>
         <div
           className="text-[11px] uppercase tracking-wider mb-2"
           style={{
-            color: "var(--olive)",
-            fontWeight: 600,
+            color: "var(--accent)",
+            fontWeight: 700,
             letterSpacing: "0.08em",
           }}
         >
           Day 1
         </div>
         <h2
-          className="text-[24px] leading-tight mb-2"
-          style={{ fontWeight: 600, letterSpacing: "-0.01em" }}
+          className="text-[26px] leading-tight mb-2"
+          style={{ fontWeight: 700, letterSpacing: "-0.018em" }}
         >
           {displayName ? `Hey ${displayName} —` : "Welcome —"} let&apos;s build
           your stack.
         </h2>
         <p
-          className="text-[13px] leading-relaxed"
-          style={{ color: "var(--muted)" }}
+          className="text-[13.5px] leading-relaxed"
+          style={{ color: "var(--foreground-soft)" }}
         >
           Tap the items below you take or want to try. Coach refines from there.
         </p>
@@ -194,7 +201,7 @@ function PathCard({
         className="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center"
         style={{
           background: primary
-            ? "rgba(251, 250, 246, 0.18)"
+            ? "rgba(255, 255, 255, 0.18)"
             : "var(--olive-tint)",
           color: primary ? "#FFFFFF" : "var(--olive)",
         }}
@@ -214,7 +221,7 @@ function PathCard({
               className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
               style={{
                 background: primary
-                  ? "rgba(251, 250, 246, 0.22)"
+                  ? "rgba(255, 255, 255, 0.22)"
                   : "var(--olive-tint)",
                 color: primary ? "#FFFFFF" : "var(--olive)",
                 fontWeight: 600,
@@ -228,7 +235,7 @@ function PathCard({
         <div
           className="text-[12px] mt-0.5 leading-relaxed"
           style={{
-            color: primary ? "rgba(251, 250, 246, 0.82)" : "var(--muted)",
+            color: primary ? "rgba(255, 255, 255, 0.82)" : "var(--muted)",
           }}
         >
           {subtitle}
