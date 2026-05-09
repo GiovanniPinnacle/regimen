@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Icon from "@/components/Icon";
 
 export default function StreakCounter() {
   const [streak, setStreak] = useState<number>(0);
@@ -51,25 +52,23 @@ export default function StreakCounter() {
           : { label: "days", color: "var(--accent)" };
 
   return (
-    <div className="inline-flex items-center gap-1.5">
+    <div
+      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full"
+      style={{
+        background: `color-mix(in srgb, ${tier.color} 12%, transparent)`,
+        color: tier.color,
+      }}
+    >
+      <Icon name="flame" size={12} strokeWidth={1.7} />
       <span
-        className="text-[14px] leading-none"
-        style={{ filter: "saturate(1.2)" }}
-      >
-        🔥
-      </span>
-      <span
-        className="text-[13px] tabular-nums"
-        style={{
-          color: tier.color,
-          fontWeight: 700,
-        }}
+        className="text-[12px] tabular-nums leading-none"
+        style={{ fontWeight: 700, letterSpacing: "-0.01em" }}
       >
         {streak}
       </span>
       <span
         className="text-[11px] leading-none"
-        style={{ color: "var(--muted)" }}
+        style={{ opacity: 0.78, fontWeight: 600 }}
       >
         day streak
       </span>

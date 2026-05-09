@@ -288,7 +288,7 @@ function ProgressRow({
         </span>
       </div>
       <div
-        className="h-1 rounded-full overflow-hidden"
+        className="h-1.5 rounded-full overflow-hidden"
         style={{ background: "var(--surface-alt)" }}
       >
         <div
@@ -296,6 +296,7 @@ function ProgressRow({
           style={{
             width: `${pct}%`,
             background: color,
+            boxShadow: pct > 0 ? "inset 0 1px 0 rgba(255, 255, 255, 0.18)" : undefined,
           }}
         />
       </div>
