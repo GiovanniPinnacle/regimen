@@ -20,8 +20,15 @@ type Props = {
   width?: number;
   height?: number;
   /** Optional explicit max for normalization. Defaults to max of values
-   *  (so a 5-day window with max 1 becomes a binary read). */
+   *  (so a 5-day window with max 1 becomes a binary read). In line mode
+   *  an explicit `max` (without `domain`) keeps the legacy 0..max scale. */
   max?: number;
+  /** Line mode only: explicit [min, max] y domain. When neither
+   *  `domain` nor `max` is given, line mode auto-fits to the data's own
+   *  min/max so small changes (e.g. ferritin 48 → 52) stay visible
+   *  instead of flattening against a zero baseline. Bars mode is always
+   *  zero-based (bar length must encode magnitude). */
+  domain?: [number, number];
   /** Stroke / fill color. Falls back to var(--accent). */
   color?: string;
   /** Soft fade for missing days (null entries). */
@@ -36,6 +43,7 @@ export default function Sparkline({
   width = 80,
   height = 22,
   max,
+  domain,
   color,
   emptyColor,
   ariaLabel,
@@ -61,6 +69,16 @@ export default function Sparkline({
     // gaps render as a discontinuity (the path lifts).
     const stepX = values.length > 1 ? width / (values.length - 1) : 0;
     const pad = 1.5; // half stroke so the line doesn't clip
+    // Resolve the y domain: explicit domain > legacy 0..max > auto
+    // min/max of the non-null values. A flat series sits mid-height.
+    const present = values.filter((v): v is number => v != null);
+    const [lo, hi] = (() => {
+      if (domain) return domain;
+      if (max != null) return [0, max] as const;
+      if (present.length === 0) return [0, 1] as const;
+      return [Math.min(...present), Math.max(...present)] as const;
+    })();
+    const span = hi - lo;
     let d = "";
     let inSegment = false;
     values.forEach((v, i) => {
@@ -69,7 +87,7 @@ export default function Sparkline({
         return;
       }
       const x = stepX * i;
-      const norm = explicitMax > 0 ? Math.max(0, Math.min(1, v / explicitMax)) : 0;
+      const norm = span > 0 ? Math.max(0, Math.min(1, (v - lo) / span)) : 0.5;
       const y = pad + (height - pad * 2) * (1 - norm);
       d += `${inSegment ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)} `;
       inSegment = true;

@@ -1,18 +1,26 @@
 "use client";
 
-// Sign-in — magic link only. Plain email + button, no third-party
-// auth wired up yet (Apple OAuth would be next when we wrap for the
-// App Store).
+// Sign-in — email one-time code, with the magic link as a fallback.
 //
-// UX touches: handles ?deleted=1 from /account so post-deletion users
-// see a confirmation instead of a blank login. Privacy + Terms links
-// inline below the button — required disclosure for App Store +
-// GDPR. Uses v2 design tokens throughout.
+// Why a code: on an iOS home-screen PWA the emailed link opens in
+// Safari, which has its own cookie jar — the installed app stays signed
+// out. Typing the 6-digit code keeps the session in whichever context
+// the user started in. The same email carries both (the Supabase
+// "Magic Link" template must include {{ .Token }} for the code).
+//
+// Handles ?deleted=1 (post account deletion) and ?error=auth_failed
+// (expired / replayed link from /auth/callback).
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Icon, { type IconName } from "@/components/Icon";
+
+const CODE_LEN = 6;
+const RESEND_SECONDS = 30;
 
 export default function SignInPage() {
   return (
@@ -23,147 +31,118 @@ export default function SignInPage() {
 }
 
 function SignInForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/today";
   const justDeleted = searchParams.get("deleted") === "1";
-  // /api/auth/callback redirects here with ?error=auth_failed when the
-  // magic-link exchange fails (expired link, replayed code, etc.).
-  // Surface a clear message instead of silently dumping the user back
-  // on the form.
   const callbackError = searchParams.get("error") === "auth_failed";
+
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
-    "idle",
-  );
-  const [errorMsg, setErrorMsg] = useState("");
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+  const codeRef = useRef<HTMLInputElement>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setStatus("sending");
-    setErrorMsg("");
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
+  async function sendCode(e?: React.FormEvent) {
+    e?.preventDefault();
+    setBusy(true);
+    setError("");
     const supabase = createClient();
     const callbackUrl = new URL("/auth/callback", window.location.origin);
     callbackUrl.searchParams.set("next", next);
     const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: callbackUrl.toString(),
-      },
+      email: email.trim(),
+      options: { emailRedirectTo: callbackUrl.toString() },
     });
-
+    setBusy(false);
     if (error) {
-      setStatus("error");
-      setErrorMsg(error.message);
-    } else {
-      setStatus("sent");
+      setError(error.message);
+      return;
     }
+    setStep("code");
+    setCode("");
+    setCooldown(RESEND_SECONDS);
+    setTimeout(() => codeRef.current?.focus(), 50);
+  }
+
+  async function verify(token: string) {
+    setBusy(true);
+    setError("");
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token,
+      type: "email",
+    });
+    if (error) {
+      setBusy(false);
+      setError("That code didn't work. Check it, or send a new one.");
+      setCode("");
+      codeRef.current?.focus();
+      return;
+    }
+    router.replace(next);
+    router.refresh();
+  }
+
+  function onCodeChange(v: string) {
+    const digits = v.replace(/\D/g, "").slice(0, CODE_LEN);
+    setCode(digits);
+    if (digits.length === CODE_LEN && !busy) void verify(digits);
   }
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center -mt-8">
-      <div className="w-full max-w-sm">
-        {/* Account-deletion confirmation banner. Shows once when the
-            /account delete flow redirects here with ?deleted=1. */}
+    <div
+      className="flex min-h-[85dvh] flex-col justify-center"
+      style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+    >
+      <div className="mx-auto w-full max-w-sm">
         {justDeleted && (
-          <div
-            className="rounded-2xl p-3.5 mb-6 text-[13px] leading-relaxed"
-            style={{
-              background: "var(--accent-tint)",
-              border: "1px solid rgba(52, 194, 142, 0.26)",
-              color: "var(--foreground)",
-            }}
-          >
-            Account deleted. Every row of your data has been removed.
-          </div>
+          <Notice tone="success">
+            Account deleted. All of your data has been removed.
+          </Notice>
         )}
-
-        {/* Auth callback failure — magic link expired, replayed, or
-            tampered. Tell the user why they bounced back instead of
-            silently dropping them on the form. */}
         {callbackError && !justDeleted && (
-          <div
-            className="rounded-2xl p-3.5 mb-6 text-[13px] leading-relaxed"
-            style={{
-              background: "rgba(255, 86, 112, 0.08)",
-              border: "1px solid rgba(255, 86, 112, 0.24)",
-              color: "var(--foreground)",
-            }}
-          >
-            That sign-in link didn&apos;t work. They expire after one
-            use — request a fresh one below.
-          </div>
+          <Notice tone="danger">
+            That sign-in link expired or was already used. Request a new
+            code below.
+          </Notice>
         )}
 
-        <h1
-          className="text-[34px] leading-tight text-center"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Regimen
-        </h1>
-        <div
-          className="text-[13.5px] text-center mt-2 mb-9 leading-relaxed"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          Your stack, your data, your call.
+        <div className="mb-10 flex flex-col items-center text-center">
+          <img
+            src="/icon.svg"
+            alt=""
+            width={64}
+            height={64}
+            className="mb-5 rounded-[18px] shadow-[var(--shadow-lift)]"
+          />
+          <h1 className="text-display">Regimen</h1>
+          <p className="mt-2 text-callout text-[var(--foreground-soft)]">
+            Your stack, your data, your call.
+          </p>
         </div>
 
-        {status === "sent" ? (
-          <div
-            className="rounded-2xl p-6 text-center card-glass"
-            style={{ borderLeft: "3px solid var(--accent)" }}
-          >
-            <div
-              className="text-[10px] uppercase tracking-wider mb-2"
-              style={{
-                color: "var(--accent)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Check your inbox
-            </div>
-            <div
-              className="text-[15px]"
-              style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
-            >
-              Magic link sent
-            </div>
-            <div
-              className="text-[12.5px] mt-2 leading-relaxed"
-              style={{ color: "var(--foreground-soft)" }}
-            >
-              Check{" "}
-              <span
-                style={{ color: "var(--foreground)", fontWeight: 600 }}
-              >
-                {email}
-              </span>{" "}
-              and tap the link to sign in.
-            </div>
-            <div
-              className="text-[11px] mt-4"
-              style={{ color: "var(--muted)" }}
-            >
-              You can close this tab.
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
+        {step === "email" ? (
+          <form onSubmit={sendCode} className="flex flex-col gap-3">
             <label
-              className="text-[10px] uppercase tracking-wider px-0.5"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
               htmlFor="signin-email"
+              className="text-eyebrow uppercase text-[var(--muted)]"
             >
               Email
             </label>
             <input
               id="signin-email"
               type="email"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
@@ -172,62 +151,127 @@ function SignInForm() {
               autoFocus
               className="input-field"
             />
-            {/* Note: no inline `opacity` on disabled — the global
-                button:disabled rule swaps to a readable surface fill
-                with muted text. Was the v2 disabled state (white text
-                on faded green) read as gray on gray. */}
-            <button
+            <Button
               type="submit"
-              disabled={status === "sending" || !email.trim()}
-              className="rounded-xl mt-2 inline-flex items-center justify-center no-truncate w-full"
-              style={{
-                background: "var(--primary)",
-                color: "var(--primary-fg)",
-                fontWeight: 700,
-                fontSize: 15,
-                letterSpacing: "-0.005em",
-                minHeight: 48,
-                padding: "12px 16px",
-                boxShadow: "var(--shadow-button)",
-              }}
+              size="lg"
+              fullWidth
+              loading={busy}
+              disabled={!email.trim()}
+              className="mt-1"
             >
-              {status === "sending" ? "Sending…" : "Send magic link"}
-            </button>
-            {status === "error" && (
-              <div
-                className="text-[12px] mt-1 px-1"
-                style={{ color: "var(--error)" }}
-              >
-                {errorMsg}
-              </div>
-            )}
-            <div
-              className="text-[11.5px] text-center mt-5 leading-relaxed"
-              style={{ color: "var(--muted)" }}
-            >
-              No password. We email a one-tap sign-in link.
-            </div>
+              Continue
+            </Button>
+            {error && <ErrorText>{error}</ErrorText>}
+
+            <ul className="mt-8 space-y-3">
+              <ValueProp icon="check-circle" text="Log your stack in one tap a day" />
+              <ValueProp icon="graph" text="See what's actually moving your sleep, HRV and labs" />
+              <ValueProp icon="sparkle" text="Ask Coach anything about your own data" />
+            </ul>
           </form>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div className="text-center">
+              <h2 className="text-title-3">Check your email</h2>
+              <p className="mt-1 text-footnote text-[var(--foreground-soft)]">
+                Enter the 6-digit code we sent to{" "}
+                <span className="font-semibold text-[var(--foreground)]">
+                  {email}
+                </span>
+                , or tap the link in the email.
+              </p>
+            </div>
+            <input
+              ref={codeRef}
+              aria-label="6-digit code"
+              value={code}
+              onChange={(e) => onCodeChange(e.target.value)}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={CODE_LEN}
+              placeholder="••••••"
+              className="input-field mt-2 text-center text-[28px] font-semibold tabular-nums tracking-[0.5em]"
+              disabled={busy}
+            />
+            <Button
+              size="lg"
+              fullWidth
+              loading={busy}
+              disabled={code.length !== CODE_LEN}
+              onClick={() => verify(code)}
+            >
+              Sign in
+            </Button>
+            {error && <ErrorText>{error}</ErrorText>}
+            <div className="mt-2 flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStep("email");
+                  setError("");
+                }}
+              >
+                Use a different email
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={cooldown > 0 || busy}
+                onClick={() => sendCode()}
+              >
+                {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
+              </Button>
+            </div>
+          </div>
         )}
 
-        {/* Required compliance disclosure — App Store + GDPR ask for
-            this on any account-creating screen. Renders for both the
-            form and the post-send states so the user sees it once. */}
-        <div
-          className="mt-8 text-center text-[11px] leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          By continuing you agree to our{" "}
+        <p className="mt-10 text-center text-caption text-[var(--muted)]">
+          No password needed. By continuing you agree to our{" "}
           <Link href="/terms" className="underline">
             Terms
           </Link>{" "}
           and{" "}
           <Link href="/privacy" className="underline">
-            Privacy
+            Privacy Policy
           </Link>
           .
-        </div>
+        </p>
       </div>
     </div>
+  );
+}
+
+function ValueProp({ icon, text }: { icon: IconName; text: string }) {
+  return (
+    <li className="flex items-center gap-3 text-footnote text-[var(--foreground-soft)]">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-alt)] text-[var(--foreground)]">
+        <Icon name={icon} size={16} strokeWidth={1.8} />
+      </span>
+      {text}
+    </li>
+  );
+}
+
+function Notice({
+  tone,
+  children,
+}: {
+  tone: "success" | "danger";
+  children: React.ReactNode;
+}) {
+  return (
+    <Card tone={tone} padding="sm" className="mb-6 text-footnote">
+      {children}
+    </Card>
+  );
+}
+
+function ErrorText({ children }: { children: React.ReactNode }) {
+  return (
+    <p role="alert" className="px-1 text-footnote text-[var(--error)]">
+      {children}
+    </p>
   );
 }

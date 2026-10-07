@@ -74,7 +74,8 @@ export async function POST() {
       const { error, count } = await admin
         .from(table)
         .delete({ count: "exact" })
-        .eq("user_id", userId);
+        // profiles is keyed by id (= auth uid), not user_id.
+        .eq(table === "profiles" ? "id" : "user_id", userId);
       if (error) {
         results[table] = { error: error.message };
       } else {
