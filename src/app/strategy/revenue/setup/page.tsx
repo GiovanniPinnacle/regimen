@@ -12,6 +12,12 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import { buttonClass } from "@/components/ui/Button";
+import { ListGroup } from "@/components/ui/ListRow";
+import { SectionHeader, Stat } from "@/components/ui/Section";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +34,6 @@ function isOwner(email: string | null | undefined): boolean {
 type NetworkStep = {
   network: string;
   label: string;
-  accent: string;
   commissionRange: string;
   signUpUrl: string;
   envKey: string;
@@ -46,17 +51,16 @@ export default async function RevenueSetupPage() {
   if (!user || !isOwner(user.email)) {
     return (
       <div className="pb-24">
-        <header className="mb-6">
-          <h1
-            className="text-[24px]"
-            style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-          >
-            Revenue setup
-          </h1>
-        </header>
-        <div className="rounded-2xl card-glass p-6 text-center text-[13px]">
-          Owner-only. Set <code>ADMIN_EMAILS</code> env to your email.
-        </div>
+        <PageHeader
+          title="Affiliate setup"
+          back="/strategy/revenue"
+          backLabel="Revenue"
+        />
+        <Card padding="lg" className="text-center">
+          <p className="text-callout text-[var(--muted)]">
+            Owner-only. Set <code>ADMIN_EMAILS</code> to your email.
+          </p>
+        </Card>
       </div>
     );
   }
@@ -67,7 +71,6 @@ export default async function RevenueSetupPage() {
     {
       network: "amazon",
       label: "Amazon Associates",
-      accent: "var(--premium)",
       commissionRange: "1-10% (avg ~4%)",
       signUpUrl: "https://affiliate-program.amazon.com/",
       envKey: "AMAZON_ASSOCIATES_TAG",
@@ -84,7 +87,6 @@ export default async function RevenueSetupPage() {
     {
       network: "thorne",
       label: "Thorne Practitioner Partner",
-      accent: "var(--accent)",
       commissionRange: "15-25% (premium tier)",
       signUpUrl: "https://www.thorne.com/practitioner-resources",
       envKey: "THORNE_PARTNER_ID",
@@ -101,7 +103,6 @@ export default async function RevenueSetupPage() {
     {
       network: "iherb",
       label: "iHerb Rewards",
-      accent: "var(--pro)",
       commissionRange: "5-10% (volume-based)",
       signUpUrl: "https://www.iherb.com/info/rewards",
       envKey: "IHERB_PARTNER_ID",
@@ -118,7 +119,6 @@ export default async function RevenueSetupPage() {
     {
       network: "fullscript",
       label: "Fullscript Practitioner",
-      accent: "var(--pro)",
       commissionRange: "15-25%",
       signUpUrl: "https://fullscript.com/welcome/practitioners",
       envKey: "FULLSCRIPT_PARTNER_ID",
@@ -139,298 +139,184 @@ export default async function RevenueSetupPage() {
   const cronSecretSet = Boolean(process.env.CRON_SECRET);
   const usdaSet = Boolean(process.env.USDA_API_KEY);
 
+  const coverage =
+    setCount === 0
+      ? "0%"
+      : setCount === 1
+        ? "Basic"
+        : setCount === 2
+          ? "Good"
+          : setCount === 3
+            ? "Strong"
+            : "Maxed";
+  const blended =
+    setCount === 0
+      ? "—"
+      : setCount === 1
+        ? "~4%"
+        : setCount === 2
+          ? "~7%"
+          : setCount === 3
+            ? "~10%"
+            : "~12%";
+
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <div className="mb-2">
-          <Link
-            href="/strategy/revenue"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            Revenue
-          </Link>
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Affiliate setup
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          {setCount} of {networks.length} networks configured. Each takes
-          5-15 min — most are instant approval.
-        </p>
-      </header>
+      <PageHeader
+        title="Affiliate setup"
+        back="/strategy/revenue"
+        backLabel="Revenue"
+        subtitle={`${setCount} of ${networks.length} networks configured. Each takes 5–15 minutes; most approve instantly.`}
+      />
 
-      {/* Hero progress */}
-      <section
-        className="rounded-2xl p-5 mb-5"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--premium) 0%, var(--premium-deep) 100%)",
-          color: "#FFFFFF",
-          boxShadow: "0 12px 32px var(--premium-glow)",
-        }}
-      >
+      {/* Progress */}
+      <Card padding="lg">
         <div className="grid grid-cols-3 gap-3">
-          <Stat
-            label="Networks"
-            value={`${setCount}/${networks.length}`}
-          />
-          <Stat
-            label="Coverage"
-            value={
-              setCount === 0
-                ? "0%"
-                : setCount === 1
-                  ? "Basic"
-                  : setCount === 2
-                    ? "Good"
-                    : setCount === 3
-                      ? "Strong"
-                      : "Maxed"
-            }
-          />
-          <Stat
-            label="Est. blended rate"
-            value={
-              setCount === 0
-                ? "—"
-                : setCount === 1
-                  ? "~4%"
-                  : setCount === 2
-                    ? "~7%"
-                    : setCount === 3
-                      ? "~10%"
-                      : "~12%"
-            }
-            small
-          />
+          <Stat size="sm" label="Networks" value={`${setCount}/${networks.length}`} />
+          <Stat size="sm" label="Coverage" value={coverage} />
+          <Stat size="sm" label="Blended rate" value={blended} sub="estimated" />
         </div>
-      </section>
+      </Card>
 
       {/* Other env checks */}
-      <section className="mb-6">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-2.5"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          Other env vars
-        </h2>
-        <div className="rounded-2xl card-glass overflow-hidden">
-          <EnvRow
-            name="ADMIN_EMAILS"
-            label="Owner email (unlocks /admin/catalog + /strategy/revenue)"
-            isSet={adminEmailSet}
-          />
-          <EnvRow
-            name="CRON_SECRET"
-            label="Vercel Cron auth — required for nightly catalog seed"
-            isSet={cronSecretSet}
-          />
-          <EnvRow
-            name="USDA_API_KEY"
-            label={
-              <span>
-                USDA FoodData Central — free key at{" "}
-                <a
-                  href="https://fdc.nal.usda.gov/api-signup.html"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline"
-                  style={{ color: "var(--accent)" }}
-                >
-                  fdc.nal.usda.gov
-                </a>
-                . DSLD + Open Food Facts work without it.
-              </span>
-            }
-            isSet={usdaSet}
-          />
-        </div>
-      </section>
+      <SectionHeader title="Other env vars" />
+      <ListGroup>
+        <EnvRow
+          name="ADMIN_EMAILS"
+          label="Owner email (unlocks /admin/catalog + /strategy/revenue)"
+          isSet={adminEmailSet}
+        />
+        <EnvRow
+          name="CRON_SECRET"
+          label="Vercel Cron auth, required for the nightly catalog refresh"
+          isSet={cronSecretSet}
+        />
+        <EnvRow
+          name="USDA_API_KEY"
+          label={
+            <span>
+              USDA FoodData Central, free key at{" "}
+              <a
+                href="https://fdc.nal.usda.gov/api-signup.html"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-[var(--foreground-soft)] underline underline-offset-2"
+              >
+                fdc.nal.usda.gov
+              </a>
+              . DSLD + Open Food Facts work without it.
+            </span>
+          }
+          isSet={usdaSet}
+        />
+      </ListGroup>
 
       {/* Network steps */}
-      {networks.map((n) => (
-        <NetworkStepCard key={n.network} step={n} />
-      ))}
+      <SectionHeader title="Networks" />
+      <div className="flex flex-col gap-3">
+        {networks.map((n) => (
+          <NetworkStepCard key={n.network} step={n} />
+        ))}
+      </div>
 
-      <section className="mt-7 rounded-2xl card-glass p-4">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-2"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          After signing up
-        </h2>
-        <ol
-          className="text-[12.5px] leading-relaxed flex flex-col gap-1.5"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          <li>
-            1. Open Vercel: Settings → Environment Variables → Add for
-            Production
-          </li>
-          <li>2. Paste each key + value, save</li>
-          <li>
-            3. Trigger a redeploy (Vercel dashboard → top deploy → ⋯ →
-            Redeploy)
-          </li>
-          <li>
-            4. Reload <Link href="/strategy/revenue" className="underline">/strategy/revenue</Link>{" "}
-            — first clicks should appear within 24 hours of any user activity
-          </li>
+      <SectionHeader title="After signing up" />
+      <Card padding="md">
+        <ol className="flex flex-col gap-2 text-footnote leading-relaxed text-[var(--foreground-soft)]">
+          {[
+            <>Open Vercel: Settings → Environment Variables → Add for Production.</>,
+            <>Paste each key and value, then save.</>,
+            <>Trigger a redeploy (Vercel dashboard → latest deploy → Redeploy).</>,
+            <>
+              Reload{" "}
+              <Link
+                href="/strategy/revenue"
+                className="font-medium text-[var(--foreground)] underline underline-offset-2"
+              >
+                Revenue
+              </Link>
+              . First clicks should appear within 24 hours of any user
+              activity.
+            </>,
+          ].map((li, i) => (
+            <li key={i} className="flex gap-2.5">
+              <span className="w-4 shrink-0 font-semibold tabular-nums text-[var(--muted)]">
+                {i + 1}
+              </span>
+              <span>{li}</span>
+            </li>
+          ))}
         </ol>
-      </section>
+      </Card>
     </div>
   );
 }
 
 function NetworkStepCard({ step }: { step: NetworkStep }) {
   return (
-    <section className="mb-3">
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          background: step.isSet ? "var(--surface)" : "var(--surface)",
-          border: step.isSet
-            ? `1px solid ${step.accent}`
-            : "1px solid var(--border)",
-        }}
-      >
-        <div className="px-4 py-3.5 flex items-start gap-3">
-          <span
-            className="shrink-0 mt-0.5 h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{
-              background: `${step.accent}1F`,
-              color: step.accent,
-            }}
-          >
-            <Icon
-              name={step.isSet ? "check-circle" : "shopping-bag"}
-              size={16}
-              strokeWidth={1.8}
-            />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-2 flex-wrap">
-              <h3
-                className="text-[15px]"
-                style={{ fontWeight: 700 }}
-              >
-                {step.label}
-              </h3>
-              {step.isSet ? (
-                <span
-                  className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                  style={{
-                    background: `${step.accent}1F`,
-                    color: step.accent,
-                    fontWeight: 700,
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  Configured
-                </span>
-              ) : (
-                <span
-                  className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                  style={{
-                    background: "var(--surface-alt)",
-                    color: "var(--muted)",
-                    fontWeight: 700,
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  Not set
-                </span>
-              )}
-            </div>
-            <div
-              className="text-[12px] mt-0.5 flex flex-wrap gap-2"
-              style={{ color: "var(--muted)" }}
-            >
-              <span>{step.commissionRange}</span>
-              <span>· {step.approvalTime}</span>
-            </div>
+    <Card padding="md">
+      <div className="flex items-start gap-3">
+        <span
+          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${
+            step.isSet
+              ? "bg-[var(--success-tint)] text-[var(--success)]"
+              : "bg-[var(--surface-alt)] text-[var(--foreground-soft)]"
+          }`}
+        >
+          <Icon
+            name={step.isSet ? "check-circle" : "shopping-bag"}
+            size={17}
+            strokeWidth={1.8}
+          />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-body font-semibold">{step.label}</h3>
+            {step.isSet ? (
+              <Chip size="sm" tone="success" icon="check">
+                Configured
+              </Chip>
+            ) : (
+              <Chip size="sm">Not set</Chip>
+            )}
           </div>
-        </div>
-
-        <div className="px-4 pb-4 pt-1 ml-12">
-          <ul
-            className="text-[12.5px] leading-relaxed flex flex-col gap-1 mb-3"
-            style={{ color: "var(--foreground-soft)" }}
-          >
-            {step.notes.map((note, i) => (
-              <li key={i} className="flex items-start gap-1.5">
-                <span
-                  style={{ color: step.accent, marginTop: 2 }}
-                  aria-hidden
-                >
-                  ·
-                </span>
-                <span>{note}</span>
-              </li>
-            ))}
-          </ul>
-
-          <div className="flex flex-wrap gap-2 mb-3">
-            <a
-              href={step.signUpUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5"
-              style={{
-                background: step.accent,
-                color: "#FFFFFF",
-                fontWeight: 700,
-              }}
-            >
-              <Icon name="external" size={11} strokeWidth={2.2} />
-              Open sign-up
-            </a>
-          </div>
-
-          <div
-            className="rounded-lg p-3 text-[11.5px] font-mono leading-relaxed break-all"
-            style={{
-              background: "var(--surface-alt)",
-              color: "var(--foreground-soft)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div
-              className="text-[10px] uppercase tracking-wider mb-1"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                fontFamily: "inherit",
-              }}
-            >
-              Vercel env var
-            </div>
-            <span style={{ color: "var(--accent)", fontWeight: 700 }}>
-              {step.envKey}
-            </span>
-            <span style={{ color: "var(--muted)" }}>=</span>
-            <span>{step.envExample}</span>
-          </div>
+          <p className="mt-0.5 text-caption text-[var(--muted)]">
+            {step.commissionRange} · {step.approvalTime}
+          </p>
         </div>
       </div>
-    </section>
+
+      <ul className="mt-3 flex flex-col gap-1.5 text-footnote leading-relaxed text-[var(--foreground-soft)]">
+        {step.notes.map((note, i) => (
+          <li key={i} className="flex items-start gap-2">
+            <span aria-hidden className="text-[var(--muted)]">
+              ·
+            </span>
+            <span>{note}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface-alt)] p-3 font-mono text-caption leading-relaxed break-all text-[var(--foreground-soft)]">
+        <div className="mb-1 font-sans text-eyebrow uppercase text-[var(--muted)]">
+          Vercel env var
+        </div>
+        <span className="font-semibold text-[var(--foreground)]">
+          {step.envKey}
+        </span>
+        <span className="text-[var(--muted)]">=</span>
+        <span>{step.envExample}</span>
+      </div>
+
+      <a
+        href={step.signUpUrl}
+        target="_blank"
+        rel="noreferrer"
+        className={buttonClass({ variant: "secondary", fullWidth: true, className: "mt-3 gap-2" })}
+      >
+        Open sign-up
+        <Icon name="external" size={15} strokeWidth={1.9} />
+      </a>
+    </Card>
   );
 }
 
@@ -444,70 +330,18 @@ function EnvRow({
   isSet: boolean;
 }) {
   return (
-    <div
-      className="px-4 py-2.5 flex items-baseline justify-between gap-3"
-      style={{ borderBottom: "1px solid var(--border)" }}
-    >
+    <div className="flex min-h-[52px] items-center justify-between gap-3 px-4 py-2.5">
       <div className="min-w-0 flex-1">
-        <div
-          className="text-[12.5px]"
-          style={{ fontWeight: 600, fontFamily: "var(--font-mono, monospace)" }}
-        >
-          {name}
-        </div>
-        <div
-          className="text-[11px] mt-0.5"
-          style={{ color: "var(--muted)" }}
-        >
-          {label}
-        </div>
+        <div className="font-mono text-footnote font-semibold">{name}</div>
+        <div className="mt-0.5 text-caption text-[var(--muted)]">{label}</div>
       </div>
-      <span
-        className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0"
-        style={{
-          background: isSet ? "var(--accent-tint)" : "var(--surface-alt)",
-          color: isSet ? "var(--accent)" : "var(--muted)",
-          fontWeight: 700,
-          letterSpacing: "0.06em",
-        }}
-      >
-        {isSet ? "Set" : "Not set"}
-      </span>
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  small,
-}: {
-  label: string;
-  value: string;
-  small?: boolean;
-}) {
-  return (
-    <div>
-      <div
-        className="text-[9.5px] uppercase tracking-wider"
-        style={{
-          opacity: 0.85,
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        className={
-          small
-            ? "text-[18px] tabular-nums leading-tight mt-1"
-            : "text-[22px] leading-tight mt-1"
-        }
-        style={{ fontWeight: 700, letterSpacing: "-0.02em" }}
-      >
-        {value}
-      </div>
+      {isSet ? (
+        <Chip size="sm" tone="success" icon="check">
+          Set
+        </Chip>
+      ) : (
+        <Chip size="sm">Not set</Chip>
+      )}
     </div>
   );
 }

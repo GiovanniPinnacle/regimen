@@ -4,26 +4,31 @@
 
 import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata = {
   title: "Terms — Regimen",
 };
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  // Public page: signed-in readers go back to You, signed-out readers
+  // (from the landing or sign-in screen) go back home.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="pb-24">
       <PageHeader
         title="Terms of use"
         subtitle="Last updated: May 8, 2026."
-        back="/you"
-        backLabel="You"
+        back={user ? "/you" : "/"}
+        backLabel={user ? "You" : "Home"}
         showCoach={false}
       />
 
-      <div
-        className="prose-tight space-y-5 text-[14px] leading-relaxed"
-        style={{ color: "var(--foreground-soft)" }}
-      >
+      <article className="max-w-[65ch] space-y-9 text-body text-[var(--foreground-soft)]">
         <Section title="1. Not medical advice">
           <p>
             Regimen is an organizational tool for tracking supplements,
@@ -34,7 +39,7 @@ export default function TermsPage() {
             clinician.
           </p>
           <p>
-            <strong>
+            <strong className="font-semibold text-[var(--foreground)]">
               Do not start, stop, or change any prescription medication,
               supplement protocol, or treatment based on anything this app
               tells you. Talk to your physician first.
@@ -72,7 +77,7 @@ export default function TermsPage() {
 
         <Section title="4. Acceptable use">
           <p>You agree not to:</p>
-          <ul className="list-disc pl-5 space-y-1.5">
+          <ul className="list-disc space-y-2.5 pl-5 marker:text-[var(--muted)]">
             <li>Use the app for anyone other than yourself.</li>
             <li>
               Submit false or misleading entries to the shared product
@@ -84,8 +89,8 @@ export default function TermsPage() {
               usage policies.
             </li>
             <li>
-              Reverse-engineer the app, scrape it, or run automated load
-              against the API.
+              Reverse-engineer the app, scrape it, or send automated
+              traffic to our servers.
             </li>
             <li>
               Upload anyone else&apos;s personal health information without
@@ -108,14 +113,14 @@ export default function TermsPage() {
           <p>
             Pro tier subscriptions, when offered, are billed through Stripe
             and auto-renew at the stated interval until cancelled. You can
-            cancel anytime from <Link href="/account" className="underline">Account</Link>;
+            cancel anytime from <Link href="/account" className="text-[var(--foreground)] underline underline-offset-2">Account</Link>;
             cancellation takes effect at the end of the current billing
             period. No prorated refunds for partial periods unless required
             by law.
           </p>
         </Section>
 
-        <Section title="7. Disclaimers + limitation of liability">
+        <Section title="7. Disclaimers and limitation of liability">
           <p>
             The app is provided &ldquo;as is.&rdquo; To the maximum extent
             permitted by law, we disclaim all warranties including
@@ -125,7 +130,7 @@ export default function TermsPage() {
             service is uninterrupted.
           </p>
           <p>
-            <strong>
+            <strong className="font-semibold text-[var(--foreground)]">
               We are not liable for indirect, incidental, special, or
               consequential damages — including any health outcome — arising
               from your use of the app. Our total liability for any claim
@@ -138,7 +143,7 @@ export default function TermsPage() {
         <Section title="8. Privacy">
           <p>
             How we handle your data is described in the{" "}
-            <Link href="/privacy" className="underline">
+            <Link href="/privacy" className="text-[var(--foreground)] underline underline-offset-2">
               Privacy policy
             </Link>
             . By using the app you accept that policy.
@@ -166,17 +171,17 @@ export default function TermsPage() {
         <Section title="11. Contact">
           <p>
             Questions:{" "}
-            <a href="mailto:hello@regimen.app" className="underline">
+            <a href="mailto:hello@regimen.app" className="text-[var(--foreground)] underline underline-offset-2">
               hello@regimen.app
             </a>
             . Security disclosures:{" "}
-            <a href="mailto:security@regimen.app" className="underline">
+            <a href="mailto:security@regimen.app" className="text-[var(--foreground)] underline underline-offset-2">
               security@regimen.app
             </a>
             .
           </p>
         </Section>
-      </div>
+      </article>
     </div>
   );
 }
@@ -190,17 +195,8 @@ function Section({
 }) {
   return (
     <section>
-      <h2
-        className="text-[18px] mb-2"
-        style={{
-          color: "var(--foreground)",
-          fontWeight: 700,
-          letterSpacing: "-0.012em",
-        }}
-      >
-        {title}
-      </h2>
-      <div className="space-y-3">{children}</div>
+      <h2 className="mb-3 text-title-3 text-[var(--foreground)]">{title}</h2>
+      <div className="space-y-4">{children}</div>
     </section>
   );
 }

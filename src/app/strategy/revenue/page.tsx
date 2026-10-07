@@ -5,7 +5,11 @@
 // "items I've clicked" history. The owner (matched by ADMIN_EMAILS env)
 // also sees app-wide totals + top items + revenue projection.
 
-import Link from "next/link";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { ButtonLink } from "@/components/ui/Button";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { SectionHeader, Stat } from "@/components/ui/Section";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -52,23 +56,15 @@ export default async function RevenuePage() {
   if (!user) {
     return (
       <div className="pb-24">
-        <header className="mb-6">
-          <h1
-            className="text-[28px]"
-            style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-          >
-            Revenue
-          </h1>
-        </header>
-        <div className="rounded-2xl card-glass p-6 text-center">
-          <Link
-            href="/signin"
-            className="text-[14px]"
-            style={{ color: "var(--accent)", fontWeight: 600 }}
-          >
-            Sign in to view
-          </Link>
-        </div>
+        <PageHeader title="Revenue" back="/strategy" backLabel="Strategy" />
+        <Card padding="xl" className="flex flex-col items-center text-center">
+          <p className="text-callout text-[var(--muted)]">
+            Sign in to see this page.
+          </p>
+          <ButtonLink href="/signin" className="mt-4">
+            Sign in
+          </ButtonLink>
+        </Card>
       </div>
     );
   }
@@ -98,107 +94,59 @@ export default async function RevenuePage() {
   }
 
   const myList = (myClicks ?? []) as ClickRow[];
+  const recent = owner ? appWide : myList;
 
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <div className="mb-2">
-          <Link
-            href="/strategy"
-            className="text-[12px]"
-            style={{ color: "var(--muted)" }}
-          >
-            ← Strategy
-          </Link>
-        </div>
-        <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-        >
-          Revenue
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          {owner
-            ? "App-wide affiliate clicks + revenue projection (last 30 days)."
-            : "Items you've ordered through Regimen (last 30 days)."}
-        </p>
-      </header>
+      <PageHeader
+        title="Revenue"
+        back="/strategy"
+        backLabel="Strategy"
+        subtitle={
+          owner
+            ? "App-wide affiliate clicks and projected revenue, last 30 days."
+            : "Items you've ordered through Regimen, last 30 days."
+        }
+      />
 
       {owner && <OwnerSummary clicks={appWide} />}
 
-      <section className="mb-7">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-2.5"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          {owner ? "App-wide recent clicks" : "Your recent clicks"}
-        </h2>
-        {(owner ? appWide : myList).length === 0 ? (
-          <div
-            className="rounded-2xl card-glass p-6 text-center text-[13px]"
-            style={{ color: "var(--muted)" }}
-          >
-            No clicks yet in the last 30 days.
-          </div>
-        ) : (
-          <div className="rounded-2xl card-glass overflow-hidden">
-            {(owner ? appWide : myList).slice(0, 30).map((c, i) => (
-              <div
-                key={c.id}
-                className="px-4 py-3 flex items-baseline justify-between gap-3"
-                style={{
-                  borderTop: i > 0 ? "1px solid var(--border)" : undefined,
-                }}
-              >
-                <div className="min-w-0 flex-1">
-                  <div
-                    className="text-[13.5px] truncate"
-                    style={{ fontWeight: 600 }}
-                  >
-                    {c.item_name ?? "(unnamed item)"}
-                  </div>
-                  <div
-                    className="text-[11px] mt-0.5 flex gap-2"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {c.vendor && <span>{c.vendor}</span>}
-                    {c.affiliate_network && (
-                      <span>· {c.affiliate_network}</span>
-                    )}
-                    {c.source && <span>· {c.source}</span>}
-                  </div>
-                </div>
-                <div
-                  className="text-[11px] tabular-nums shrink-0"
-                  style={{ color: "var(--muted)" }}
-                >
-                  {new Date(c.clicked_at).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <SectionHeader
+        className={owner ? "" : "mt-0"}
+        title={owner ? "Recent clicks, app-wide" : "Your recent clicks"}
+      />
+      {recent.length === 0 ? (
+        <Card padding="lg" className="text-center">
+          <p className="text-callout text-[var(--muted)]">
+            No clicks in the last 30 days.
+          </p>
+        </Card>
+      ) : (
+        <ListGroup>
+          {recent.slice(0, 30).map((c) => (
+            <ListRow
+              key={c.id}
+              title={c.item_name ?? "Unnamed item"}
+              subtitle={
+                [c.vendor, c.affiliate_network, c.source]
+                  .filter(Boolean)
+                  .join(" · ") || undefined
+              }
+              trailing={new Date(c.clicked_at).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+              })}
+            />
+          ))}
+        </ListGroup>
+      )}
 
       {!owner && (
-        <div
-          className="text-[11px] leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Regimen earns a commission on items you order through tracked
-          vendor links. Recommendations are picked first on health merit —
-          affiliates are only attached after Coach approves the item.
-        </div>
+        <p className="mt-6 text-caption leading-relaxed text-[var(--muted)]">
+          Regimen earns a commission on items you order through tracked vendor
+          links. Recommendations are chosen on health merit first; a store
+          link is only attached after Coach approves the item.
+        </p>
       )}
     </div>
   );
@@ -250,167 +198,65 @@ function OwnerSummary({ clicks }: { clicks: ClickRow[] }) {
 
   return (
     <>
-      <section
-        className="rounded-2xl p-5 mb-5"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--premium) 0%, var(--premium-deep) 100%)",
-          color: "#FFFFFF",
-          boxShadow: "0 12px 32px var(--premium-glow)",
-        }}
-      >
+      <Card padding="lg">
         <div className="grid grid-cols-3 gap-3">
-          <Stat label="Clicks · 30d" value={String(totalClicks)} />
-          <Stat label="Unique users" value={String(uniqueUsers)} />
+          <Stat size="sm" label="Clicks · 30d" value={totalClicks} />
+          <Stat size="sm" label="Unique users" value={uniqueUsers} />
           <Stat
+            size="sm"
             label="Projected"
-            value={fmtUSD(totalProjected)}
-            small
+            value={
+              <span className="text-[var(--premium)]">
+                {fmtUSD(totalProjected)}
+              </span>
+            }
           />
         </div>
-        <div
-          className="text-[10.5px] mt-3 leading-relaxed"
-          style={{ opacity: 0.82 }}
-        >
-          Projection = clicks × avg-cart × commission × 5% conversion baseline.
-          Replaced with real numbers once Stripe webhooks / direct
-          conversion tracking is wired.
-        </div>
-      </section>
+        <p className="mt-4 text-caption leading-relaxed text-[var(--muted)]">
+          Projection = clicks × average cart × commission × a 5% conversion
+          baseline. Real numbers replace this once conversion tracking is
+          wired up.
+        </p>
+      </Card>
 
       {Object.keys(byNetwork).length > 0 && (
-        <section className="mb-7">
-          <h2
-            className="text-[11px] uppercase tracking-wider mb-2.5"
-            style={{
-              color: "var(--muted)",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            By network
-          </h2>
-          <div className="rounded-2xl card-glass overflow-hidden">
+        <>
+          <SectionHeader title="By network" />
+          <ListGroup>
             {Object.entries(byNetwork)
               .sort((a, b) => b[1].clicks - a[1].clicks)
-              .map(([n, v], i) => (
-                <div
+              .map(([n, v]) => (
+                <ListRow
                   key={n}
-                  className="px-4 py-3 flex items-center justify-between"
-                  style={{
-                    borderTop: i > 0 ? "1px solid var(--border)" : undefined,
-                  }}
-                >
-                  <div>
-                    <div
-                      className="text-[13.5px] capitalize"
-                      style={{ fontWeight: 600 }}
-                    >
-                      {n}
-                    </div>
-                    <div
-                      className="text-[11px]"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {v.clicks} {v.clicks === 1 ? "click" : "clicks"}
-                    </div>
-                  </div>
-                  <div
-                    className="text-[14px] tabular-nums"
-                    style={{ color: "var(--premium)", fontWeight: 700 }}
-                  >
-                    ~{fmtUSD(v.commission)}
-                  </div>
-                </div>
+                  title={<span className="capitalize">{n}</span>}
+                  subtitle={`${v.clicks} ${v.clicks === 1 ? "click" : "clicks"}`}
+                  trailing={
+                    <span className="text-callout font-semibold text-[var(--premium)]">
+                      ~{fmtUSD(v.commission)}
+                    </span>
+                  }
+                />
               ))}
-          </div>
-        </section>
+          </ListGroup>
+        </>
       )}
 
       {topItems.length > 0 && (
-        <section className="mb-7">
-          <h2
-            className="text-[11px] uppercase tracking-wider mb-2.5"
-            style={{
-              color: "var(--muted)",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            Top items
-          </h2>
-          <div className="rounded-2xl card-glass overflow-hidden">
-            {topItems.map(([id, v], i) => (
-              <Link
+        <>
+          <SectionHeader title="Top items" />
+          <ListGroup>
+            {topItems.map(([id, v]) => (
+              <ListRow
                 key={id}
                 href={`/items/${id}`}
-                className="block px-4 py-3 flex items-center justify-between"
-                style={{
-                  borderTop: i > 0 ? "1px solid var(--border)" : undefined,
-                }}
-              >
-                <div className="min-w-0 flex-1">
-                  <div
-                    className="text-[13.5px] truncate"
-                    style={{ fontWeight: 600 }}
-                  >
-                    {v.name}
-                  </div>
-                  {v.vendor && (
-                    <div
-                      className="text-[11px]"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {v.vendor}
-                    </div>
-                  )}
-                </div>
-                <div
-                  className="text-[13px] tabular-nums shrink-0 ml-2"
-                  style={{ color: "var(--muted)" }}
-                >
-                  {v.clicks} {v.clicks === 1 ? "click" : "clicks"}
-                </div>
-              </Link>
+                title={v.name}
+                subtitle={v.vendor ?? undefined}
+                trailing={`${v.clicks} ${v.clicks === 1 ? "click" : "clicks"}`}
+              />
             ))}
-          </div>
-        </section>
+          </ListGroup>
+        </>
       )}
     </>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  small,
-}: {
-  label: string;
-  value: string;
-  small?: boolean;
-}) {
-  return (
-    <div>
-      <div
-        className="text-[9.5px] uppercase tracking-wider"
-        style={{
-          opacity: 0.85,
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        className={
-          small
-            ? "text-[18px] tabular-nums leading-tight mt-1"
-            : "text-[22px] tabular-nums leading-tight mt-1"
-        }
-        style={{ fontWeight: 700, letterSpacing: "-0.02em" }}
-      >
-        {value}
-      </div>
-    </div>
   );
 }

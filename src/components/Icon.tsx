@@ -83,7 +83,28 @@ export type IconName =
   | "file-text"
   | "link"
   | "log-out"
-  | "more";
+  | "more"
+  | "ring"
+  | "barcode"
+  | "scan"
+  | "copy"
+  | "stop"
+  | "paperclip"
+  | "history"
+  | "sliders"
+  | "cart"
+  | "globe"
+  | "flask"
+  | "grid"
+  | "upload"
+  | "chef-hat"
+  | "package"
+  | "thumbs-up"
+  | "thumbs-down"
+  | "hand"
+  | "trophy"
+  | "database"
+  | "wand";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
@@ -507,6 +528,130 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
       <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
       <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    </>
+  ),
+  ring: (
+    <>
+      <ellipse cx="12" cy="13" rx="7.5" ry="7" />
+      <ellipse cx="12" cy="13" rx="4.5" ry="4.2" />
+      <path d="M9.5 6.5L12 4l2.5 2.5" />
+    </>
+  ),
+  barcode: (
+    <>
+      <path d="M4 6v12M7 6v12M10.5 6v12M13 6v12M17 6v12M20 6v12" />
+    </>
+  ),
+  scan: (
+    <>
+      <path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" />
+      <path d="M4 12h16" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+    </>
+  ),
+  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" stroke="none" />,
+  paperclip: (
+    <path d="M20 11.5l-7.8 7.8a5 5 0 0 1-7.1-7.1l8.2-8.2a3.3 3.3 0 0 1 4.7 4.7l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4" />
+  ),
+  history: (
+    <>
+      <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" />
+      <path d="M3 4v4h4" />
+      <path d="M12 8v4l3 2" />
+    </>
+  ),
+  sliders: (
+    <>
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="10" cy="17" r="2" />
+    </>
+  ),
+  cart: (
+    <>
+      <path d="M3 4h2l2.4 11a2 2 0 0 0 2 1.6h7.4a2 2 0 0 0 2-1.5L20.5 8H6.2" />
+      <circle cx="10" cy="20" r="1.2" />
+      <circle cx="17" cy="20" r="1.2" />
+    </>
+  ),
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" />
+    </>
+  ),
+  flask: (
+    <>
+      <path d="M9 3h6M10 3v6L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9V3" />
+      <path d="M7 15h10" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="7" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+      <rect x="13" y="13" width="7" height="7" rx="1.5" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 15V4M7 9l5-5 5 5" />
+      <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+    </>
+  ),
+  "chef-hat": (
+    <>
+      <path d="M7 14.5V20h10v-5.5" />
+      <path d="M7 14.5A4 4 0 0 1 6.5 6.6a5 5 0 0 1 11 0 4 4 0 0 1-.5 7.9" />
+      <path d="M7 17h10" />
+    </>
+  ),
+  package: (
+    <>
+      <path d="M21 8l-9-5-9 5v8l9 5 9-5z" />
+      <path d="M3 8l9 5 9-5M12 13v8M7.5 5.5l9 5" />
+    </>
+  ),
+  "thumbs-up": (
+    <>
+      <path d="M7 10v10H4V10z" />
+      <path d="M7 10l4-7a2 2 0 0 1 2.5 2.4L12.8 9H18a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 16.8 20H7" />
+    </>
+  ),
+  "thumbs-down": (
+    <>
+      <path d="M17 14V4h3v10z" />
+      <path d="M17 14l-4 7a2 2 0 0 1-2.5-2.4l.7-3.6H6a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 7.2 4H17" />
+    </>
+  ),
+  hand: (
+    <>
+      <path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4a1.5 1.5 0 0 1 3 0v7M14 10.5V5.5a1.5 1.5 0 0 1 3 0V14" />
+      <path d="M8 13l-1.6-1.8a1.6 1.6 0 0 0-2.4 2.1L7.5 18A6 6 0 0 0 12 21h1a4 4 0 0 0 4-4v-3" />
+    </>
+  ),
+  trophy: (
+    <>
+      <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
+      <path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4" />
+    </>
+  ),
+  database: (
+    <>
+      <ellipse cx="12" cy="6" rx="7" ry="2.8" />
+      <path d="M5 6v12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8" />
+    </>
+  ),
+  wand: (
+    <>
+      <path d="M4 20L15 9M13.5 7.5l3 3" />
+      <path d="M18 3v3M16.5 4.5h3M20 9v2M19 10h2M10 3v2M9 4h2" />
     </>
   ),
 };

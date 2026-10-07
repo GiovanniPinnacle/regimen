@@ -27,13 +27,9 @@ export default function PageSkeleton({
     <div className="pb-24" aria-busy="true">
       <header className="mb-4">
         <div
-          className="text-[34px] leading-tight"
-          style={{
-            fontWeight: 700,
-            letterSpacing: "-0.024em",
-            color: title ? "var(--foreground)" : "transparent",
-            opacity: 0.32,
-          }}
+          className={`text-display opacity-30 ${
+            title ? "text-[var(--foreground)]" : "text-transparent"
+          }`}
         >
           {title ?? "—"}
         </div>
@@ -42,15 +38,7 @@ export default function PageSkeleton({
         </div>
         {hero && (
           <div className="mt-3">
-            <div
-              className="rounded-xl"
-              style={{
-                width: "100%",
-                height: 48,
-                background: "var(--surface-alt)",
-                opacity: 0.7,
-              }}
-            />
+            <div className="h-12 w-full rounded-[14px] bg-[var(--surface-alt)] opacity-70" />
           </div>
         )}
       </header>

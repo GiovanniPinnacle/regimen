@@ -108,7 +108,7 @@ function RecipeList({ recipes }: { recipes: Recipe[] }) {
                 <span className="mt-1 flex flex-wrap items-center gap-1.5 text-caption tabular-nums text-[var(--muted)]">
                   {meta}
                   {r.source === "claude" && (
-                    <Chip size="sm" tone="coach">
+                    <Chip tone="coach">
                       Coach
                     </Chip>
                   )}

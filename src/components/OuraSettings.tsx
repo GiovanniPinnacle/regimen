@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Icon from "@/components/Icon";
+import Button, { buttonClass } from "@/components/ui/Button";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
 
 export default function OuraSettings() {
   const [hasPat, setHasPat] = useState(false);
@@ -8,7 +11,7 @@ export default function OuraSettings() {
   const [input, setInput] = useState("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     loadState();
@@ -31,13 +34,13 @@ export default function OuraSettings() {
     });
     const d = await r.json();
     if (d.ok) {
-      setMsg("✓ Saved. Syncing now…");
+      setMsg({ ok: true, text: "Connected. Syncing now…" });
       setHasPat(true);
       setInput("");
       setEditing(false);
       await handleSync();
     } else {
-      setMsg(`Error: ${d.error}`);
+      setMsg({ ok: false, text: `Couldn't connect — ${d.error ?? "check the token and try again"}` });
     }
     setBusy(false);
   }
@@ -52,10 +55,10 @@ export default function OuraSettings() {
     });
     const d = await r.json();
     if (d.ok) {
-      setMsg(`✓ Synced ${d.synced} days`);
+      setMsg({ ok: true, text: `Synced ${d.synced} days` });
       await loadState();
     } else {
-      setMsg(`Sync failed: ${d.error}`);
+      setMsg({ ok: false, text: `Sync didn't finish — ${d.error ?? "try again in a moment"}` });
     }
     setBusy(false);
   }
@@ -68,113 +71,118 @@ export default function OuraSettings() {
       body: JSON.stringify({ pat: "" }),
     });
     setHasPat(false);
-    setMsg("Disconnected");
+    setMsg({ ok: true, text: "Disconnected" });
     setBusy(false);
   }
 
+  const status = hasPat
+    ? lastSync
+      ? `Last synced ${new Date(lastSync).toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })}`
+      : "Connected — not synced yet"
+    : "Wake time, HRV, resting heart rate and sleep stages, straight into Today";
+
   return (
-    <div className="border-hair rounded-xl p-4 flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[15px]" style={{ fontWeight: 500 }}>
-            💍 Oura sync
-          </div>
-          <div
-            className="text-[13px] mt-0.5"
-            style={{ color: "var(--muted)" }}
-          >
-            {hasPat
-              ? lastSync
-                ? `Last sync: ${new Date(lastSync).toLocaleString()}`
-                : "Connected — not yet synced"
-              : "Live wake time, HRV, RHR, sleep stages → Today tab uses real data"}
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col gap-4">
+      <ListGroup>
+        <ListRow
+          icon="ring"
+          iconTone={hasPat ? "success" : "neutral"}
+          title={hasPat ? "Oura connected" : "Oura not connected"}
+          subtitle={status}
+          chevron={false}
+        />
+      </ListGroup>
 
       {!hasPat || editing ? (
-        <>
-          <div className="text-[12px]" style={{ color: "var(--muted)" }}>
-            Get your Oura Personal Access Token at{" "}
-            <a
-              href="https://cloud.ouraring.com/personal-access-tokens"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              cloud.ouraring.com/personal-access-tokens
-            </a>
-          </div>
+        <div className="flex flex-col gap-3">
+          <p className="text-callout text-[var(--foreground-soft)]">
+            Create a personal access token in your Oura account, then paste it
+            below. It only lets Regimen read your data.
+          </p>
+          <a
+            href="https://cloud.ouraring.com/personal-access-tokens"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonClass({ variant: "secondary", fullWidth: true })}
+          >
+            <span className="truncate">Get a token from Oura</span>
+            <Icon name="external" size={16} strokeWidth={1.9} className="ml-2 shrink-0" />
+          </a>
+          <label htmlFor="oura-token" className="sr-only">
+            Oura personal access token
+          </label>
           <input
+            id="oura-token"
             type="password"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Paste your Oura PAT here"
-            className="border-hair rounded-lg px-3 py-2.5 text-[14px] focus:outline-none focus:border-hair-strong"
-            style={{ background: "var(--background)", color: "var(--foreground)" }}
+            placeholder="Paste your token"
+            autoComplete="off"
+            className="input-field"
           />
           <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              disabled={!input.trim() || busy}
-              className="px-4 py-2.5 rounded-lg text-[14px]"
-              style={{
-                background: "var(--foreground)",
-                color: "var(--background)",
-                fontWeight: 500,
-                opacity: !input.trim() || busy ? 0.5 : 1,
-              }}
-            >
-              {busy ? "Saving…" : "Save + sync"}
-            </button>
             {editing && (
-              <button
-                onClick={() => setEditing(false)}
-                className="px-4 py-2.5 rounded-lg text-[14px] border-hair"
-                style={{ color: "var(--muted)" }}
-              >
+              <Button variant="secondary" onClick={() => setEditing(false)}>
                 Cancel
-              </button>
+              </Button>
             )}
+            <Button
+              onClick={handleSave}
+              disabled={!input.trim()}
+              loading={busy}
+              fullWidth
+              className="flex-1 disabled:opacity-50"
+            >
+              {busy ? "Connecting…" : "Connect and sync"}
+            </Button>
           </div>
-        </>
+        </div>
       ) : (
-        <div className="flex gap-2 flex-wrap">
-          <button
+        <div className="flex flex-col gap-2">
+          <Button
+            icon="refresh"
             onClick={handleSync}
-            disabled={busy}
-            className="px-3 py-2 rounded-lg text-[13px] border-hair"
-            style={{
-              background: "var(--foreground)",
-              color: "var(--background)",
-              fontWeight: 500,
-            }}
+            loading={busy}
+            fullWidth
           >
             {busy ? "Syncing…" : "Sync now"}
-          </button>
-          <button
-            onClick={() => setEditing(true)}
-            disabled={busy}
-            className="px-3 py-2 rounded-lg text-[13px] border-hair"
-            style={{ color: "var(--muted)" }}
-          >
-            Update PAT
-          </button>
-          <button
-            onClick={handleDisconnect}
-            disabled={busy}
-            className="px-3 py-2 rounded-lg text-[13px] border-hair"
-            style={{ color: "#b00020" }}
-          >
-            Disconnect
-          </button>
+          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setEditing(true)}
+              disabled={busy}
+              className="flex-1"
+            >
+              Change token
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDisconnect}
+              disabled={busy}
+              className="flex-1"
+            >
+              Disconnect
+            </Button>
+          </div>
         </div>
       )}
 
       {msg && (
-        <div className="text-[12px]" style={{ color: "var(--muted)" }}>
-          {msg}
-        </div>
+        <p
+          role="status"
+          className={`flex items-center gap-1.5 px-1 text-footnote ${
+            msg.ok ? "text-[var(--muted)]" : "text-[var(--error)]"
+          }`}
+        >
+          {!msg.ok && <Icon name="alert" size={14} strokeWidth={2} className="shrink-0" />}
+          {msg.text}
+        </p>
       )}
     </div>
   );

@@ -9,6 +9,13 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
 import EmptyState from "@/components/EmptyState";
+import { SkeletonCard } from "@/components/Skeleton";
+import PageHeader from "@/components/ui/PageHeader";
+import Button, { IconButton } from "@/components/ui/Button";
+import { ChipButton } from "@/components/ui/Chip";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { SectionHeader } from "@/components/ui/Section";
+import Sheet from "@/components/ui/Sheet";
 import { showToast } from "@/lib/toast";
 
 type Category =
@@ -29,12 +36,12 @@ const CATEGORY_ORDER: { key: Category; label: string; example: string }[] = [
   {
     key: "pharmaceutical",
     label: "Pharmaceuticals",
-    example: "e.g., NSAIDs (post-op)",
+    example: "e.g., a medication your doctor ruled out",
   },
   { key: "food", label: "Foods", example: "e.g., dairy, gluten" },
-  { key: "supplement", label: "Supplements", example: "e.g., biotin, ashwagandha" },
+  { key: "supplement", label: "Supplements", example: "e.g., ashwagandha" },
   { key: "product", label: "Specific products", example: "e.g., a brand that broke me out" },
-  { key: "test", label: "Tests", example: "e.g., DEXA — already done" },
+  { key: "test", label: "Tests", example: "e.g., a test you've already done" },
   { key: "approach", label: "Approaches", example: "e.g., extended fasting" },
 ];
 
@@ -133,7 +140,11 @@ export default function HardNosPage() {
     await persist(next);
     setDraft({ name: "", reason: "" });
     setAdding(null);
-    showToast("Added to hard NOs", { tone: "success", duration: 2000 });
+    showToast("Added to your hard no's", {
+      tone: "success",
+      icon: "check",
+      duration: 2000,
+    });
   }
 
   async function remove(idx: number) {
@@ -147,245 +158,231 @@ export default function HardNosPage() {
     });
   }
 
-  if (!loaded) return null;
+  function closeSheet() {
+    setAdding(null);
+    setDraft({ name: "", reason: "" });
+  }
+
+  function askCoach() {
+    const existing =
+      list.length > 0
+        ? `My current hard NOs: ${list.map((h) => h.name).join(", ")}.\n\n`
+        : "";
+    window.dispatchEvent(
+      new CustomEvent("regimen:ask", {
+        detail: {
+          text:
+            existing +
+            "Based on my goals + medical history + medications + past diagnoses, suggest 3-5 items I should consider adding to my hard NOs list (with one-sentence reasons each). " +
+            "If you don't have enough info to suggest with confidence, say so and tell me what fields would help.",
+          send: true,
+        },
+      }),
+    );
+  }
+
+  const header = (
+    <PageHeader
+      title="Hard no's"
+      back="/you"
+      backLabel="You"
+      subtitle="Things Coach will never suggest, and will flag if they show up in a photo or meal log. Think allergies, things that didn't agree with you, or approaches you've ruled out."
+    />
+  );
+
+  if (!loaded) {
+    return (
+      <div className="pb-24" aria-busy>
+        {header}
+        <SkeletonCard height={64} />
+        <SkeletonCard height={160} className="mt-6" />
+      </div>
+    );
+  }
+
+  const activeCat = CATEGORY_ORDER.find((c) => c.key === adding) ?? null;
+  const emptyCats = CATEGORY_ORDER.filter(
+    (c) => !list.some((h) => h.category === c.key),
+  );
 
   return (
     <div className="pb-24">
-      <header className="mb-5">
-        <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-        >
-          Hard NOs
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Items Coach will never recommend, and will flag if it sees them
-          in a photo or food log. Examples: allergies, things that broke
-          you out, banned approaches.
-        </p>
-      </header>
+      {header}
 
-      <button
-        onClick={() => {
-          const existing = list.length > 0
-            ? `My current hard NOs: ${list.map((h) => h.name).join(", ")}.\n\n`
-            : "";
-          window.dispatchEvent(
-            new CustomEvent("regimen:ask", {
-              detail: {
-                text:
-                  existing +
-                  "Based on my goals + medical history + medications + past diagnoses, suggest 3-5 items I should consider adding to my hard NOs list (with one-sentence reasons each). " +
-                  "If you don't have enough info to suggest with confidence, say so and tell me what fields would help.",
-                send: true,
-              },
-            }),
-          );
-        }}
-        className="w-full mb-6 rounded-2xl card-glass p-3.5 flex items-center gap-2.5 active:scale-[0.99] transition-transform text-left"
-      >
-        <span
-          className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
-          style={{
-            background: "var(--pro-tint)",
-            color: "var(--pro)",
-          }}
-        >
-          <Icon name="sparkle" size={16} strokeWidth={1.8} />
-        </span>
-        <div className="flex-1 min-w-0">
-          <div
-            className="text-[13.5px] leading-snug"
-            style={{ fontWeight: 600 }}
-          >
-            Brainstorm hard NOs with Coach
-          </div>
-          <div
-            className="text-[11.5px] mt-0.5 leading-snug"
-            style={{ color: "var(--muted)" }}
-          >
-            Coach reads your About me + medications and suggests
-          </div>
+      <ListGroup>
+        <ListRow
+          icon="sparkle"
+          iconTone="coach"
+          title="Brainstorm with Coach"
+          subtitle="Coach reads your profile and medications, then suggests a few"
+          onClick={askCoach}
+          chevron
+        />
+      </ListGroup>
+
+      {list.length === 0 && (
+        <div className="mt-6">
+          <EmptyState
+            glyph="ban"
+            title="No hard no's yet"
+            body="Add anything Coach should never suggest. They'll be flagged in photos, recipes, and recommendations."
+            primary={{
+              label: "Add your first",
+              onClick: () => setAdding("supplement"),
+            }}
+          />
         </div>
-        <Icon
-          name="chevron-right"
-          size={14}
-          className="shrink-0 opacity-50"
-        />
-      </button>
-
-      {list.length === 0 && adding === null && (
-        <EmptyState
-          icon="🚫"
-          title="No hard NOs yet"
-          body="Add anything Coach should never suggest. You'll see them flagged in photos, recipes, and recommendations."
-          primary={{
-            label: "Add your first",
-            onClick: () => setAdding("supplement"),
-          }}
-        />
       )}
 
       {CATEGORY_ORDER.map((cat) => {
         const items = list
           .map((h, idx) => ({ h, idx }))
           .filter((x) => x.h.category === cat.key);
-        const isAdding = adding === cat.key;
-        if (items.length === 0 && !isAdding) {
-          // Render a "+ Add" hint per category only when list is non-empty
-          // overall, so empty state stays clean for new users.
-          if (list.length === 0) return null;
-          return (
-            <section key={cat.key} className="mb-5">
-              <button
-                onClick={() => setAdding(cat.key)}
-                className="text-[12px] flex items-center gap-1.5"
-                style={{ color: "var(--muted)" }}
-              >
-                <Icon name="plus" size={12} strokeWidth={2} />
-                Add {cat.label.toLowerCase()}
-              </button>
-            </section>
-          );
-        }
+        if (items.length === 0) return null;
 
         return (
-          <section key={cat.key} className="mb-7">
-            <div className="flex items-baseline justify-between mb-3">
-              <h2
-                className="text-[11px] uppercase tracking-wider"
-                style={{
-                  color: "var(--muted)",
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                }}
-              >
-                {cat.label}
-              </h2>
-              {!isAdding && (
-                <button
+          <section key={cat.key}>
+            <SectionHeader
+              title={cat.label}
+              action={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="plus"
+                  className="min-h-[44px] -mr-2"
                   onClick={() => setAdding(cat.key)}
-                  className="text-[11px] flex items-center gap-1"
-                  style={{ color: "var(--accent)" }}
+                  aria-label={`Add to ${cat.label.toLowerCase()}`}
                 >
-                  <Icon name="plus" size={11} strokeWidth={2} />
                   Add
-                </button>
-              )}
-            </div>
-
-            <div className="rounded-2xl card-glass overflow-hidden">
+                </Button>
+              }
+            />
+            <ListGroup>
               {items.map(({ h, idx }, i) => (
                 <div
                   key={`${h.name}-${i}`}
-                  className="px-4 py-3 flex items-start justify-between gap-3"
-                  style={{
-                    borderBottom:
-                      i < items.length - 1 || isAdding
-                        ? "1px solid var(--border)"
-                        : undefined,
-                  }}
+                  className="flex min-h-[52px] items-center gap-3 py-2 pl-4 pr-2"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className="text-[14px]"
-                      style={{ fontWeight: 500 }}
-                    >
-                      {h.name}
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-body font-medium">{h.name}</div>
                     {h.reason && (
-                      <div
-                        className="text-[12px] mt-0.5 leading-relaxed"
-                        style={{ color: "var(--muted)" }}
-                      >
+                      <div className="mt-0.5 text-footnote leading-relaxed text-[var(--muted)]">
                         {h.reason}
                       </div>
                     )}
                   </div>
-                  <button
+                  <IconButton
+                    icon="trash"
+                    label={`Remove ${h.name}`}
+                    tone="plain"
+                    iconSize={17}
                     onClick={() => remove(idx)}
-                    className="shrink-0 p-1"
-                    style={{ color: "var(--muted)" }}
-                    aria-label="Remove"
-                  >
-                    <Icon name="trash" size={14} />
-                  </button>
+                  />
                 </div>
               ))}
-
-              {isAdding && (
-                <div className="px-4 py-3 flex flex-col gap-2">
-                  <input
-                    type="text"
-                    autoFocus
-                    value={draft.name}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, name: e.target.value }))
-                    }
-                    placeholder={`Name (${cat.example})`}
-                    list="hard-nos-catalog-suggestions"
-                    className="w-full rounded-lg px-3 py-2 text-[14px]"
-                    style={{
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      color: "var(--foreground)",
-                    }}
-                  />
-                  {nameSuggestions.length > 0 && (
-                    <datalist id="hard-nos-catalog-suggestions">
-                      {nameSuggestions.map((n) => (
-                        <option key={n} value={n} />
-                      ))}
-                    </datalist>
-                  )}
-                  <input
-                    type="text"
-                    value={draft.reason}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, reason: e.target.value }))
-                    }
-                    placeholder="Why? (optional)"
-                    className="w-full rounded-lg px-3 py-2 text-[13px]"
-                    style={{
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      color: "var(--foreground)",
-                    }}
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => add(cat.key)}
-                      disabled={!draft.name.trim()}
-                      className="flex-1 rounded-lg px-3 py-2 text-[13px]"
-                      style={{
-                        background: "var(--primary)",
-                        color: "var(--primary-fg)",
-                        fontWeight: 500,
-                        opacity: !draft.name.trim() ? 0.5 : 1,
-                      }}
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => {
-                        setAdding(null);
-                        setDraft({ name: "", reason: "" });
-                      }}
-                      className="rounded-lg px-3 py-2 text-[13px]"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            </ListGroup>
           </section>
         );
       })}
+
+      {list.length > 0 && emptyCats.length > 0 && (
+        <>
+          <SectionHeader title="Add more" />
+          <div className="flex flex-wrap gap-2">
+            {emptyCats.map((cat) => (
+              <ChipButton
+                key={cat.key}
+                icon="plus"
+                onClick={() => setAdding(cat.key)}
+              >
+                {cat.label}
+              </ChipButton>
+            ))}
+          </div>
+        </>
+      )}
+
+      <Sheet
+        open={adding !== null}
+        onClose={closeSheet}
+        title="Add a hard no"
+        description="Coach will steer clear of it from now on."
+        footer={
+          <Button
+            fullWidth
+            size="lg"
+            disabled={!draft.name.trim() || !adding}
+            onClick={() => adding && add(adding)}
+          >
+            Add
+          </Button>
+        }
+      >
+        <div
+          role="radiogroup"
+          aria-label="Category"
+          className="flex flex-wrap gap-2"
+        >
+          {CATEGORY_ORDER.map((c) => (
+            <ChipButton
+              key={c.key}
+              role="radio"
+              aria-pressed={undefined}
+              aria-checked={adding === c.key}
+              selected={adding === c.key}
+              onClick={() => setAdding(c.key)}
+            >
+              {c.label}
+            </ChipButton>
+          ))}
+        </div>
+
+        <label className="mt-5 block">
+          <span className="mb-1.5 block text-footnote font-medium text-[var(--foreground-soft)]">
+            Name
+          </span>
+          <input
+            type="text"
+            autoFocus
+            value={draft.name}
+            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && adding && draft.name.trim()) add(adding);
+            }}
+            placeholder={activeCat?.example ?? "Name"}
+            list="hard-nos-catalog-suggestions"
+            className="input-field"
+          />
+        </label>
+        {nameSuggestions.length > 0 && (
+          <datalist id="hard-nos-catalog-suggestions">
+            {nameSuggestions.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+        )}
+
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-footnote font-medium text-[var(--foreground-soft)]">
+            Why? <span className="font-normal text-[var(--muted)]">(optional)</span>
+          </span>
+          <input
+            type="text"
+            value={draft.reason}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, reason: e.target.value }))
+            }
+            placeholder="A short note for future you"
+            className="input-field"
+          />
+        </label>
+
+        <p className="mt-4 flex items-start gap-2 text-caption text-[var(--muted)]">
+          <Icon name="info" size={14} strokeWidth={1.8} className="mt-px shrink-0" />
+          Not a substitute for medical advice. Tell your doctor about allergies
+          and reactions too.
+        </p>
+      </Sheet>
     </div>
   );
 }

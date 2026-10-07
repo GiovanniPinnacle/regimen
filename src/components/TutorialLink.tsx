@@ -8,7 +8,7 @@
 // Three render modes:
 //   - "row"   — full how-to block + native inline embed (item detail).
 //               Video plays IN-APP, no external bounce.
-//   - "chip"  — tiny "▶ Watch how" pill (ItemCard, /train cards).
+//   - "chip"  — small "Watch how" pill (ItemCard, /train cards).
 //               Still opens externally — chip is too small for an embed.
 //   - "block" — block button only, no description (slot section).
 //
@@ -17,6 +17,9 @@
 // an action — never just a dead "no tutorial" state.
 
 import Icon from "@/components/Icon";
+import { buttonClass } from "@/components/ui/Button";
+import { cardClass } from "@/components/ui/Card";
+import { Eyebrow } from "@/components/ui/Section";
 import MediaEmbed from "@/components/MediaEmbed";
 import { youtubeSearchUrl } from "@/lib/tutorials/curated";
 
@@ -76,15 +79,9 @@ export default function TutorialLink({
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
-        className="inline-flex items-center gap-1 text-[11.5px] px-2 py-1 rounded-full"
-        style={{
-          background: "var(--surface-alt)",
-          color: "var(--accent)",
-          border: "1px solid var(--border)",
-          fontWeight: 600,
-        }}
+        className="relative inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-alt)] px-3 text-caption font-semibold text-[var(--foreground)] before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-['']"
       >
-        <span aria-hidden>{kind === "video" ? "▶" : "📖"}</span>
+        <Icon name={kind === "video" ? "play" : "book"} size={13} strokeWidth={2} />
         <span>{resolvedLabel}</span>
       </a>
     );
@@ -98,16 +95,9 @@ export default function TutorialLink({
         href={mediaUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 text-[12.5px] px-3 py-2 rounded-lg no-truncate"
-        style={{
-          background: "var(--accent-tint)",
-          color: "var(--accent)",
-          border: "1px solid var(--border)",
-          fontWeight: 700,
-          minHeight: 36,
-        }}
+        className={buttonClass({ variant: "secondary", size: "md", className: "no-truncate" })}
       >
-        <Icon name="external" size={12} strokeWidth={2.2} />
+        <Icon name={kind === "video" ? "play" : "external"} size={16} strokeWidth={1.9} />
         {resolvedLabel}
       </a>
     );
@@ -117,26 +107,11 @@ export default function TutorialLink({
   return (
     <div className="flex flex-col gap-3">
       {howTo && (
-        <div
-          className="rounded-2xl card-glass p-4"
-          style={{ borderLeft: "3px solid var(--accent)" }}
-        >
-          <div
-            className="text-[10px] uppercase tracking-wider mb-1.5"
-            style={{
-              color: "var(--accent)",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            How to do this
-          </div>
-          <div
-            className="text-[13.5px] leading-relaxed"
-            style={{ color: "var(--foreground)", opacity: 0.92 }}
-          >
+        <div className={cardClass({ padding: "md" })}>
+          <Eyebrow className="mb-1.5">How to do this</Eyebrow>
+          <p className="text-callout leading-relaxed text-[var(--foreground-soft)] whitespace-pre-line">
             {howTo}
-          </div>
+          </p>
         </div>
       )}
 
@@ -156,39 +131,20 @@ export default function TutorialLink({
           href={youtubeSearchUrl(itemName)}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-2xl p-4 flex items-center justify-between gap-3"
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            boxShadow: "var(--shadow-card)",
-          }}
+          className={cardClass({
+            padding: "md",
+            interactive: true,
+            className: "flex items-center justify-between gap-3",
+          })}
         >
           <div className="min-w-0">
-            <div
-              className="text-[10px] uppercase tracking-wider"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              No tutorial saved yet
-            </div>
-            <div
-              className="text-[13.5px] mt-1"
-              style={{ color: "var(--foreground)", fontWeight: 600 }}
-            >
+            <Eyebrow>No tutorial saved yet</Eyebrow>
+            <div className="mt-1 text-callout font-semibold text-[var(--foreground)]">
               Search YouTube for &ldquo;{itemName}&rdquo;
             </div>
           </div>
-          <span
-            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{
-              background: "var(--accent-tint)",
-              color: "var(--accent)",
-            }}
-          >
-            <Icon name="search" size={14} strokeWidth={2.2} />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+            <Icon name="search" size={16} strokeWidth={2} />
           </span>
         </a>
       ) : null}

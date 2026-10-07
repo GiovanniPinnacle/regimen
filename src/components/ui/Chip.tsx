@@ -17,8 +17,8 @@ const TONE: Record<ChipTone, string> = {
 
 function chipClass(tone: ChipTone, selected?: boolean, size: "sm" | "md" = "md") {
   return [
-    "inline-flex items-center gap-1 rounded-full border whitespace-nowrap tabular-nums",
-    size === "sm" ? "h-6 px-2 text-[11px] font-medium" : "h-8 px-3 text-caption font-medium",
+    "inline-flex shrink-0 items-center gap-1 rounded-full border whitespace-nowrap tabular-nums",
+    size === "sm" ? "h-6 px-2 text-caption font-medium" : "h-8 px-3 text-caption font-medium",
     selected
       ? "bg-[var(--foreground)] text-[var(--background)] border-[var(--foreground)]"
       : TONE[tone],

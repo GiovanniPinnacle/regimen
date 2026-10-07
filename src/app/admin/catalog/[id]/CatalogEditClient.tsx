@@ -7,7 +7,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Icon from "@/components/Icon";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import { SectionHeader } from "@/components/ui/Section";
+import { showToast } from "@/lib/toast";
 
 type CatalogRow = {
   id: string;
@@ -57,12 +60,8 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
         body: JSON.stringify(edits),
       });
       const data = (await res.json()) as { ok: boolean; error?: string };
-      if (!res.ok || !data.ok) throw new Error(data.error ?? "Save failed");
-      window.dispatchEvent(
-        new CustomEvent("regimen:toast", {
-          detail: { kind: "success", text: "Saved" },
-        }),
-      );
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Couldn’t save. Try again.");
+      showToast("Saved", { tone: "success" });
       setEdits({});
       router.refresh();
     } catch (e) {
@@ -81,15 +80,8 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: row.id, force: true }),
       });
-      if (!res.ok) throw new Error("Re-enrich failed");
-      window.dispatchEvent(
-        new CustomEvent("regimen:toast", {
-          detail: {
-            kind: "success",
-            text: "Re-enriched — refresh to see updates",
-          },
-        }),
-      );
+      if (!res.ok) throw new Error("Coach couldn’t refresh this entry. Try again.");
+      showToast("Coach refreshed this entry", { tone: "success" });
       setTimeout(() => router.refresh(), 1500);
     } catch (e) {
       setErr((e as Error).message);
@@ -99,85 +91,51 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
   }
 
   const dirty = Object.keys(edits).length > 0;
+  const changeCount = Object.keys(edits).length;
 
   return (
     <>
       {/* Save bar (sticky when dirty) */}
       {dirty && (
-        <div
-          className="sticky top-2 z-10 rounded-xl mb-4 p-3 flex items-center justify-between gap-2"
-          style={{
-            background: "var(--primary)",
-            color: "var(--primary-fg)",
-            boxShadow: "0 6px 16px var(--accent-glow)",
-          }}
+        <Card
+          variant="raised"
+          padding="sm"
+          className="sticky top-2 z-10 mb-4 flex items-center justify-between gap-2"
         >
-          <div className="text-[12.5px]" style={{ fontWeight: 600 }}>
-            {Object.keys(edits).length} unsaved change
-            {Object.keys(edits).length === 1 ? "" : "s"}
+          <div className="pl-1 text-footnote font-semibold">
+            {changeCount} unsaved change{changeCount === 1 ? "" : "s"}
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => setEdits({})}
-              className="text-[12px] px-3 py-1.5 rounded-lg"
-              style={{
-                background: "rgba(255, 255, 255, 0.18)",
-                color: "#FFFFFF",
-                fontWeight: 600,
-              }}
-            >
+            <Button variant="ghost" size="md" onClick={() => setEdits({})}>
               Discard
-            </button>
-            <button
-              onClick={save}
-              disabled={saving}
-              className="text-[12px] px-3 py-1.5 rounded-lg"
-              style={{
-                background: "rgba(255, 255, 255, 0.96)",
-                color: "var(--accent-deep)",
-                fontWeight: 700,
-                opacity: saving ? 0.6 : 1,
-              }}
-            >
+            </Button>
+            <Button size="md" onClick={save} loading={saving}>
               {saving ? "Saving…" : "Save"}
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
       {err && (
-        <div
-          className="rounded-xl p-3 text-[12.5px] mb-4"
-          style={{
-            background: "rgba(239, 68, 68, 0.10)",
-            color: "var(--error)",
-            border: "1px solid rgba(239, 68, 68, 0.30)",
-          }}
-        >
+        <Card tone="danger" padding="sm" role="alert" className="mb-4 text-footnote text-[var(--error)]">
           {err}
-        </div>
+        </Card>
       )}
 
       {/* Coach actions */}
-      <div className="flex gap-2 mb-5">
-        <button
+      <div className="mt-4 mb-2">
+        <Button
+          variant="coach"
+          icon="sparkle"
           onClick={reEnrich}
-          disabled={enriching}
-          className="text-[12.5px] px-3 py-2 rounded-xl flex items-center gap-1.5"
-          style={{
-            background: "var(--pro)",
-            color: "#FFFFFF",
-            fontWeight: 700,
-            opacity: enriching ? 0.6 : 1,
-          }}
+          loading={enriching}
         >
-          <Icon name="sparkle" size={12} strokeWidth={2.2} />
-          {enriching ? "Re-enriching…" : "Re-run Coach enrichment"}
-        </button>
+          {enriching ? "Refreshing…" : "Refresh with Coach"}
+        </Button>
       </div>
 
       {/* Identity */}
-      <Section title="Identity">
+      <Section title="Basics">
         <Field label="Name" value={v("name") ?? ""} onChange={(s) => set("name", s)} />
         <Field
           label="Brand"
@@ -200,12 +158,12 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
       {/* Coach summary */}
       <Section title="Coach summary">
         <TextArea
-          label="What it is (2-3 sentences for users)"
+          label="What it is (2–3 sentences people will see)"
           value={v("coach_summary") ?? ""}
           onChange={(s) => set("coach_summary", s || null)}
         />
         <TextArea
-          label="Mechanism"
+          label="How it works"
           value={v("mechanism") ?? ""}
           onChange={(s) => set("mechanism", s || null)}
         />
@@ -220,8 +178,8 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
           value={v("evidence_grade") ?? ""}
           onChange={(s) => set("evidence_grade", (s || null) as string | null)}
           options={[
-            { value: "", label: "—" },
-            { value: "A", label: "A · multiple human RCTs" },
+            { value: "", label: "Not graded" },
+            { value: "A", label: "A · multiple human trials" },
             { value: "B", label: "B · mixed evidence" },
             { value: "C", label: "C · mechanism + small studies" },
             { value: "D", label: "D · anecdotal" },
@@ -230,7 +188,10 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
       </Section>
 
       {/* Affiliate defaults */}
-      <Section title="Affiliate defaults (inherited by all linked user items)">
+      <Section
+        title="Shop link defaults"
+        hint="Every stack item linked to this entry inherits these."
+      >
         <Field
           label="Default vendor"
           value={v("default_vendor") ?? ""}
@@ -238,10 +199,11 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
           placeholder="Thorne / Amazon / iHerb"
         />
         <Field
-          label="Default affiliate URL"
+          label="Default shop link"
           value={v("default_affiliate_url") ?? ""}
           onChange={(s) => set("default_affiliate_url", s || null)}
           placeholder="https://…"
+          type="url"
         />
         <Field
           label="Default list price (cents)"
@@ -261,8 +223,7 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
         />
       </Section>
 
-      {/* JSON arrays — full edit, save via PATCH /api/admin/catalog/[id]
-       *  with the field as a JSON column (we extend ALLOWED_FIELDS for these). */}
+      {/* Object lists — saved via PATCH /api/admin/catalog/[id]. */}
       <ArrayEditor
         title="Cautions"
         items={(v("cautions") as { tag: string; note: string }[]) ?? []}
@@ -270,11 +231,11 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
         onChange={(next) =>
           set("cautions", next as unknown as CatalogRow["cautions"])
         }
-        accent="var(--error)"
+        addLabel="Add caution"
         fields={[
           {
             key: "tag",
-            label: "Tag",
+            label: "Type",
             type: "select",
             options: [
               "pregnancy",
@@ -299,15 +260,15 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
         onChange={(next) =>
           set("pairs_well_with", next as unknown as CatalogRow["pairs_well_with"])
         }
-        accent="var(--accent)"
+        addLabel="Add pairing"
         fields={[
           { key: "name", label: "Name", type: "text" },
-          { key: "reason", label: "Reason", type: "text" },
+          { key: "reason", label: "Why", type: "text" },
         ]}
       />
 
       <ArrayEditor
-        title="Brand recommendations"
+        title="Recommended brands"
         items={
           (v("brand_recommendations") as
             | { brand: string; reasoning: string }[]
@@ -320,7 +281,7 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
             next as unknown as CatalogRow["brand_recommendations"],
           )
         }
-        accent="var(--premium)"
+        addLabel="Add brand"
         fields={[
           { key: "brand", label: "Brand", type: "text" },
           { key: "reasoning", label: "Why", type: "text" },
@@ -341,15 +302,27 @@ export default function CatalogEditClient({ row }: { row: CatalogRow }) {
             next as unknown as CatalogRow["conflicts_with"],
           )
         }
-        accent="var(--warn)"
+        addLabel="Add conflict"
         fields={[
-          { key: "name", label: "Name / class", type: "text" },
+          { key: "name", label: "Name or class", type: "text" },
           { key: "reason", label: "Why", type: "text" },
         ]}
       />
     </>
   );
 }
+
+const TAG_LABEL: Record<string, string> = {
+  pregnancy: "Pregnancy",
+  kidney: "Kidney",
+  liver: "Liver",
+  antiplatelet: "Blood thinners",
+  antidepressant: "Antidepressants",
+  thyroid: "Thyroid",
+  stimulant: "Stimulant",
+  fda_warning: "FDA warning",
+  interaction: "Interaction",
+};
 
 // Small generic editor for arrays of objects with text/select fields.
 // Add row, remove row, edit any field — all changes go through onChange
@@ -363,14 +336,14 @@ function ArrayEditor<T extends Record<string, string>>({
   items,
   emptyShape,
   onChange,
-  accent,
+  addLabel,
   fields,
 }: {
   title: string;
   items: T[];
   emptyShape: T;
   onChange: (next: T[]) => void;
-  accent: string;
+  addLabel: string;
   fields: ArrayField[];
 }) {
   function update(idx: number, key: string, val: string) {
@@ -389,124 +362,90 @@ function ArrayEditor<T extends Record<string, string>>({
   return (
     <Section title={title}>
       {items.length === 0 ? (
-        <div
-          className="text-[12px]"
-          style={{ color: "var(--muted)" }}
-        >
-          None.
-        </div>
+        <p className="text-footnote text-[var(--muted)]">None yet.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {items.map((it, idx) => (
-            <div
+            <Card
               key={idx}
-              className="rounded-xl p-2.5 flex flex-col gap-2"
-              style={{
-                background: "var(--surface-alt)",
-                border: `1px solid ${accent}33`,
-              }}
+              variant="inset"
+              padding="sm"
+              className="flex flex-col gap-2"
             >
-              {fields.map((f) => (
-                <div key={f.key}>
-                  <label
-                    className="text-[10px] uppercase tracking-wider mb-0.5 block"
-                    style={{
-                      color: "var(--muted)",
-                      fontWeight: 600,
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    {f.label}
-                  </label>
-                  {f.type === "select" ? (
-                    <select
-                      value={it[f.key] ?? ""}
-                      onChange={(e) => update(idx, f.key, e.target.value)}
-                      className="w-full rounded-lg px-2.5 py-1.5 text-[13px] focus:outline-none"
-                      style={{
-                        background: "var(--surface)",
-                        color: "var(--foreground)",
-                        border: "1px solid var(--border)",
-                      }}
-                    >
-                      {f.options.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={it[f.key] ?? ""}
-                      onChange={(e) => update(idx, f.key, e.target.value)}
-                      className="w-full rounded-lg px-2.5 py-1.5 text-[13px] focus:outline-none"
-                      style={{
-                        background: "var(--surface)",
-                        color: "var(--foreground)",
-                        border: "1px solid var(--border)",
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
-              <button
-                type="button"
+              {fields.map((f) =>
+                f.type === "select" ? (
+                  <SelectField
+                    key={f.key}
+                    label={f.label}
+                    value={it[f.key] ?? ""}
+                    onChange={(s) => update(idx, f.key, s)}
+                    options={f.options.map((o) => ({
+                      value: o,
+                      label: TAG_LABEL[o] ?? o,
+                    }))}
+                  />
+                ) : (
+                  <Field
+                    key={f.key}
+                    label={f.label}
+                    value={it[f.key] ?? ""}
+                    onChange={(s) => update(idx, f.key, s)}
+                  />
+                ),
+              )}
+              <Button
+                variant="destructive"
+                size="md"
+                icon="trash"
+                className="self-start"
                 onClick={() => remove(idx)}
-                className="text-[11px] self-start"
-                style={{
-                  color: "var(--error)",
-                  fontWeight: 600,
-                }}
               >
                 Remove
-              </button>
-            </div>
+              </Button>
+            </Card>
           ))}
         </div>
       )}
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="md"
+        icon="plus"
+        className="self-start"
         onClick={add}
-        className="text-[12px] mt-2 px-3 py-1.5 rounded-lg flex items-center gap-1 self-start"
-        style={{
-          background: `${accent}1F`,
-          color: accent,
-          fontWeight: 700,
-        }}
       >
-        <Icon name="plus" size={11} strokeWidth={2.4} />
-        Add row
-      </button>
+        {addLabel}
+      </Button>
     </Section>
   );
 }
 
 function Section({
   title,
+  hint,
   children,
 }: {
   title: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="mb-6">
-      <h2
-        className="text-[10.5px] uppercase tracking-wider mb-2.5"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
-        {title}
-      </h2>
-      <div
-        className="rounded-2xl card-glass p-3.5 flex flex-col gap-3"
-      >
+    <section>
+      <SectionHeader title={title} />
+      {hint && (
+        <p className="-mt-1 mb-3 text-footnote text-[var(--muted)]">{hint}</p>
+      )}
+      <Card padding="md" className="flex flex-col gap-3">
         {children}
-      </div>
+      </Card>
     </section>
+  );
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="mb-1.5 block text-footnote font-medium text-[var(--foreground-soft)]">
+      {children}
+    </span>
   );
 }
 
@@ -524,30 +463,16 @@ function Field({
   type?: string;
 }) {
   return (
-    <div>
-      <label
-        className="text-[10.5px] uppercase tracking-wider mb-1 block"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 600,
-          letterSpacing: "0.06em",
-        }}
-      >
-        {label}
-      </label>
+    <label className="block">
+      <FieldLabel>{label}</FieldLabel>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg px-3 py-2 text-[14px] focus:outline-none"
-        style={{
-          background: "var(--surface-alt)",
-          color: "var(--foreground)",
-          border: "1px solid var(--border)",
-        }}
+        className="input-field"
       />
-    </div>
+    </label>
   );
 }
 
@@ -561,29 +486,15 @@ function TextArea({
   onChange: (s: string) => void;
 }) {
   return (
-    <div>
-      <label
-        className="text-[10.5px] uppercase tracking-wider mb-1 block"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 600,
-          letterSpacing: "0.06em",
-        }}
-      >
-        {label}
-      </label>
+    <label className="block">
+      <FieldLabel>{label}</FieldLabel>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={3}
-        className="w-full rounded-lg px-3 py-2 text-[13px] focus:outline-none resize-y"
-        style={{
-          background: "var(--surface-alt)",
-          color: "var(--foreground)",
-          border: "1px solid var(--border)",
-        }}
+        className="input-field resize-y"
       />
-    </div>
+    </label>
   );
 }
 
@@ -599,26 +510,12 @@ function SelectField({
   options: { value: string; label: string }[];
 }) {
   return (
-    <div>
-      <label
-        className="text-[10.5px] uppercase tracking-wider mb-1 block"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 600,
-          letterSpacing: "0.06em",
-        }}
-      >
-        {label}
-      </label>
+    <label className="block">
+      <FieldLabel>{label}</FieldLabel>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg px-3 py-2 text-[14px] focus:outline-none"
-        style={{
-          background: "var(--surface-alt)",
-          color: "var(--foreground)",
-          border: "1px solid var(--border)",
-        }}
+        className="input-field"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -626,6 +523,6 @@ function SelectField({
           </option>
         ))}
       </select>
-    </div>
+    </label>
   );
 }

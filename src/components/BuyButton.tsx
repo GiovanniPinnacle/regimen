@@ -20,6 +20,7 @@
 
 import { useState } from "react";
 import Icon from "@/components/Icon";
+import { buttonClass } from "@/components/ui/Button";
 
 type Props = {
   itemId?: string;
@@ -37,7 +38,7 @@ type Props = {
   source?: string;
   /** "23 others on Regimen take this" — driven by aggregated DB query. */
   othersCount?: number;
-  /** Visual variant. "primary" = gold gradient hero. "compact" = pill. */
+  /** Visual variant. "primary" = full-width gold CTA. "compact" = small pill. */
   variant?: "primary" | "compact";
   /** Optional override label. Default: "Get this" / "Order now". */
   label?: string;
@@ -108,21 +109,21 @@ export default function BuyButton({
   if (variant === "compact") {
     return (
       <button
+        type="button"
         onClick={handleClick}
         disabled={busy}
-        className="text-[12.5px] px-3 py-1.5 rounded-lg flex items-center gap-1.5 active:scale-[0.97] transition-transform"
-        style={{
-          background: "var(--premium)",
-          color: "#FFFFFF",
-          fontWeight: 700,
-          opacity: busy ? 0.6 : 1,
-        }}
+        aria-busy={busy || undefined}
+        className={buttonClass({
+          variant: "premium",
+          size: "sm",
+          className: `relative font-semibold before:absolute before:-inset-y-1 before:inset-x-0 before:content-[''] ${
+            busy ? "opacity-60" : ""
+          }`,
+        })}
       >
-        <Icon name="shopping-bag" size={11} strokeWidth={2.2} />
-        {busy ? "…" : (label ?? "Get this")}
-        {price && (
-          <span style={{ opacity: 0.85, fontWeight: 600 }}>{price}</span>
-        )}
+        <Icon name="shopping-bag" size={14} strokeWidth={2} />
+        <span>{busy ? "Opening…" : (label ?? "Get this")}</span>
+        {price && <span className="tabular-nums opacity-80">{price}</span>}
       </button>
     );
   }
@@ -131,61 +132,47 @@ export default function BuyButton({
   const displayVendor = effectiveVendor;
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       <button
+        type="button"
         onClick={handleClick}
         disabled={busy}
-        className="w-full px-4 py-3 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--premium) 0%, var(--premium-deep) 100%)",
-          color: "#FFFFFF",
-          fontWeight: 700,
-          boxShadow: "0 6px 20px var(--premium-glow)",
-          opacity: busy ? 0.6 : 1,
-        }}
+        aria-busy={busy || undefined}
+        className={buttonClass({
+          variant: "premium",
+          size: "lg",
+          fullWidth: true,
+          className: busy ? "opacity-60" : "",
+        })}
       >
-        <Icon name="shopping-bag" size={14} strokeWidth={2.2} />
-        <span className="text-[14.5px]">
-          {busy ? "Opening…" : (label ?? "Get this")}
-        </span>
+        <Icon name="shopping-bag" size={18} strokeWidth={1.9} />
+        <span>{busy ? "Opening…" : (label ?? "Get this")}</span>
         {displayVendor && (
-          <span
-            className="text-[12px]"
-            style={{ opacity: 0.92, fontWeight: 600 }}
-          >
+          <span className="truncate text-callout font-medium opacity-80">
             · {displayVendor}
           </span>
         )}
         {price && (
-          <span
-            className="text-[12.5px] tabular-nums ml-1"
-            style={{ opacity: 0.9, fontWeight: 700 }}
-          >
+          <span className="ml-1 text-callout font-semibold tabular-nums opacity-90">
             {price}
           </span>
         )}
       </button>
-      <div
-        className="flex items-center justify-between gap-2 px-1 mt-0.5"
-        style={{ color: "var(--muted)" }}
-      >
-        <span className="text-[10.5px] flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 px-1 text-caption text-[var(--muted)]">
+        <span className="flex items-center gap-1">
           {othersCount != null && othersCount > 0 ? (
             <>
-              <Icon name="award" size={9} strokeWidth={2} />
+              <Icon name="award" size={12} strokeWidth={2} />
               {othersCount} others on Regimen take this
             </>
           ) : (
             <>
-              <Icon name="check-circle" size={9} strokeWidth={2} />
+              <Icon name="check-circle" size={12} strokeWidth={2} />
               Vetted by Coach against your stack
             </>
           )}
         </span>
-        <span className="text-[10px]" style={{ opacity: 0.7 }}>
-          We may earn a small commission
-        </span>
+        <span>We may earn a small commission</span>
       </div>
     </div>
   );

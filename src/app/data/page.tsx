@@ -1,13 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { SectionHeader } from "@/components/ui/Section";
 
 export default function DataPage() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(
+    null,
+  );
   const [imported, setImported] = useState(false);
 
   async function handleUpload() {
@@ -22,10 +29,16 @@ export default function DataPage() {
     });
     const data = await res.json();
     if (data.ok) {
-      setResult(`✓ Imported ${data.inserted} days of Oura data`);
+      setResult({
+        ok: true,
+        text: `Imported ${data.inserted} days of Oura data`,
+      });
       setImported(true);
     } else {
-      setResult(`Error: ${data.error ?? "unknown"}`);
+      setResult({
+        ok: false,
+        text: `Couldn't import that file${data.error ? ` — ${data.error}` : ""}`,
+      });
     }
     setUploading(false);
   }
@@ -46,193 +59,102 @@ export default function DataPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            You
-          </Link>
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Data imports
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Bring in Oura, bloodwork, and CGM data so Coach has the full picture
-          when it refines your stack.
+      <PageHeader
+        title="Import data"
+        back="/you"
+        backLabel="You"
+        subtitle="Bring in sleep, bloodwork and glucose data so Coach has the full picture."
+      />
+
+      <SectionHeader title="Oura export" className="!mt-0" />
+      <Card padding="lg" className="flex flex-col gap-4">
+        <p className="text-callout text-[var(--foreground-soft)]">
+          In the Oura app, go to Home → More → Export data and choose CSV.
+          We&apos;ll bring in readiness, HRV, resting heart rate, sleep stages
+          and temperature.
         </p>
-      </header>
-
-      <section className="mb-7">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-          }}
-        >
-          Oura CSV
-        </h2>
-        <div className="rounded-2xl card-glass p-4 flex flex-col gap-3">
-          <div className="text-[13px]" style={{ color: "var(--muted)" }}>
-            In the Oura app: Home → ••• → Export Data → CSV. We parse date,
-            readiness, HRV, RHR, deep/REM/total sleep, temp deviation.
-          </div>
-          <label
-            className="rounded-lg p-3 cursor-pointer text-[13px] block text-center"
-            style={{
-              border: "1px dashed var(--border-strong)",
-              color: "var(--foreground)",
-            }}
-          >
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-            {file ? `Selected: ${file.name}` : "Tap to pick a CSV"}
-          </label>
-          <button
-            onClick={handleUpload}
-            disabled={!file || uploading}
-            className="px-4 py-2.5 rounded-lg text-[14px]"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 500,
-              opacity: !file || uploading ? 0.5 : 1,
-            }}
-          >
-            {uploading ? "Uploading…" : "Import"}
-          </button>
-          {result && (
-            <div className="text-[13px]" style={{ color: "var(--muted)" }}>
-              {result}
-            </div>
-          )}
-        </div>
-        {imported && (
-          <button
-            onClick={fireCoachAnalyze}
-            className="w-full mt-3 rounded-2xl card-glass p-3.5 flex items-center gap-2.5 active:scale-[0.99] transition-transform text-left"
-          >
-            <span
-              className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
-              style={{
-                background: "var(--pro-tint)",
-                color: "var(--pro)",
-              }}
-            >
-              <Icon name="sparkle" size={16} strokeWidth={1.8} />
-            </span>
-            <div className="flex-1 min-w-0">
-              <div
-                className="text-[13.5px] leading-snug"
-                style={{ fontWeight: 600 }}
-              >
-                Have Coach analyze the import
-              </div>
-              <div
-                className="text-[11.5px] mt-0.5 leading-snug"
-                style={{ color: "var(--muted)" }}
-              >
-                Find one trend worth your attention
-              </div>
-            </div>
-            <Icon
-              name="chevron-right"
-              size={14}
-              className="shrink-0 opacity-50"
-            />
-          </button>
-        )}
-      </section>
-
-      <section className="mb-7">
-        <div className="flex items-baseline justify-between mb-3">
-          <h2
-            className="text-[11px] uppercase tracking-wider"
-            style={{
-              color: "var(--muted)",
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-            }}
-          >
-            Bloodwork PDF
-          </h2>
-          <span
-            className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-            style={{
-              background: "var(--pro-tint)",
-              color: "var(--pro)",
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-            }}
-          >
-            Live
-          </span>
-        </div>
-        <Link
-          href="/tests"
-          className="rounded-2xl card-glass p-4 text-[13px] flex items-center gap-3 pressable"
-          style={{ color: "var(--muted)" }}
-        >
-          <span className="flex-1 min-w-0">
-            Upload any bloodwork PDF (Function Health, InsideTracker, Marek,
-            LabCorp, Quest) and Coach extracts every biomarker into a
-            trendable timeline. Upload on the Tests page.
-          </span>
-          <Icon
-            name="chevron-right"
-            size={14}
-            className="shrink-0 opacity-50"
+        <label className="flex min-h-[64px] cursor-pointer items-center justify-center gap-2 rounded-[14px] border border-dashed border-[var(--border-strong)] bg-[var(--surface-alt)] px-4 py-3 text-callout font-medium active:scale-[0.99] transition-transform">
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="sr-only"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
-        </Link>
-      </section>
-
-      <section>
-        <div className="flex items-baseline justify-between mb-3">
-          <h2
-            className="text-[11px] uppercase tracking-wider"
-            style={{
-              color: "var(--muted)",
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-            }}
-          >
-            CGM data
-          </h2>
-          <span
-            className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-            style={{
-              background: "var(--surface-alt)",
-              color: "var(--muted)",
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-            }}
-          >
-            Coming
-          </span>
-        </div>
-        <div
-          className="rounded-2xl card-glass p-4 text-[13px]"
-          style={{ color: "var(--muted)" }}
+          <Icon
+            name={file ? "file-text" : "upload"}
+            size={18}
+            strokeWidth={1.8}
+            className="shrink-0 text-[var(--foreground-soft)]"
+          />
+          <span className="truncate">{file ? file.name : "Choose a CSV file"}</span>
+        </label>
+        <Button
+          onClick={handleUpload}
+          disabled={!file}
+          loading={uploading}
+          fullWidth
+          className="disabled:opacity-50"
         >
-          Stelo / Levels / Dexcom data export. Correlate glucose spikes with
-          meal photos, sleep, and protocol changes.
+          {uploading ? "Importing…" : "Import"}
+        </Button>
+        {result && (
+          <p
+            role="status"
+            className={`flex items-center gap-1.5 text-footnote ${
+              result.ok ? "text-[var(--success)]" : "text-[var(--error)]"
+            }`}
+          >
+            <Icon
+              name={result.ok ? "check-circle" : "alert"}
+              size={15}
+              strokeWidth={2}
+              className="shrink-0"
+            />
+            {result.text}
+          </p>
+        )}
+      </Card>
+      {imported && (
+        <ListGroup className="mt-3">
+          <ListRow
+            icon="sparkle"
+            iconTone="coach"
+            title="Have Coach look at it"
+            subtitle="Find one trend worth your attention"
+            chevron
+            onClick={fireCoachAnalyze}
+          />
+        </ListGroup>
+      )}
+
+      <SectionHeader title="Bloodwork" />
+      <ListGroup>
+        <ListRow
+          href="/tests"
+          icon="test-tube"
+          title="Upload a lab report"
+          subtitle="Any PDF — every marker becomes a trend"
+        />
+      </ListGroup>
+      <p className="mt-2 px-4 text-footnote text-[var(--muted)]">
+        Works with reports from most labs and testing services.
+      </p>
+
+      <SectionHeader title="Continuous glucose" />
+      <Card padding="md" className="flex items-start gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-alt)] text-[var(--muted)]">
+          <Icon name="droplet" size={17} strokeWidth={1.8} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-body font-medium">Glucose monitors</span>
+            <Chip size="sm">Coming soon</Chip>
+          </div>
+          <p className="mt-0.5 text-footnote text-[var(--muted)]">
+            See how meals, sleep and routine changes move your glucose.
+          </p>
         </div>
-      </section>
+      </Card>
     </div>
   );
 }

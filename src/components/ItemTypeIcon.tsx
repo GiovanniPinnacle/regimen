@@ -13,20 +13,13 @@ import type { ItemType } from "@/lib/types";
 
 type Tone = "neutral" | "accent" | "pro" | "premium";
 
-const TONE_BG: Record<Tone, string> = {
-  neutral: "var(--surface-alt)",
+const TONE_CLS: Record<Tone, string> = {
+  neutral: "bg-[var(--surface-alt)] text-[var(--foreground-soft)]",
   // "accent" = emphasized neutral (detail headers). Green is reserved
   // for success, so it no longer tints type icons.
-  accent: "var(--surface-alt)",
-  pro: "var(--pro-tint)",
-  premium: "var(--premium-tint)",
-};
-
-const TONE_FG: Record<Tone, string> = {
-  neutral: "var(--foreground-soft)",
-  accent: "var(--foreground)",
-  pro: "var(--pro)",
-  premium: "var(--premium)",
+  accent: "bg-[var(--surface-alt)] text-[var(--foreground)]",
+  pro: "bg-[var(--pro-tint)] text-[var(--pro)]",
+  premium: "bg-[var(--premium-tint)] text-[var(--premium)]",
 };
 
 type Props = {
@@ -47,16 +40,11 @@ export default function ItemTypeIcon({
   return (
     <span
       aria-hidden
+      className={`inline-flex shrink-0 items-center justify-center ${TONE_CLS[tone]}`}
       style={{
         width: size,
         height: size,
         borderRadius: Math.max(6, Math.round(size * 0.32)),
-        background: TONE_BG[tone],
-        color: TONE_FG[tone],
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
       }}
     >
       <Icon name={iconName} size={iconSize} strokeWidth={1.7} />

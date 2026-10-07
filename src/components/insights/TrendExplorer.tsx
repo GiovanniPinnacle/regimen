@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import LineChart from "@/components/charts/LineChart";
 import MetricDelta from "@/components/MetricDelta";
 import { Stat } from "@/components/ui/Section";
-import Segmented from "@/components/insights/Segmented";
+import Segmented from "@/components/ui/Segmented";
 import { addDaysISO } from "@/lib/series";
 import { METRICS, type MetricKey } from "@/lib/insights/metrics";
 import type { HubModel, TrendMetric } from "@/lib/insights/hub";
@@ -68,6 +68,7 @@ export default function TrendExplorer({
     <div>
       <Segmented
         ariaLabel="Metric"
+        variant="pill"
         options={OPTIONS}
         value={metric}
         onChange={setMetric}
@@ -80,6 +81,7 @@ export default function TrendExplorer({
         </span>
         <Segmented
           ariaLabel="Range"
+          variant="pill"
           size="sm"
           options={[
             { value: "30", label: "30D" },

@@ -15,6 +15,11 @@
 
 import { useState } from "react";
 import Icon from "@/components/Icon";
+import EmptyGlyph from "@/components/EmptyGlyph";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import { Eyebrow } from "@/components/ui/Section";
 import { showToast } from "@/lib/toast";
 import { localDateISO } from "@/lib/series";
 
@@ -167,40 +172,40 @@ export default function BloodworkUpload({
 
   if (!parsed) {
     return (
-      <button
-        onClick={pickFile}
-        disabled={parsing}
-        className="w-full rounded-2xl card-glass p-4 flex items-center justify-center gap-2.5"
-        style={{
-          border: "1.5px dashed var(--border-strong)",
-          minHeight: 88,
-          opacity: parsing ? 0.6 : 1,
-        }}
+      <Card
+        padding="lg"
+        className="flex flex-col items-center gap-3 border-dashed border-[var(--border-strong)] text-center"
+        aria-busy={parsing || undefined}
       >
+        <EmptyGlyph icon={parsing ? "file-text" : "upload"} tone="muted" size={48} />
         {parsing ? (
-          <span
-            className="text-[14px]"
-            style={{ color: "var(--muted)" }}
-          >
-            Parsing… (~10s)
-          </span>
-        ) : (
-          <>
-            <Icon name="camera" size={20} strokeWidth={1.7} />
-            <div className="text-left">
-              <div className="text-[14px]" style={{ fontWeight: 700 }}>
-                Upload bloodwork
-              </div>
-              <div
-                className="text-[11.5px]"
-                style={{ color: "var(--muted)" }}
-              >
-                Photo or PDF — Coach extracts every marker
-              </div>
+          <div className="w-full" role="status" aria-live="polite">
+            <div className="text-callout font-semibold">Reading your results…</div>
+            <div className="mt-0.5 text-caption text-[var(--muted)]">
+              This usually takes about 10 seconds.
             </div>
-          </>
+            <div className="mx-auto mt-3 h-1 w-40 overflow-hidden rounded-full bg-[var(--surface-alt)]">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-[var(--foreground-soft)]" />
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="text-callout font-semibold">Add a lab report</div>
+            <div className="mt-0.5 text-caption text-[var(--muted)]">
+              Photo or PDF — Coach pulls out every marker for you to review.
+            </div>
+          </div>
         )}
-      </button>
+        <Button
+          variant="primary"
+          icon="camera"
+          onClick={pickFile}
+          loading={parsing}
+          fullWidth
+        >
+          {parsing ? "Reading…" : "Upload bloodwork"}
+        </Button>
+      </Card>
     );
   }
 
@@ -209,69 +214,55 @@ export default function BloodworkUpload({
   ).length;
 
   return (
-    <section className="rounded-2xl card-glass p-4 mb-4">
-      <header className="flex items-baseline justify-between gap-2 mb-3">
-        <div>
-          <div
-            className="text-[10px] uppercase tracking-wider"
-            style={{
-              color: "var(--accent)",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            Review parse
-          </div>
-          <div
-            className="text-[15px] mt-0.5"
-            style={{ fontWeight: 600 }}
-          >
+    <Card padding="md" className="mb-4">
+      <header className="mb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <Eyebrow>Review results</Eyebrow>
+          <div className="mt-0.5 text-body font-semibold">
             {parsed.biomarkers.length} markers found
           </div>
+          <div className="mt-0.5 text-caption text-[var(--muted)]">
+            Uncheck anything that looks wrong, or fix a value before saving.
+          </div>
         </div>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => setParsed(null)}
-          className="text-[11.5px] underline"
-          style={{ color: "var(--muted)" }}
+          className="relative -mr-2 shrink-0 before:absolute before:-inset-1 before:content-['']"
         >
           Cancel
-        </button>
+        </Button>
       </header>
 
-      <div className="grid grid-cols-2 gap-2 mb-3">
+      <div className="mb-3 grid grid-cols-2 gap-2">
         <div>
           <label
-            className="text-[10px] uppercase tracking-wider mb-1 block"
-            style={{ color: "var(--muted)", fontWeight: 600 }}
+            htmlFor="bloodwork-drawn-on"
+            className="mb-1 block text-caption font-medium text-[var(--muted)]"
           >
             Drawn on
           </label>
           <input
+            id="bloodwork-drawn-on"
             type="date"
             value={drawnOn}
             onChange={(e) => setDrawnOn(e.target.value)}
-            className="w-full rounded-lg px-3 py-2 text-[13px]"
-            style={{
-              background: "var(--surface-alt)",
-              border: "1px solid var(--border)",
-            }}
+            className="input-field"
           />
         </div>
         <div>
           <label
-            className="text-[10px] uppercase tracking-wider mb-1 block"
-            style={{ color: "var(--muted)", fontWeight: 600 }}
+            htmlFor="bloodwork-lab"
+            className="mb-1 block text-caption font-medium text-[var(--muted)]"
           >
             Lab
           </label>
           <select
+            id="bloodwork-lab"
             value={labSource}
             onChange={(e) => setLabSource(e.target.value)}
-            className="w-full rounded-lg px-3 py-2 text-[13px]"
-            style={{
-              background: "var(--surface-alt)",
-              border: "1px solid var(--border)",
-            }}
+            className="input-field"
           >
             <option value="function">Function Health</option>
             <option value="quest">Quest</option>
@@ -281,123 +272,77 @@ export default function BloodworkUpload({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5 mb-3">
+      <ul className="mb-3 flex flex-col gap-1.5">
         {parsed.biomarkers.map((m) => {
           const isExcluded = excluded.has(m.name);
-          const flagColor =
-            m.flag === "H"
-              ? "var(--error)"
-              : m.flag === "L"
-                ? "var(--warn)"
-                : "var(--olive)";
+          const label = m.display_name || m.name;
+          const flagTone =
+            m.flag === "H" ? "danger" : m.flag === "L" ? "warn" : "neutral";
           return (
-            <div
+            <li
               key={m.name}
-              className="rounded-lg px-3 py-2 flex items-center gap-2"
-              style={{
-                background: isExcluded ? "transparent" : "var(--surface-alt)",
-                border: "1px solid var(--border)",
-                opacity: isExcluded ? 0.4 : 1,
-              }}
+              className={`flex min-h-[52px] items-center gap-2.5 rounded-[14px] border border-[var(--border)] px-3 py-2 transition-opacity ${
+                isExcluded ? "bg-transparent opacity-45" : "bg-[var(--surface-alt)]"
+              }`}
             >
               <button
+                type="button"
+                role="checkbox"
+                aria-checked={!isExcluded}
+                aria-label={`Include ${label}`}
                 onClick={() => toggleExcluded(m.name)}
-                className="shrink-0 h-5 w-5 rounded-md flex items-center justify-center"
-                style={{
-                  background: isExcluded
-                    ? "transparent"
-                    : "var(--olive)",
-                  border: "1.5px solid",
-                  borderColor: isExcluded
-                    ? "var(--border-strong)"
-                    : "var(--olive)",
-                }}
-                aria-label={isExcluded ? "Include" : "Exclude"}
+                className={`relative flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] border-[1.5px] before:absolute before:-inset-2.5 before:content-[''] ${
+                  isExcluded
+                    ? "border-[var(--border-strong)] bg-transparent"
+                    : "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-fg)]"
+                }`}
               >
-                {!isExcluded && (
-                  <svg
-                    width="11"
-                    height="11"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#FFFFFF"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M5 12l5 5L20 7" />
-                  </svg>
-                )}
+                {!isExcluded && <Icon name="check" size={14} strokeWidth={3} />}
               </button>
-              <div className="flex-1 min-w-0">
-                <div
-                  className="text-[13px] leading-tight"
-                  style={{ fontWeight: 600 }}
-                >
-                  {m.display_name || m.name}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-footnote font-semibold leading-tight">
+                  {label}
                 </div>
                 {m.reference_range && (
-                  <div
-                    className="text-[10.5px] mt-0.5"
-                    style={{ color: "var(--muted)" }}
-                  >
+                  <div className="mt-0.5 text-caption text-[var(--muted)]">
                     Ref: {m.reference_range}
                   </div>
                 )}
               </div>
               <input
                 type="number"
+                inputMode="decimal"
+                aria-label={`${label} value`}
                 value={m.value}
                 onChange={(e) =>
                   updateValue(m.name, "value", e.target.value)
                 }
                 step="any"
-                className="w-20 rounded-md px-2 py-1 text-[12.5px] tabular-nums text-right"
-                style={{
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  fontWeight: 700,
-                }}
+                className="h-11 w-20 rounded-[10px] border border-[var(--border-input)] bg-[var(--surface)] px-2 text-right text-footnote font-semibold tabular-nums focus:border-[var(--border-strong)] focus:outline-none"
               />
-              <span
-                className="text-[10.5px] shrink-0"
-                style={{ color: "var(--muted)" }}
-              >
+              <span className="shrink-0 text-caption text-[var(--muted)]">
                 {m.unit}
               </span>
               {m.flag && (
-                <span
-                  className="text-[9px] uppercase px-1.5 rounded-full shrink-0"
-                  style={{
-                    background: flagColor,
-                    color: "#FFFFFF",
-                    fontWeight: 700,
-                    minWidth: 22,
-                    textAlign: "center",
-                  }}
-                >
+                <Chip tone={flagTone} className="shrink-0 justify-center">
                   {m.flag}
-                </span>
+                </Chip>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
 
-      <button
+      <Button
+        variant="primary"
+        fullWidth
         onClick={save}
-        disabled={saving || visibleCount === 0}
-        className="w-full px-4 py-3 rounded-xl text-[14px]"
-        style={{
-          background: "var(--primary)",
-          color: "var(--primary-fg)",
-          fontWeight: 700,
-          opacity: saving || visibleCount === 0 ? 0.5 : 1,
-          minHeight: 44,
-        }}
+        loading={saving}
+        disabled={visibleCount === 0}
+        className="disabled:opacity-50"
       >
         {saving ? "Saving…" : `Save ${visibleCount} marker${visibleCount === 1 ? "" : "s"}`}
-      </button>
-    </section>
+      </Button>
+    </Card>
   );
 }

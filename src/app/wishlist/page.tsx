@@ -3,62 +3,38 @@
 // /wishlist — items the user is considering. No commitment until promoted
 // to a real stack item.
 //
-// Polished v2 (2026-05-04):
-//   - Sticky filter / sort header with running totals
-//   - Compact rows with inline cost stepper, priority dot, Buy button
-//   - Tap a row to expand inline (notes, link, full controls); no nav
-//   - Undo toast on remove (no more silent destructive delete)
-//   - "Got it" button archives the row (also undo-able)
-//   - Bulk select via header toggle — promote/remove many at once
-//   - Sort: priority (default) / price hi→lo / price lo→hi / newest
-//   - Category filter chips (auto-derived from items)
-//   - Buy CTA falls back to Amazon search via /api/affiliates/click
+//   - Sticky sort / category chips with running totals
+//   - Compact rows (WishRow.tsx): priority dot, price, tap to expand inline
+//   - Undo toast on remove; "Got it" also removes with undo
+//   - Long-press a row for bulk select — add to stack / remove many at once
+//   - Buy falls back to an Amazon search via /api/affiliates/click
+//   - Add form lives in a bottom sheet (AddWishlistSheet.tsx)
 //
 // Schema fits within migration 008 (no new column needed). "Got it" uses
 // `delete with undo` rather than a soft-archive column.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { WishlistItem, WishlistPriority } from "@/lib/types";
-import Icon from "@/components/Icon";
-import CostStepper from "@/components/CostStepper";
 import { showToast } from "@/lib/toast";
-
-const PRIORITY_ORDER: WishlistPriority[] = ["high", "medium", "low"];
-const PRIORITY_META: Record<
-  WishlistPriority,
-  { label: string; accent: string; dot: string }
-> = {
-  high: {
-    label: "High",
-    accent: "var(--error)",
-    dot: "var(--error)",
-  },
-  medium: {
-    label: "Med",
-    accent: "var(--premium)",
-    dot: "var(--premium)",
-  },
-  low: {
-    label: "Low",
-    accent: "var(--muted)",
-    dot: "var(--border-strong)",
-  },
-};
-const PRIORITY_RANK: Record<WishlistPriority, number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-};
-
-type SortMode = "priority" | "price_desc" | "price_asc" | "newest";
-const SORT_LABELS: Record<SortMode, string> = {
-  priority: "Priority",
-  price_desc: "$ High → Low",
-  price_asc: "$ Low → High",
-  newest: "Newest",
-};
+import Icon from "@/components/Icon";
+import EmptyGlyph from "@/components/EmptyGlyph";
+import { SkeletonCard } from "@/components/Skeleton";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Button, { IconButton } from "@/components/ui/Button";
+import { ChipButton } from "@/components/ui/Chip";
+import { SectionHeader, Stat } from "@/components/ui/Section";
+import WishRow from "./WishRow";
+import AddWishlistSheet from "./AddWishlistSheet";
+import {
+  PRIORITY_META,
+  PRIORITY_ORDER,
+  PRIORITY_RANK,
+  SORT_LABELS,
+  fmtDollars,
+  type SortMode,
+} from "./shared";
 
 export default function WishlistPage() {
   const [items, setItems] = useState<WishlistItem[]>([]);
@@ -122,7 +98,7 @@ export default function WishlistPage() {
     }, 5000);
 
     showToast(
-      action === "got" ? `${item.name} marked as got` : `${item.name} removed`,
+      action === "got" ? `Got ${item.name}` : `${item.name} removed`,
       {
         tone: action === "got" ? "success" : "default",
         duration: 4500,
@@ -287,268 +263,189 @@ export default function WishlistPage() {
     .reduce((s, i) => s + (Number(i.est_cost) || 0), 0);
   const inSelectMode = selected.size > 0;
 
+  const header = (
+    <PageHeader
+      title="Wishlist"
+      back="/you"
+      backLabel="You"
+      subtitle="Things you're considering. Nothing joins your stack until you say so."
+      actions={
+        <button
+          type="button"
+          onClick={() => setShowAdd(true)}
+          aria-label="Add to wishlist"
+          className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-fg)] before:absolute before:-inset-1 before:content-[''] active:scale-95"
+        >
+          <Icon name="plus" size={20} strokeWidth={2.2} />
+        </button>
+      }
+    />
+  );
+
   if (loading) {
     return (
-      <div className="py-12 text-center" style={{ color: "var(--muted)" }}>
-        Loading…
+      <div className="pb-28" aria-busy>
+        {header}
+        <SkeletonCard height={92} />
+        <div className="mt-6 flex flex-col gap-2">
+          {[0, 1, 2, 3].map((k) => (
+            <SkeletonCard key={k} height={60} />
+          ))}
+        </div>
       </div>
     );
   }
 
+  function toggleSelect(id: string) {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+
+  const row = (item: WishlistItem) => (
+    <WishRow
+      key={item.id}
+      item={item}
+      expanded={expandedId === item.id}
+      selected={selected.has(item.id)}
+      inSelectMode={inSelectMode}
+      onExpand={() => setExpandedId((p) => (p === item.id ? null : item.id))}
+      onSelect={() => toggleSelect(item.id)}
+      onPromote={() => promoteWithCoach(item)}
+      onRemove={() => softDelete(item.id, "remove")}
+      onGotIt={() => softDelete(item.id, "got")}
+      onSetPriority={(np: WishlistPriority) => setPriority(item.id, np)}
+      onSetCost={(c) => setEstCost(item.id, c)}
+    />
+  );
+
   return (
     <div className="pb-28">
-      <header className="mb-4">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            You
-          </Link>
-        </div>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1
-              className="text-[32px] leading-tight"
-              style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-            >
-              Wishlist
-            </h1>
-            <p
-              className="text-[12.5px] mt-1 leading-relaxed"
-              style={{ color: "var(--muted)" }}
-            >
-              {items.length} {items.length === 1 ? "item" : "items"}
-              {totalEst > 0 ? (
-                <>
-                  {" · "}
-                  <span style={{ fontWeight: 600, color: "var(--foreground)" }}>
-                    ${Math.round(totalEst).toLocaleString()}
-                  </span>{" "}
-                  <span style={{ opacity: 0.7 }}>total</span>
-                </>
-              ) : null}
-              {highEst > 0 && highEst < totalEst ? (
-                <>
-                  {" · "}
-                  <span style={{ color: "var(--error)", fontWeight: 600 }}>
-                    ${Math.round(highEst).toLocaleString()}
-                  </span>{" "}
-                  <span style={{ opacity: 0.7 }}>high pri</span>
-                </>
-              ) : null}
-            </p>
-          </div>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="text-[12.5px] px-3 py-2 rounded-xl flex items-center gap-1.5 shrink-0"
-            style={{
-              background: "var(--pro)",
-              color: "#FFFFFF",
-              fontWeight: 700,
-              minHeight: 36,
-            }}
-          >
-            <Icon name="plus" size={12} strokeWidth={2.4} />
-            Add
-          </button>
-        </div>
-      </header>
+      {header}
 
-      {showAdd && (
-        <AddWishlistInline
-          knownCategories={allCategories}
-          onCreated={(item) => {
-            setItems((prev) => [item, ...prev]);
-            setShowAdd(false);
-          }}
-          onCancel={() => setShowAdd(false)}
-        />
+      <AddWishlistSheet
+        open={showAdd}
+        knownCategories={allCategories}
+        onCreated={(item) => {
+          setItems((prev) => [item, ...prev]);
+          setShowAdd(false);
+        }}
+        onCancel={() => setShowAdd(false)}
+      />
+
+      {items.length > 0 && (
+        <Card padding="md">
+          <div className="grid grid-cols-3 gap-3">
+            <Stat size="sm" label="Items" value={items.length} />
+            <Stat
+              size="sm"
+              label="Total"
+              value={totalEst > 0 ? fmtDollars(totalEst) : "—"}
+              sub={totalEst > 0 ? "estimated" : "add costs"}
+            />
+            <Stat
+              size="sm"
+              label="High priority"
+              value={highEst > 0 ? fmtDollars(highEst) : "—"}
+              sub={`${groupedByPriority.high.length || "no"} ${
+                groupedByPriority.high.length === 1 ? "item" : "items"
+              }`}
+            />
+          </div>
+        </Card>
       )}
 
       {items.length > 0 && (
-        <div
-          className="sticky top-0 z-10 -mx-5 px-5 pt-1 pb-2 mb-3"
-          style={{
-            background:
-              "linear-gradient(to bottom, var(--background) 0%, var(--background) 80%, transparent 100%)",
-          }}
-        >
-          <div className="flex gap-1.5 overflow-x-auto pb-1.5 -mx-5 px-5">
-            {(Object.keys(SORT_LABELS) as SortMode[]).map((s) => {
-              const active = sort === s;
-              return (
-                <button
-                  key={s}
-                  onClick={() => setSort(s)}
-                  className="text-[11.5px] px-2.5 py-1.5 rounded-full whitespace-nowrap transition-all"
-                  style={{
-                    background: active
-                      ? "var(--foreground)"
-                      : "var(--surface-glass)",
-                    color: active ? "var(--background)" : "var(--muted)",
-                    border: active
-                      ? "1px solid var(--foreground)"
-                      : "1px solid var(--border)",
-                    fontWeight: active ? 700 : 500,
-                    minHeight: 30,
-                  }}
-                >
-                  {SORT_LABELS[s]}
-                </button>
-              );
-            })}
+        <div className="sticky top-0 z-10 -mx-5 mt-4 bg-[var(--background)] px-5 pt-2 pb-2">
+          <div
+            className="-mx-5 flex gap-2 overflow-x-auto px-5 py-1.5"
+            role="group"
+            aria-label="Sort and filter"
+          >
+            {(Object.keys(SORT_LABELS) as SortMode[]).map((s) => (
+              <ChipButton
+                key={s}
+                selected={sort === s}
+                onClick={() => setSort(s)}
+              >
+                {SORT_LABELS[s]}
+              </ChipButton>
+            ))}
             {allCategories.length > 0 && (
               <>
-                <div
+                <span
                   aria-hidden
-                  className="self-center"
-                  style={{
-                    width: 1,
-                    height: 16,
-                    background: "var(--border)",
-                  }}
+                  className="h-4 w-px shrink-0 self-center bg-[var(--border)]"
                 />
-                <button
+                <ChipButton
+                  selected={categoryFilter === "all"}
                   onClick={() => setCategoryFilter("all")}
-                  className="text-[11.5px] px-2.5 py-1.5 rounded-full whitespace-nowrap"
-                  style={{
-                    background:
-                      categoryFilter === "all"
-                        ? "var(--foreground)"
-                        : "var(--surface-glass)",
-                    color:
-                      categoryFilter === "all"
-                        ? "var(--background)"
-                        : "var(--muted)",
-                    border: "1px solid var(--border)",
-                    fontWeight: categoryFilter === "all" ? 700 : 500,
-                    minHeight: 30,
-                  }}
                 >
                   All
-                </button>
-                {allCategories.map((c) => {
-                  const active = categoryFilter === c;
-                  return (
-                    <button
-                      key={c}
-                      onClick={() => setCategoryFilter(c)}
-                      className="text-[11.5px] px-2.5 py-1.5 rounded-full whitespace-nowrap"
-                      style={{
-                        background: active
-                          ? "var(--foreground)"
-                          : "var(--surface-glass)",
-                        color: active ? "var(--background)" : "var(--muted)",
-                        border: "1px solid var(--border)",
-                        fontWeight: active ? 700 : 500,
-                        minHeight: 30,
-                      }}
-                    >
-                      {c}
-                    </button>
-                  );
-                })}
+                </ChipButton>
+                {allCategories.map((c) => (
+                  <ChipButton
+                    key={c}
+                    selected={categoryFilter === c}
+                    onClick={() => setCategoryFilter(c)}
+                    className="capitalize"
+                  >
+                    {c}
+                  </ChipButton>
+                ))}
               </>
             )}
           </div>
           {categoryFilter !== "all" && filteredEst !== totalEst && (
-            <div
-              className="text-[11px] mt-1 tabular-nums"
-              style={{ color: "var(--muted)" }}
-            >
-              {filtered.length} matched · ${Math.round(filteredEst).toLocaleString()}
+            <div className="mt-1 text-caption tabular-nums text-[var(--muted)]">
+              {filtered.length} shown · {fmtDollars(filteredEst)}
+            </div>
+          )}
+
+          {/* Bulk action bar — only when items selected */}
+          {inSelectMode && (
+            <div className="mt-2 flex items-center justify-between gap-2 rounded-[14px] border border-[var(--border-strong)] bg-[var(--surface-alt)] py-1.5 pr-1.5 pl-4 shadow-[var(--shadow-lift)]">
+              <div className="text-callout font-semibold tabular-nums">
+                {selected.size} selected
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button size="sm" variant="secondary" icon="sparkle" onClick={bulkPromote} className="min-h-[44px]">
+                  Add to stack
+                </Button>
+                <Button size="sm" variant="destructive" icon="trash" onClick={bulkRemove} className="min-h-[44px]">
+                  Remove
+                </Button>
+                <IconButton
+                  icon="x"
+                  label="Cancel selection"
+                  tone="plain"
+                  size={36}
+                  iconSize={18}
+                  onClick={() => setSelected(new Set())}
+                />
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Bulk action bar — only when items selected */}
-      {inSelectMode && (
-        <div
-          className="sticky top-[60px] z-10 mb-3 rounded-2xl px-3 py-2.5 flex items-center justify-between gap-2"
-          style={{
-            background: "var(--foreground)",
-            color: "var(--background)",
-          }}
-        >
-          <div className="text-[13px]" style={{ fontWeight: 600 }}>
-            {selected.size} selected
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={bulkPromote}
-              className="text-[12px] px-3 py-1.5 rounded-lg flex items-center gap-1"
-              style={{
-                background: "var(--pro)",
-                color: "#FFFFFF",
-                fontWeight: 700,
-              }}
-            >
-              <Icon name="sparkle" size={11} strokeWidth={2.2} />
-              Promote
-            </button>
-            <button
-              onClick={bulkRemove}
-              className="text-[12px] px-3 py-1.5 rounded-lg"
-              style={{
-                background: "var(--error)",
-                color: "#FFFFFF",
-                fontWeight: 700,
-              }}
-            >
-              Remove
-            </button>
-            <button
-              onClick={() => setSelected(new Set())}
-              className="text-[12px] px-2 py-1.5 rounded-lg opacity-70"
-              style={{ color: "var(--background)" }}
-              aria-label="Cancel selection"
-            >
-              <Icon name="plus" size={12} className="rotate-45" />
-            </button>
-          </div>
-        </div>
-      )}
-
       {items.length === 0 ? (
-        <div className="rounded-2xl card-glass p-8 text-center">
-          <span
-            className="inline-flex h-12 w-12 rounded-2xl items-center justify-center mb-3"
-            style={{
-              background: "var(--pro-tint)",
-              color: "var(--pro)",
-            }}
-          >
-            <Icon name="star" size={22} strokeWidth={1.7} />
-          </span>
-          <div className="text-[15px]" style={{ fontWeight: 600 }}>
-            Empty wishlist
-          </div>
-          <div
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            Drop something in. No commitment — Coach can decide later if it
-            fits your stack.
-          </div>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="inline-flex items-center gap-1 mt-4 px-4 py-2 rounded-xl text-[13px]"
-            style={{
-              background: "var(--pro)",
-              color: "#FFFFFF",
-              fontWeight: 700,
-            }}
-          >
-            <Icon name="plus" size={12} strokeWidth={2.4} />
-            Add first item
-          </button>
-        </div>
+        <Card padding="xl" className="flex flex-col items-center text-center">
+          <EmptyGlyph icon="star" tone="muted" size={64} />
+          <div className="mt-4 text-title-3">Your wishlist is empty</div>
+          <p className="mt-1 text-callout text-[var(--muted)]">
+            Save anything you&apos;re curious about. Coach can help you decide
+            later whether it fits.
+          </p>
+          <Button className="mt-5" icon="plus" onClick={() => setShowAdd(true)}>
+            Add your first item
+          </Button>
+        </Card>
       ) : sort === "priority" ? (
-        PRIORITY_ORDER.map((p) => {
+        PRIORITY_ORDER.map((p, idx) => {
           const list = groupedByPriority[p];
           if (list.length === 0) return null;
           const meta = PRIORITY_META[p];
@@ -557,595 +454,43 @@ export default function WishlistPage() {
             0,
           );
           return (
-            <section key={p} className="mb-5">
-              <div className="flex items-baseline justify-between mb-2 px-0.5">
-                <h2
-                  className="text-[10.5px] uppercase tracking-wider"
-                  style={{
-                    color: meta.accent,
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                  }}
-                >
-                  {meta.label} · {list.length}
-                </h2>
-                {sectionEst > 0 && (
-                  <span
-                    className="text-[11px] tabular-nums"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    ${Math.round(sectionEst).toLocaleString()}
+            <section key={p}>
+              <SectionHeader
+                className={idx === 0 ? "mt-3" : "mt-6"}
+                title={
+                  <span className="flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: meta.dot }}
+                    />
+                    {meta.long}
+                    <span className="text-footnote font-normal tabular-nums text-[var(--muted)]">
+                      {list.length}
+                    </span>
                   </span>
-                )}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                {list.map((item) => (
-                  <WishRow
-                    key={item.id}
-                    item={item}
-                    expanded={expandedId === item.id}
-                    selected={selected.has(item.id)}
-                    inSelectMode={inSelectMode}
-                    onExpand={() =>
-                      setExpandedId((p) => (p === item.id ? null : item.id))
-                    }
-                    onSelect={() =>
-                      setSelected((s) => {
-                        const n = new Set(s);
-                        if (n.has(item.id)) n.delete(item.id);
-                        else n.add(item.id);
-                        return n;
-                      })
-                    }
-                    onPromote={() => promoteWithCoach(item)}
-                    onRemove={() => softDelete(item.id, "remove")}
-                    onGotIt={() => softDelete(item.id, "got")}
-                    onSetPriority={(np) => setPriority(item.id, np)}
-                    onSetCost={(c) => setEstCost(item.id, c)}
-                  />
-                ))}
-              </div>
+                }
+                action={
+                  sectionEst > 0 ? (
+                    <span className="shrink-0 text-footnote tabular-nums text-[var(--muted)]">
+                      {fmtDollars(sectionEst)}
+                    </span>
+                  ) : undefined
+                }
+              />
+              <div className="flex flex-col gap-2">{list.map(row)}</div>
             </section>
           );
         })
       ) : (
-        <div className="flex flex-col gap-1.5">
-          {sorted.map((item) => (
-            <WishRow
-              key={item.id}
-              item={item}
-              expanded={expandedId === item.id}
-              selected={selected.has(item.id)}
-              inSelectMode={inSelectMode}
-              onExpand={() =>
-                setExpandedId((p) => (p === item.id ? null : item.id))
-              }
-              onSelect={() =>
-                setSelected((s) => {
-                  const n = new Set(s);
-                  if (n.has(item.id)) n.delete(item.id);
-                  else n.add(item.id);
-                  return n;
-                })
-              }
-              onPromote={() => promoteWithCoach(item)}
-              onRemove={() => softDelete(item.id, "remove")}
-              onGotIt={() => softDelete(item.id, "got")}
-              onSetPriority={(np) => setPriority(item.id, np)}
-              onSetCost={(c) => setEstCost(item.id, c)}
-            />
-          ))}
-        </div>
+        <div className="mt-3 flex flex-col gap-2">{sorted.map(row)}</div>
+      )}
+
+      {items.length > 1 && !inSelectMode && (
+        <p className="mt-6 text-center text-caption text-[var(--muted)]">
+          Press and hold an item to select several.
+        </p>
       )}
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// WishRow — compact, dense row. Tap row → expand inline. Long-press → enter
-// bulk-select mode. Buy / Promote / Got it / Remove are inline buttons in
-// the expanded view.
-function WishRow({
-  item,
-  expanded,
-  selected,
-  inSelectMode,
-  onExpand,
-  onSelect,
-  onPromote,
-  onRemove,
-  onGotIt,
-  onSetPriority,
-  onSetCost,
-}: {
-  item: WishlistItem;
-  expanded: boolean;
-  selected: boolean;
-  inSelectMode: boolean;
-  onExpand: () => void;
-  onSelect: () => void;
-  onPromote: () => void;
-  onRemove: () => void;
-  onGotIt: () => void;
-  onSetPriority: (p: WishlistPriority) => void;
-  onSetCost: (n: number | null) => void;
-}) {
-  const meta = PRIORITY_META[item.priority];
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressFired = useRef(false);
-  const [busyBuy, setBusyBuy] = useState(false);
-
-  function startLongPress() {
-    longPressFired.current = false;
-    longPressTimer.current = setTimeout(() => {
-      longPressFired.current = true;
-      onSelect();
-      // Subtle haptic if available — nice native feel on iOS Safari.
-      try {
-        if ("vibrate" in navigator) navigator.vibrate?.(20);
-      } catch {}
-    }, 380);
-  }
-  function cancelLongPress() {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  }
-
-  function handleClickRow() {
-    if (longPressFired.current) {
-      longPressFired.current = false;
-      return;
-    }
-    if (inSelectMode) {
-      onSelect();
-      return;
-    }
-    onExpand();
-  }
-
-  async function handleBuy(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (busyBuy) return;
-    setBusyBuy(true);
-    try {
-      const res = await fetch("/api/affiliates/click", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          itemName: item.name,
-          fallbackUrl: item.url ?? undefined,
-          source: "wishlist",
-        }),
-      });
-      const data = (await res.json()) as { redirectUrl?: string };
-      if (data.redirectUrl) {
-        window.open(data.redirectUrl, "_blank", "noopener,noreferrer");
-      } else if (item.url) {
-        window.open(item.url, "_blank", "noopener,noreferrer");
-      }
-    } catch {
-      if (item.url) {
-        window.open(item.url, "_blank", "noopener,noreferrer");
-      }
-    } finally {
-      setBusyBuy(false);
-    }
-  }
-
-  return (
-    <div
-      onClick={handleClickRow}
-      onPointerDown={startLongPress}
-      onPointerUp={cancelLongPress}
-      onPointerLeave={cancelLongPress}
-      onPointerCancel={cancelLongPress}
-      className="rounded-xl card-glass overflow-hidden transition-all"
-      style={{
-        cursor: "pointer",
-        border: selected
-          ? "1.5px solid var(--pro)"
-          : "1px solid var(--border)",
-        background: selected
-          ? "var(--pro-tint)"
-          : undefined,
-      }}
-    >
-      <div className="flex items-center gap-2.5 px-3 py-2.5">
-        {inSelectMode ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect();
-            }}
-            className="shrink-0 h-5 w-5 rounded-md flex items-center justify-center"
-            style={{
-              background: selected ? "var(--pro)" : "transparent",
-              border: selected
-                ? "1px solid var(--pro)"
-                : "1.5px solid var(--border-strong)",
-            }}
-            aria-label={selected ? "Deselect" : "Select"}
-          >
-            {selected && (
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#FFFFFF"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12l5 5L20 7" />
-              </svg>
-            )}
-          </button>
-        ) : (
-          <span
-            className="shrink-0 h-2 w-2 rounded-full"
-            style={{ background: meta.dot }}
-            aria-label={`${meta.label} priority`}
-          />
-        )}
-        <div className="flex-1 min-w-0">
-          <div
-            className="text-[14px] leading-tight truncate"
-            style={{ fontWeight: 600 }}
-          >
-            {item.name}
-          </div>
-          {(item.category || item.notes) && !expanded && (
-            <div
-              className="text-[11.5px] mt-0.5 leading-snug truncate"
-              style={{ color: "var(--muted)" }}
-            >
-              {item.category && <span>{item.category}</span>}
-              {item.category && item.notes && <span> · </span>}
-              {item.notes && <span>{item.notes}</span>}
-            </div>
-          )}
-        </div>
-        {item.est_cost != null && (
-          <span
-            className="shrink-0 text-[12.5px] tabular-nums px-2 py-0.5 rounded-md"
-            style={{
-              background: "var(--surface-alt)",
-              color: "var(--foreground)",
-              fontWeight: 700,
-            }}
-          >
-            ${Math.round(item.est_cost).toLocaleString()}
-          </span>
-        )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onExpand();
-          }}
-          className="shrink-0 h-7 w-7 rounded-full flex items-center justify-center"
-          style={{ color: "var(--muted)" }}
-          aria-label={expanded ? "Collapse" : "Expand"}
-        >
-          <Icon
-            name="chevron-down"
-            size={14}
-            strokeWidth={2}
-            className={expanded ? "" : "-rotate-90"}
-          />
-        </button>
-      </div>
-
-      {expanded && (
-        <div
-          className="px-3 pb-3 pt-1 flex flex-col gap-2.5"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {item.notes && (
-            <div
-              className="text-[12.5px] leading-relaxed"
-              style={{ color: "var(--muted)" }}
-            >
-              {item.notes}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <span
-                className="text-[10px] uppercase tracking-wider"
-                style={{ color: "var(--muted)", fontWeight: 600 }}
-              >
-                Cost
-              </span>
-              <CostStepper
-                value={item.est_cost ?? null}
-                onChange={onSetCost}
-                size="sm"
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              {PRIORITY_ORDER.map((p) => {
-                const m = PRIORITY_META[p];
-                const active = item.priority === p;
-                return (
-                  <button
-                    key={p}
-                    onClick={() => onSetPriority(p)}
-                    className="text-[10.5px] px-2 py-1 rounded-full"
-                    style={{
-                      background: active ? m.accent : "var(--surface-alt)",
-                      color: active ? "#FFFFFF" : "var(--muted)",
-                      fontWeight: 700,
-                      minHeight: 26,
-                    }}
-                  >
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              onClick={onPromote}
-              className="text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5"
-              style={{
-                background: "var(--pro)",
-                color: "#FFFFFF",
-                fontWeight: 700,
-                minHeight: 36,
-              }}
-            >
-              <Icon name="sparkle" size={11} strokeWidth={2.2} />
-              Promote
-            </button>
-            <button
-              onClick={handleBuy}
-              disabled={busyBuy}
-              className="text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5"
-              style={{
-                background: "var(--premium)",
-                color: "#FFFFFF",
-                fontWeight: 700,
-                minHeight: 36,
-                opacity: busyBuy ? 0.6 : 1,
-              }}
-            >
-              <Icon name="shopping-bag" size={11} strokeWidth={2.2} />
-              {busyBuy ? "…" : item.url ? "Buy" : "Find online"}
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              onClick={onGotIt}
-              className="text-[12px] px-3 py-1.5 rounded-lg flex items-center justify-center gap-1"
-              style={{
-                background: "var(--surface-alt)",
-                color: "var(--olive)",
-                fontWeight: 600,
-                minHeight: 32,
-              }}
-            >
-              <Icon name="check-circle" size={11} strokeWidth={2.2} />
-              Got it
-            </button>
-            <button
-              onClick={onRemove}
-              className="text-[12px] px-3 py-1.5 rounded-lg flex items-center justify-center gap-1"
-              style={{
-                background: "var(--surface-alt)",
-                color: "var(--error)",
-                fontWeight: 600,
-                minHeight: 32,
-              }}
-            >
-              <Icon name="trash" size={11} strokeWidth={2.2} />
-              Remove
-            </button>
-          </div>
-
-          {item.url && (
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[11.5px] inline-flex items-center gap-1 truncate"
-              style={{ color: "var(--accent)", fontWeight: 600 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Icon name="external" size={10} strokeWidth={2} />
-              <span className="truncate">{prettyUrl(item.url)}</span>
-            </a>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function prettyUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.host.replace(/^www\./, "") + u.pathname.slice(0, 32);
-  } catch {
-    return url;
-  }
-}
-
-// ---------------------------------------------------------------------------
-function AddWishlistInline({
-  knownCategories,
-  onCreated,
-  onCancel,
-}: {
-  knownCategories: string[];
-  onCreated: (item: WishlistItem) => void;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
-  const [estCost, setEstCost] = useState<number | null>(null);
-  const [notes, setNotes] = useState("");
-  const [priority, setPriority] = useState<WishlistPriority>("medium");
-  const [category, setCategory] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setSaving(true);
-    const client = createClient();
-    const {
-      data: { user },
-    } = await client.auth.getUser();
-    if (!user) return;
-
-    const { data } = await client
-      .from("wishlist_items")
-      .insert({
-        user_id: user.id,
-        name: name.trim(),
-        url: url.trim() || null,
-        est_cost: estCost,
-        notes: notes.trim() || null,
-        priority,
-        category: category.trim() || null,
-      })
-      .select()
-      .single();
-    setSaving(false);
-    if (data) onCreated(data as WishlistItem);
-  }
-
-  return (
-    <form
-      onSubmit={handleSave}
-      className="rounded-2xl card-glass p-4 mb-4 flex flex-col gap-2.5"
-    >
-      <input
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="What is it?"
-        required
-        autoFocus
-        className="rounded-xl px-3 py-2.5 text-[14px]"
-        style={{
-          background: "var(--surface-alt)",
-          color: "var(--foreground)",
-          border: "1px solid var(--border)",
-        }}
-      />
-      <input
-        type="url"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="Link (optional)"
-        className="rounded-xl px-3 py-2.5 text-[13px]"
-        style={{
-          background: "var(--surface-alt)",
-          color: "var(--foreground)",
-          border: "1px solid var(--border)",
-        }}
-      />
-      <div className="flex items-center gap-2">
-        <span className="text-[11px]" style={{ color: "var(--muted)" }}>
-          Est.
-        </span>
-        <CostStepper
-          value={estCost}
-          onChange={setEstCost}
-          size="md"
-          placeholder="Cost"
-        />
-        <input
-          type="text"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder="Category"
-          list="wishlist-categories"
-          className="flex-1 rounded-xl px-3 py-2.5 text-[13px]"
-          style={{
-            background: "var(--surface-alt)",
-            color: "var(--foreground)",
-            border: "1px solid var(--border)",
-          }}
-        />
-        {knownCategories.length > 0 && (
-          <datalist id="wishlist-categories">
-            {knownCategories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
-        )}
-      </div>
-      <textarea
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        placeholder="Notes (optional)"
-        rows={2}
-        className="rounded-xl px-3 py-2.5 text-[13px] resize-none"
-        style={{
-          background: "var(--surface-alt)",
-          color: "var(--foreground)",
-          border: "1px solid var(--border)",
-        }}
-      />
-      <div className="flex gap-1.5">
-        {PRIORITY_ORDER.map((p) => {
-          const m = PRIORITY_META[p];
-          const active = priority === p;
-          return (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPriority(p)}
-              className="flex-1 text-[12px] px-2 py-1.5 rounded-full"
-              style={{
-                background: active ? m.accent : "var(--surface-alt)",
-                color: active ? "#FFFFFF" : "var(--muted)",
-                fontWeight: 700,
-                minHeight: 34,
-              }}
-            >
-              {m.label}
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={saving || !name.trim()}
-          className="flex-1 px-3 py-2.5 rounded-xl text-[13px]"
-          style={{
-            background: "var(--foreground)",
-            color: "var(--background)",
-            fontWeight: 700,
-            opacity: saving || !name.trim() ? 0.5 : 1,
-            minHeight: 38,
-          }}
-        >
-          {saving ? "…" : "Add"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-3 py-2.5 rounded-xl text-[13px]"
-          style={{
-            color: "var(--muted)",
-            background: "var(--surface-alt)",
-            minHeight: 38,
-          }}
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
   );
 }

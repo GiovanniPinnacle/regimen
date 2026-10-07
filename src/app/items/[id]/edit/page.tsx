@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ItemForm from "@/components/ItemForm";
+import PageHeader from "@/components/ui/PageHeader";
 import type { Item } from "@/lib/types";
 
 export default async function EditItemPage({
@@ -22,21 +22,13 @@ export default async function EditItemPage({
 
   return (
     <div className="pb-24">
-      <div className="mb-4">
-        <Link
-          href={`/items/${id}`}
-          className="text-[13px]"
-          style={{ color: "var(--muted)" }}
-        >
-          ← {item.name}
-        </Link>
-      </div>
-
-      <header className="mb-6">
-        <h1 className="text-[34px] leading-tight" style={{ fontWeight: 700, letterSpacing: "-0.024em" }}>
-          Edit item
-        </h1>
-      </header>
+      <PageHeader
+        title="Edit item"
+        back={`/items/${id}`}
+        backLabel={
+          item.name.length > 28 ? `${item.name.slice(0, 27).trimEnd()}…` : item.name
+        }
+      />
 
       <ItemForm initial={item} />
     </div>

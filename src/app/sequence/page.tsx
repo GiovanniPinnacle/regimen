@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SEQUENCE, SPACING_RULES } from "@/lib/sequence-rules";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { SectionHeader } from "@/components/ui/Section";
+import Icon from "@/components/Icon";
 import type { Item } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -32,164 +36,161 @@ export default async function SequencePage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Optimal sequence
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          Research-backed daily order. Items in your stack are linked.
-        </p>
-      </header>
+      <PageHeader
+        title="Daily order"
+        back="/you"
+        backLabel="You"
+        subtitle="A research-informed order for your day. Anything already in your stack is linked."
+      />
 
       {SEQUENCE.map((window) => (
-        <section key={window.window} className="mb-7">
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="text-[16px]" style={{ fontWeight: 500 }}>
-              {window.label}
-            </h2>
-            {window.time && (
-              <div className="text-[11px]" style={{ color: "var(--muted)" }}>
-                {window.time}
-              </div>
-            )}
-          </div>
+        <section key={window.window}>
+          <SectionHeader
+            title={window.label}
+            action={
+              window.time ? (
+                <span className="shrink-0 text-caption text-[var(--muted)] tabular-nums">
+                  {window.time}
+                </span>
+              ) : undefined
+            }
+          />
           <div className="flex flex-col gap-2">
             {window.steps.map((step, idx) => {
               const matched = matchItems(step.matches);
+              const missing = !!step.matches && matched.length === 0;
               return (
-                <div
+                <Card
                   key={idx}
-                  className="border-hair rounded-xl p-3"
-                  style={{
-                    background: matched.length
-                      ? "var(--background)"
-                      : "var(--surface-alt)",
-                    opacity: step.matches && matched.length === 0 ? 0.6 : 1,
-                  }}
+                  padding="md"
+                  variant={missing ? "inset" : "default"}
                 >
-                  <div className="flex items-start gap-2">
-                    <div
-                      className="text-[12px] shrink-0 w-5 text-center"
-                      style={{ color: "var(--muted)", fontWeight: 500 }}
+                  <div className="flex items-start gap-3">
+                    <span
+                      aria-hidden
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--surface-alt)] text-caption font-semibold tabular-nums text-[var(--foreground-soft)]"
                     >
                       {idx + 1}
-                    </div>
+                    </span>
                     <div className="min-w-0 flex-1">
                       <div
-                        className="text-[14px] leading-snug"
-                        style={{ fontWeight: 500 }}
+                        className={`text-callout font-semibold ${missing ? "text-[var(--foreground-soft)]" : ""}`}
                       >
                         {step.title}
                       </div>
-                      <div
-                        className="text-[13px] leading-relaxed mt-1"
-                        style={{ color: "var(--muted)" }}
-                      >
+                      <p className="mt-1 text-footnote leading-relaxed text-[var(--muted)]">
                         {step.detail}
-                      </div>
+                      </p>
                       {step.why && (
-                        <div
-                          className="text-[12px] mt-1"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          <span style={{ fontStyle: "italic" }}>Why:</span> {step.why}
-                        </div>
+                        <p className="mt-1.5 text-footnote text-[var(--muted)]">
+                          <span className="font-medium text-[var(--foreground-soft)]">
+                            Why:
+                          </span>{" "}
+                          {step.why}
+                        </p>
                       )}
                       {step.source && (
-                        <div
-                          className="text-[11px] mt-1"
-                          style={{ color: "var(--muted)" }}
-                        >
+                        <p className="mt-1.5 text-caption text-[var(--muted)]">
                           {step.source}
-                        </div>
+                        </p>
                       )}
                       {matched.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
+                        <div className="mt-3 flex flex-wrap gap-2">
                           {matched.map((item) => (
                             <Link
                               key={item.id}
                               href={`/items/${item.id}`}
-                              className="text-[11px] px-2 py-0.5 rounded-full"
-                              style={{
-                                background: "var(--surface-alt)",
-                                color: "var(--foreground)",
-                                fontWeight: 500,
-                              }}
+                              className="relative inline-flex h-8 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-alt)] px-3 text-caption font-medium text-[var(--foreground)] before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-[''] active:scale-95"
                             >
                               {item.name}
-                              {item.dose ? ` · ${item.dose}` : ""}
+                              {item.dose ? (
+                                <span className="text-[var(--muted)]">
+                                  · {item.dose}
+                                </span>
+                              ) : null}
+                              <Icon
+                                name="chevron-right"
+                                size={12}
+                                strokeWidth={2}
+                                className="text-[var(--muted)]"
+                              />
                             </Link>
                           ))}
                         </div>
                       )}
-                      {step.matches && matched.length === 0 && (
-                        <div
-                          className="text-[10px] mt-1"
-                          style={{ color: "var(--muted)", fontStyle: "italic" }}
-                        >
+                      {missing && (
+                        <p className="mt-2 text-caption text-[var(--muted)]">
                           Not in your stack
-                        </div>
+                        </p>
                       )}
                     </div>
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>
         </section>
       ))}
 
-      <section className="mb-6">
-        <h2 className="text-[16px] mb-3" style={{ fontWeight: 500 }}>
-          Spacing + interaction rules
-        </h2>
-        <div className="flex flex-col gap-2">
-          {SPACING_RULES.map((r, i) => (
-            <div key={i} className="border-hair rounded-xl p-3">
-              <div className="text-[13px]" style={{ fontWeight: 500 }}>
-                {r.title}
-              </div>
-              <div
-                className="text-[12px] mt-1 leading-relaxed"
-                style={{ color: "var(--muted)" }}
-              >
-                {r.detail}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <SectionHeader title="Spacing and pairing" />
+      <div className="flex flex-col gap-2">
+        {SPACING_RULES.map((r, i) => (
+          <Card key={i} padding="md">
+            <div className="text-callout font-semibold">{r.title}</div>
+            <p className="mt-1 text-footnote leading-relaxed text-[var(--muted)]">
+              {r.detail}
+            </p>
+          </Card>
+        ))}
+      </div>
 
-      <section className="mb-6">
-        <h2 className="text-[16px] mb-3" style={{ fontWeight: 500 }}>
-          Food-order rule (for every meal)
-        </h2>
-        <div className="border-hair rounded-xl p-4">
-          <ol className="flex flex-col gap-2 text-[13px] leading-relaxed">
-            <li>
-              <span style={{ fontWeight: 500 }}>1. Vegetables / fiber first.</span> Fills the stomach, slows glucose absorption.
-            </li>
-            <li>
-              <span style={{ fontWeight: 500 }}>2. Protein + fat second.</span> Triggers satiety hormones (CCK, leptin).
-            </li>
-            <li>
-              <span style={{ fontWeight: 500 }}>3. Starch / carbs last.</span> By the time you reach them, glucose curve is already blunted ~30–50%.
-            </li>
-          </ol>
-          <div
-            className="text-[11px] mt-3"
-            style={{ color: "var(--muted)" }}
-          >
-            Source: Shukla 2017 (Diabetes Care) — same meal, food-order alone changes post-prandial glucose AUC.
-          </div>
-        </div>
-      </section>
+      <SectionHeader title="Eating order, every meal" />
+      <Card padding="md">
+        <ol className="flex flex-col gap-3 text-callout leading-relaxed">
+          <li className="flex gap-3">
+            <span className="w-4 shrink-0 font-semibold tabular-nums text-[var(--muted)]">
+              1
+            </span>
+            <span>
+              <span className="font-semibold">Vegetables and fiber first.</span>{" "}
+              <span className="text-[var(--foreground-soft)]">
+                They fill you up and slow down how fast sugar hits your blood.
+              </span>
+            </span>
+          </li>
+          <li className="flex gap-3">
+            <span className="w-4 shrink-0 font-semibold tabular-nums text-[var(--muted)]">
+              2
+            </span>
+            <span>
+              <span className="font-semibold">Protein and fat next.</span>{" "}
+              <span className="text-[var(--foreground-soft)]">
+                They help you feel full sooner.
+              </span>
+            </span>
+          </li>
+          <li className="flex gap-3">
+            <span className="w-4 shrink-0 font-semibold tabular-nums text-[var(--muted)]">
+              3
+            </span>
+            <span>
+              <span className="font-semibold">Starches and carbs last.</span>{" "}
+              <span className="text-[var(--foreground-soft)]">
+                By then, the blood-sugar spike from the same meal is noticeably
+                smaller.
+              </span>
+            </span>
+          </li>
+        </ol>
+        <p className="mt-4 text-caption text-[var(--muted)]">
+          Source: Shukla et al., Diabetes Care (2017).
+        </p>
+      </Card>
+
+      <p className="mt-6 text-caption text-[var(--muted)]">
+        General information, not medical advice. Check with your doctor or
+        pharmacist about timing for anything you take.
+      </p>
     </div>
   );
 }

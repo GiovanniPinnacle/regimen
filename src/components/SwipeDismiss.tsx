@@ -144,7 +144,7 @@ export default function SwipeDismiss({
         transform: `translateX(${dx}px)`,
         transition:
           animatingOut || dx === 0
-            ? "transform 180ms ease-out, opacity 180ms ease-out"
+            ? "transform 180ms var(--ease-out, ease-out), opacity 180ms var(--ease-out, ease-out)"
             : "none",
         opacity,
         // Hint to the browser that this element is gesturable so it

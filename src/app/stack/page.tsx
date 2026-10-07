@@ -19,7 +19,7 @@ import { ChipButton } from "@/components/ui/Chip";
 import Icon from "@/components/Icon";
 import ItemTypeIcon from "@/components/ItemTypeIcon";
 import Sparkline from "@/components/Sparkline";
-import Segmented from "@/components/Segmented";
+import Segmented from "@/components/ui/Segmented";
 import StackFilterSheet, { type StackSortMode } from "@/components/StackFilterSheet";
 import { getItemAdherence } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/client";

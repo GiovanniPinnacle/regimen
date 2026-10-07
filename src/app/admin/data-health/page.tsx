@@ -10,9 +10,16 @@
 // hits a wall.
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Chip, { type ChipTone } from "@/components/ui/Chip";
+import Button from "@/components/ui/Button";
+import { SectionHeader } from "@/components/ui/Section";
 import Icon from "@/components/Icon";
+import { SkeletonCard } from "@/components/Skeleton";
+import { TIMING_LABELS } from "@/lib/constants";
 import { showToast } from "@/lib/toast";
+import type { TimingSlot } from "@/lib/types";
 
 type Finding = {
   key: string;
@@ -48,24 +55,19 @@ type Summary = {
 
 const SEVERITY_META: Record<
   Finding["severity"],
-  { color: string; bg: string; label: string }
+  { tone: ChipTone; label: string; bar: string }
 > = {
-  crash: {
-    color: "var(--error)",
-    bg: "rgba(239, 68, 68, 0.08)",
-    label: "Crashes a page",
-  },
-  warning: {
-    color: "var(--warn)",
-    bg: "rgba(194, 145, 66, 0.08)",
-    label: "Likely buggy",
-  },
-  info: {
-    color: "var(--muted)",
-    bg: "var(--surface-alt)",
-    label: "Minor",
-  },
+  crash: { tone: "danger", label: "Breaks a page", bar: "bg-[var(--error)]" },
+  warning: { tone: "warn", label: "Likely wrong", bar: "bg-[var(--warn)]" },
+  info: { tone: "neutral", label: "Minor", bar: "bg-[var(--border-strong)]" },
 };
+
+/** Human-readable preview of the value a fix will write. */
+function fmtValue(v: unknown): string {
+  if (v == null || v === "") return "cleared";
+  if (typeof v === "string") return v.replace(/_/g, " ");
+  return JSON.stringify(v);
+}
 
 export default function DataHealthPage() {
   const [findings, setFindings] = useState<Finding[] | null>(null);
@@ -143,10 +145,10 @@ export default function DataHealthPage() {
           (prev ?? []).filter((x) => x.key !== f.key),
         );
       } else {
-        showToast("Couldn't fix — try refreshing", { tone: "error" });
+        showToast("Couldn’t fix that one — try refreshing", { tone: "error" });
       }
     } catch {
-      showToast("Couldn't fix", { tone: "error" });
+      showToast("Couldn’t fix that one", { tone: "error" });
     } finally {
       setBusy((s) => {
         const n = new Set(s);
@@ -167,12 +169,12 @@ export default function DataHealthPage() {
         body: JSON.stringify({ all: true }),
       });
       const data = (await res.json()) as { healed: number; failed: number };
-      showToast(`Healed ${data.healed} row${data.healed === 1 ? "" : "s"}`, {
+      showToast(`Fixed ${data.healed} issue${data.healed === 1 ? "" : "s"}`, {
         tone: "success",
       });
       void load();
     } catch {
-      showToast("Heal all failed", { tone: "error" });
+      showToast("Couldn’t fix everything — try again", { tone: "error" });
     } finally {
       setHealingAll(false);
     }
@@ -180,212 +182,112 @@ export default function DataHealthPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-5">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            You
-          </Link>
-        </div>
-        <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-        >
-          Data health
-        </h1>
-        <p
-          className="text-[12.5px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Scans your stack + wishlist + protocols for invalid values that
-          could crash a page or confuse Coach. Safe to re-run anytime.
-        </p>
-      </header>
+      <PageHeader
+        title="Data health"
+        eyebrow="Admin"
+        back="/you"
+        backLabel="You"
+        subtitle="Checks your stack, wishlist and protocols for values that could break a page or confuse Coach. Safe to run anytime."
+      />
 
       {findings === null ? (
-        <div className="rounded-2xl card-glass p-6 text-center">
-          <div className="text-[13px]" style={{ color: "var(--muted)" }}>
-            Scanning your data…
-          </div>
+        <div className="flex flex-col gap-2" aria-busy="true" aria-label="Checking your data">
+          <SkeletonCard height={72} />
+          <SkeletonCard height={96} />
+          <SkeletonCard height={96} />
         </div>
       ) : findings.length === 0 ? (
-        <section className="rounded-2xl card-glass p-6 text-center">
+        <Card padding="xl" className="flex flex-col items-center text-center">
           <span
-            className="inline-flex h-12 w-12 rounded-2xl items-center justify-center mb-3"
-            style={{
-              background: "var(--olive-tint)",
-              color: "var(--olive)",
-            }}
+            aria-hidden
+            className="inline-flex h-16 w-16 items-center justify-center rounded-[18px] bg-[var(--success-tint)] text-[var(--success)]"
           >
-            <Icon name="check-circle" size={22} strokeWidth={1.7} />
+            <Icon name="check-circle" size={28} strokeWidth={1.7} />
           </span>
-          <div
-            className="text-[15px] mb-1"
-            style={{ fontWeight: 600 }}
-          >
-            All clear
-          </div>
-          <div
-            className="text-[12.5px] leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            No invalid enum values, no orphaned references. Stack data
-            looks healthy.
-          </div>
-          <button
+          <div className="mt-3 text-title-3">All clear</div>
+          <p className="mt-1 text-callout text-[var(--muted)]">
+            Nothing broken or out of place. Your data looks healthy.
+          </p>
+          <Button
+            variant="secondary"
+            icon="refresh"
+            className="mt-4"
             onClick={() => void load()}
-            className="mt-4 px-4 py-2 rounded-xl text-[13px]"
-            style={{
-              background: "var(--surface-alt)",
-              color: "var(--foreground)",
-              fontWeight: 600,
-            }}
           >
-            Re-scan
-          </button>
-        </section>
+            Check again
+          </Button>
+        </Card>
       ) : (
         <>
           {summary && (
-            <div
-              className="rounded-2xl p-3.5 mb-3 flex items-center justify-between gap-3 flex-wrap"
-              style={{
-                background: "var(--surface-alt)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div className="flex items-center gap-3 flex-wrap">
-                <div
-                  className="text-[14px]"
-                  style={{ fontWeight: 600 }}
-                >
+            <Card padding="md" className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="mr-1 text-body font-semibold">
                   {summary.total} issue{summary.total === 1 ? "" : "s"}
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {summary.crash > 0 && (
-                    <span
-                      className="text-[11px] tabular-nums px-2 py-0.5 rounded-full"
-                      style={{
-                        background: SEVERITY_META.crash.bg,
-                        color: SEVERITY_META.crash.color,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {summary.crash} crash
-                    </span>
-                  )}
-                  {summary.warning > 0 && (
-                    <span
-                      className="text-[11px] tabular-nums px-2 py-0.5 rounded-full"
-                      style={{
-                        background: SEVERITY_META.warning.bg,
-                        color: SEVERITY_META.warning.color,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {summary.warning} warning
-                    </span>
-                  )}
-                  {summary.info > 0 && (
-                    <span
-                      className="text-[11px] tabular-nums px-2 py-0.5 rounded-full"
-                      style={{
-                        background: SEVERITY_META.info.bg,
-                        color: SEVERITY_META.info.color,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {summary.info} minor
-                    </span>
-                  )}
-                </div>
+                {summary.crash > 0 && (
+                  <Chip tone="danger">
+                    {summary.crash} breaking
+                  </Chip>
+                )}
+                {summary.warning > 0 && (
+                  <Chip tone="warn">
+                    {summary.warning} likely wrong
+                  </Chip>
+                )}
+                {summary.info > 0 && (
+                  <Chip>{summary.info} minor</Chip>
+                )}
               </div>
-              <button
-                onClick={healAll}
-                disabled={healingAll}
-                className="text-[12.5px] px-3 py-2 rounded-lg flex items-center gap-1.5"
-                style={{
-                  background: "var(--primary)",
-                  color: "var(--primary-fg)",
-                  fontWeight: 700,
-                  minHeight: 36,
-                  opacity: healingAll ? 0.5 : 1,
-                }}
-              >
-                <Icon name="check-circle" size={12} strokeWidth={2.4} />
-                {healingAll ? "Healing…" : "Fix all"}
-              </button>
-            </div>
+              <Button icon="check" onClick={healAll} loading={healingAll}>
+                {healingAll ? "Fixing…" : "Fix all"}
+              </Button>
+            </Card>
           )}
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {findings.map((f) => {
               const meta = SEVERITY_META[f.severity];
               const isBusy = busy.has(f.key);
               return (
-                <div
+                <Card
                   key={f.key}
-                  className="rounded-xl card-glass p-3 flex items-start gap-3"
-                  style={{ borderLeft: `3px solid ${meta.color}` }}
+                  padding="none"
+                  className="relative flex items-start gap-3 overflow-hidden p-4 pl-5"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 flex-wrap mb-0.5">
-                      <span
-                        className="text-[10px] uppercase tracking-wider"
-                        style={{
-                          color: meta.color,
-                          fontWeight: 700,
-                          letterSpacing: "0.06em",
-                        }}
-                      >
+                  <span
+                    aria-hidden
+                    className={`absolute inset-y-0 left-0 w-[3px] ${meta.bar}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <Chip tone={meta.tone}>
                         {meta.label}
-                      </span>
-                      <span
-                        className="text-[10px]"
-                        style={{ color: "var(--muted)", opacity: 0.7 }}
-                      >
+                      </Chip>
+                      <span className="text-caption text-[var(--muted)]">
                         {f.table}.{f.column}
                       </span>
                     </div>
-                    <div
-                      className="text-[13.5px] leading-snug"
-                      style={{ fontWeight: 600 }}
-                    >
-                      {f.row_label}
-                    </div>
-                    <div
-                      className="text-[11.5px] mt-0.5 leading-snug"
-                      style={{ color: "var(--muted)" }}
-                    >
+                    <div className="text-body font-semibold">{f.row_label}</div>
+                    <p className="mt-0.5 text-footnote text-[var(--muted)]">
                       {f.issue}
-                    </div>
-                    <div
-                      className="text-[11px] mt-1 font-mono leading-snug"
-                      style={{ color: "var(--muted)", opacity: 0.7 }}
-                    >
-                      → {JSON.stringify(f.proposed_value)}
-                    </div>
+                    </p>
+                    <p className="mt-1 text-caption text-[var(--foreground-soft)]">
+                      Fix sets it to{" "}
+                      <span className="font-mono">{fmtValue(f.proposed_value)}</span>
+                    </p>
                   </div>
-                  <button
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    className="shrink-0"
                     onClick={() => healOne(f)}
-                    disabled={isBusy}
-                    className="shrink-0 text-[12px] px-3 py-1.5 rounded-lg"
-                    style={{
-                      background: "var(--surface-alt)",
-                      color: "var(--olive)",
-                      fontWeight: 700,
-                      border: "1px solid var(--border)",
-                      minHeight: 32,
-                      opacity: isBusy ? 0.5 : 1,
-                    }}
+                    loading={isBusy}
+                    aria-label={`Fix ${f.row_label}`}
                   >
-                    {isBusy ? "…" : "Fix"}
-                  </button>
-                </div>
+                    Fix
+                  </Button>
+                </Card>
               );
             })}
           </div>
@@ -395,91 +297,48 @@ export default function DataHealthPage() {
       {/* Near-duplicates — separate from findings because they need
           user judgment, not auto-heal. Shown after the findings list. */}
       {nearDuplicates && nearDuplicates.length > 0 && (
-        <section className="mt-6">
-          <div className="flex items-baseline justify-between mb-2 px-0.5">
-            <h2
-              className="text-[11px] uppercase tracking-wider"
-              style={{
-                color: "var(--accent)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Likely near-duplicates · {nearDuplicates.length}
-            </h2>
-            <span
-              className="text-[11px]"
-              style={{ color: "var(--muted)" }}
-            >
-              Coach decides
-            </span>
-          </div>
+        <section>
+          <SectionHeader
+            title={`Possible duplicates · ${nearDuplicates.length}`}
+            action={
+              <span className="text-footnote text-[var(--muted)]">
+                Coach can sort these out
+              </span>
+            }
+          />
           <div className="flex flex-col gap-2">
             {nearDuplicates.map((g) => (
-              <div
-                key={g.key}
-                className="rounded-xl card-glass p-3"
-                style={{ borderLeft: "3px solid var(--accent)" }}
-              >
-                <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                  <div
-                    className="text-[10px] uppercase tracking-wider"
-                    style={{
-                      color: "var(--accent)",
-                      fontWeight: 700,
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    {g.reason} · {g.items.length} items
-                  </div>
+              <Card key={g.key} padding="md">
+                <div className="text-eyebrow uppercase text-[var(--muted)]">
+                  {g.reason} · {g.items.length} items
                 </div>
-                <ul className="flex flex-col gap-1 mb-2.5">
+                <ul className="mt-2 mb-3 flex flex-col gap-1.5">
                   {g.items.map((i) => (
                     <li
                       key={i.id}
-                      className="text-[12.5px] leading-snug flex items-baseline gap-2"
+                      className="flex items-baseline gap-2 text-callout"
                     >
                       <span
-                        className="shrink-0 h-1.5 w-1.5 rounded-full mt-1"
-                        style={{ background: "var(--accent)" }}
+                        className="mt-1.5 h-1.5 w-1.5 shrink-0 self-start rounded-full bg-[var(--border-strong)]"
                         aria-hidden
                       />
-                      <span style={{ fontWeight: 600 }}>{i.name}</span>
-                      <span
-                        className="text-[11px]"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        · {i.timing_slot}
+                      <span className="font-semibold">{i.name}</span>
+                      <span className="text-footnote text-[var(--muted)]">
+                        {TIMING_LABELS[i.timing_slot as TimingSlot] ??
+                          i.timing_slot}
                       </span>
                     </li>
                   ))}
                 </ul>
-                <button
+                <Button
+                  variant="coach"
+                  icon="sparkle"
+                  fullWidth
                   onClick={() => reviewWithCoach(g)}
-                  className="w-full text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5"
-                  style={{
-                    background: "var(--pro)",
-                    color: "#FFFFFF",
-                    fontWeight: 700,
-                    minHeight: 36,
-                  }}
                 >
-                  <svg
-                    width="11"
-                    height="11"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z" />
-                  </svg>
                   Ask Coach to resolve
-                </button>
-              </div>
+                </Button>
+              </Card>
             ))}
           </div>
         </section>

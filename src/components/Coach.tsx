@@ -1,95 +1,55 @@
 "use client";
 
-// Coach — your AI co-pilot for the regimen.
-// Premium replacement for the old "Ask Claude" floating chat. Same propose-
-// and-execute pipeline under the hood, but the UI is built around action,
-// not conversation: quick-action chips for the most common asks, one-tap
-// photo upload for vision, voice input for hands-free, persistent
-// conversation across opens, and proposal cards that feel like one-tap
-// commits to your regimen.
+// Coach — the AI co-pilot overlay. A full-screen sheet with a sticky
+// composer that rides above the on-screen keyboard, a streaming thread
+// with one-tap proposal cards, and a quiet empty state.
 //
-// Renamed from AskClaude across the app — user-facing copy never says
-// "Claude". The model behind it is claude-sonnet-5-5, but the
-// persona is "Coach" — your accountability + refinement partner.
+// Pieces live in src/components/coach/:
+//   useCoachChat   conversation state, streaming, proposals, persistence
+//   useVoiceInput  dictation
+//   MessageList    scroll container, stick-to-bottom, jump pill
+//   MessageBubble  one turn (+ ProposalCard)
+//   CoachComposer  textarea, @-mentions, photo, mic, send/stop
+//   EmptyState     first-open starting points
+//   FollowUpChips  suggestions under the latest reply
+//
+// Opened from anywhere via `regimen:ask` (src/lib/coach-events.ts).
+// User-facing copy never says "Claude" — the persona is "Coach".
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  parseProposals,
-  stripProposals,
-  type Proposal,
-} from "@/lib/proposals";
 import Icon from "@/components/Icon";
-import CoachMarkdown from "@/components/CoachMarkdown";
-import { createClient } from "@/lib/supabase/client";
 import { COACH_EVENT, type CoachAskDetail } from "@/lib/coach-events";
+import { useCoachChat } from "@/components/coach/useCoachChat";
+import MessageList from "@/components/coach/MessageList";
+import CoachComposer from "@/components/coach/CoachComposer";
+import EmptyState from "@/components/coach/EmptyState";
+import FollowUpChips from "@/components/coach/FollowUpChips";
 
-type ContentPart =
-  | { type: "text"; text: string }
-  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
-type Msg = { role: "user" | "assistant"; content: string | ContentPart[] };
+const EXIT_MS = 260;
 
-type SpeechRecognitionInstance = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start: () => void;
-  stop: () => void;
-  onresult: (e: {
-    results: { [k: number]: { [k: number]: { transcript: string } } };
-    resultIndex: number;
-  }) => void;
-  onend: () => void;
-  onerror: (e: unknown) => void;
-};
-
-declare global {
-  interface Window {
-    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
-    SpeechRecognition?: new () => SpeechRecognitionInstance;
-  }
+/** Height of the on-screen keyboard, from visualViewport. Lets the
+ *  composer sit directly above the keyboard in iOS standalone PWAs,
+ *  where the layout viewport doesn't shrink. */
+function useKeyboardInset(active: boolean) {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!active || !vv) return;
+    const update = () =>
+      setInset(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)));
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+      setInset(0);
+    };
+  }, [active]);
+  return inset;
 }
-
-type IconName = Parameters<typeof Icon>[0]["name"];
-type QuickAction = {
-  label: string;
-  prompt: string;
-  icon: IconName;
-  accent: string;
-};
-
-const QUICK_ACTIONS: QuickAction[] = [
-  {
-    label: "Refine my stack",
-    prompt:
-      "Audit my active stack. Find anything I should drop, dose-adjust, or replace with a cheaper alternative. Propose specific changes I can approve in one tap.",
-    icon: "sparkle",
-    accent: "var(--accent)",
-  },
-  {
-    label: "What's slowing me down?",
-    prompt:
-      "Look at my last 14 days of skips, reactions, and voice memos. What's the single biggest blocker? Give me one concrete action to take today.",
-    icon: "trend-down",
-    accent: "var(--warn)",
-  },
-  {
-    label: "What should I add?",
-    prompt:
-      "Based on my goals + current stack, what's the highest-leverage addition I'm missing? Propose ONE item with dose, timing, and reasoning.",
-    icon: "plus",
-    accent: "var(--pro)",
-  },
-  {
-    label: "Today's plan",
-    prompt:
-      "Give me a 3-bullet plan for today based on my regimen, sleep last night, and what I've taken so far. Tight, no fluff.",
-    icon: "list-ordered",
-    accent: "var(--premium)",
-  },
-];
-
-const STORAGE_KEY = "regimen.coach.conversation.v1";
 
 export default function Coach({
   initialAsk,
@@ -98,389 +58,66 @@ export default function Coach({
   initialAsk?: CoachAskDetail | null;
 } = {}) {
   const pathname = usePathname();
+  const chat = useCoachChat();
+  const { messages, input, setInput, loading } = chat;
   const [open, setOpen] = useState(false);
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [executed, setExecuted] = useState<
-    Record<string, "done" | "error" | "pending">
-  >({});
-  const [pendingImage, setPendingImage] = useState<{
-    data: string;
-    mediaType: string;
-    preview: string;
-  } | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
-  /** User's items, fetched once on first open. Powers @-mention
-   *  autocomplete in the textarea. We pull active + queued + backburner
-   *  so users can also reference items they've parked. */
-  const [userItems, setUserItems] = useState<
-    { id: string; name: string; brand: string | null; status: string }[]
-  >([]);
-  /** Index of the current @-token in the input string, or -1 when no
-   *  active mention is being typed. Drives the popover. */
-  const [mentionStart, setMentionStart] = useState<number>(-1);
-  const [mentionIndex, setMentionIndex] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  const [shown, setShown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const kb = useKeyboardInset(mounted);
 
-  // Detect voice support once
+  // Mount through the exit transition (same pattern as ui/Sheet).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) setMounted(true);
+    else setShown(false);
+  }
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    setVoiceSupported(Boolean(SR));
-  }, []);
-
-  // Restore conversation on mount
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Msg[];
-        if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed);
-      }
-    } catch {}
-  }, []);
-
-  // Persist conversation
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    } catch {}
-  }, [messages]);
-
-  // Fetch the user's items once when Coach is first opened so @-mentions
-  // can autocomplete from their actual stack. Listens for items-changed
-  // so adding/retiring something elsewhere refreshes the mention list.
-  useEffect(() => {
-    if (!open) return;
-    let alive = true;
-    async function load() {
-      try {
-        const c = createClient();
-        const { data } = await c
-          .from("items")
-          .select("id, name, brand, status")
-          .in("status", ["active", "queued", "backburner"])
-          .order("name");
-        if (!alive) return;
-        setUserItems(
-          ((data ?? []) as Array<{
-            id: string;
-            name: string;
-            brand: string | null;
-            status: string;
-          }>) ?? [],
-        );
-      } catch {
-        // silent — autocomplete is best-effort
-      }
+    if (open) {
+      const raf = requestAnimationFrame(() => setShown(true));
+      return () => cancelAnimationFrame(raf);
     }
-    void load();
-    function onChange() {
-      void load();
-    }
-    window.addEventListener("regimen:items-changed", onChange);
-    return () => {
-      alive = false;
-      window.removeEventListener("regimen:items-changed", onChange);
-    };
+    const t = setTimeout(() => setMounted(false), EXIT_MS);
+    return () => clearTimeout(t);
   }, [open]);
 
-  /** Compute the current @-token from `input` + cursor position. We
-   *  scan backward from the cursor for an `@` and require it to be at
-   *  the start of the string OR preceded by whitespace. Returns the
-   *  start index of the `@`, or -1 if no active mention. */
-  function detectMentionAt(text: string, cursor: number): number {
-    let i = cursor - 1;
-    while (i >= 0) {
-      const ch = text[i];
-      if (ch === "@") {
-        if (i === 0 || /\s/.test(text[i - 1])) return i;
-        return -1;
-      }
-      if (/\s/.test(ch)) return -1;
-      i--;
-    }
-    return -1;
-  }
+  const close = useCallback(() => setOpen(false), []);
 
-  /** Items that match the current @-token. Cap at 6 so the popover
-   *  doesn't dominate the screen. */
-  const mentionMatches = useMemo(() => {
-    if (mentionStart < 0) return [];
-    const cursor =
-      textareaRef.current?.selectionStart ?? input.length;
-    const token = input.slice(mentionStart + 1, cursor).toLowerCase();
-    if (token.length === 0) {
-      // Empty token (just typed @) — show recent + all
-      return userItems
-        .filter((i) => i.status === "active")
-        .slice(0, 6);
-    }
-    return userItems
-      .filter((i) => {
-        const hay = `${i.name} ${i.brand ?? ""}`.toLowerCase();
-        return hay.includes(token);
-      })
-      .slice(0, 6);
-     
-  }, [mentionStart, input, userItems]);
-
-  function insertMention(item: {
-    id: string;
-    name: string;
-    brand: string | null;
-  }) {
-    if (mentionStart < 0) return;
-    const cursor =
-      textareaRef.current?.selectionStart ?? input.length;
-    const before = input.slice(0, mentionStart);
-    const after = input.slice(cursor);
-    // Replace `@xxx` with `"Item Name"` — quotes make it parseable for
-    // Coach + visually distinguishable. Add a trailing space.
-    const mention = `"${item.name}" `;
-    const next = before + mention + after;
-    setInput(next);
-    setMentionStart(-1);
-    setMentionIndex(0);
-    setTimeout(() => {
-      const el = textareaRef.current;
-      if (!el) return;
-      el.focus();
-      const pos = before.length + mention.length;
-      el.setSelectionRange(pos, pos);
-    }, 0);
-  }
-
-  async function sendNow(msgs: Msg[]) {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: msgs }),
-      });
-      if (!res.body) throw new Error("No response body");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let acc = "";
-      setMessages([...msgs, { role: "assistant", content: "" }]);
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        acc += decoder.decode(value, { stream: true });
-        setMessages([...msgs, { role: "assistant", content: acc }]);
-      }
-    } catch (err) {
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", content: `Error: ${(err as Error).message}` },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSend() {
-    const text = input.trim();
-    if ((!text && !pendingImage) || loading) return;
-    setInput("");
-    setMentionStart(-1);
-
-    // Build user message — multimodal if there's a pending image
-    let userMsg: Msg;
-    if (pendingImage) {
-      userMsg = {
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: pendingImage.mediaType,
-              data: pendingImage.data,
-            },
-          },
-          { type: "text", text: text || "What do you see? How does this fit my regimen?" },
-        ],
-      };
-      setPendingImage(null);
-    } else {
-      userMsg = { role: "user", content: text };
-    }
-
-    const next = [...messages, userMsg];
-    setMessages(next);
-    await sendNow(next);
-  }
-
-  function handleQuickAction(a: QuickAction) {
-    const next: Msg[] = [
-      ...messages,
-      { role: "user", content: a.prompt },
-    ];
-    setMessages(next);
-    void sendNow(next);
-  }
-
-  function clearConversation() {
-    setMessages([]);
-    setExecuted({});
-    setPendingImage(null);
-    try {
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch {}
-  }
-
-  async function handleApprove(proposal: Proposal) {
-    setExecuted((m) => ({ ...m, [proposal.id]: "pending" }));
-    try {
-      const res = await fetch("/api/proposals/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: proposal.action,
-          item_name: proposal.item_name,
-          reasoning: proposal.reasoning,
-          extra: proposal.extra,
-        }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setExecuted((m) => ({ ...m, [proposal.id]: "done" }));
-        // Toast for the dopamine hit
-        window.dispatchEvent(
-          new CustomEvent("regimen:toast", {
-            detail: { kind: "success", text: `Applied: ${proposal.item_name}` },
-          }),
-        );
-        // Tell every page that lists items to refresh — closes the gap
-        // where a user approves "add Vitamin K2" in Coach but /today
-        // doesn't show the new item until manual reload.
-        window.dispatchEvent(new CustomEvent("regimen:items-changed"));
-      } else {
-        setExecuted((m) => ({ ...m, [proposal.id]: "error" }));
-        setMessages((m) => [
-          ...m,
-          {
-            role: "assistant",
-            content: `Couldn't apply: ${data.error ?? "unknown error"}`,
-          },
-        ]);
-      }
-    } catch {
-      setExecuted((m) => ({ ...m, [proposal.id]: "error" }));
-    }
-  }
-
-  function handleDismiss(proposal: Proposal) {
-    setExecuted((m) => ({ ...m, [proposal.id]: "error" }));
-  }
-
-  // Image upload — base64 inline, no Supabase round-trip needed for transient chat
-  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      window.dispatchEvent(
-        new CustomEvent("regimen:toast", {
-          detail: { kind: "error", text: "Photo too large (5MB max)" },
-        }),
-      );
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // result is "data:image/jpeg;base64,..." — split it
-      const [meta, data] = result.split(",");
-      const mediaMatch = meta.match(/data:([^;]+);base64/);
-      const mediaType = mediaMatch?.[1] ?? "image/jpeg";
-      setPendingImage({ data, mediaType, preview: result });
-    };
-    reader.readAsDataURL(file);
-    if (fileRef.current) fileRef.current.value = "";
-  }
-
-  // Voice input — toggle continuous transcription
-  function toggleVoice() {
-    if (typeof window === "undefined") return;
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-    if (!SR) return;
-
-    if (recording) {
-      recognitionRef.current?.stop();
-      return;
-    }
-    const recognition = new SR();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-    recognition.onresult = (e) => {
-      const results = e.results as unknown as Array<
-        [{ transcript: string }] & { isFinal?: boolean }
-      >;
-      let finalText = "";
-      for (let i = e.resultIndex; i < results.length; i++) {
-        const r = results[i];
-        const text = r[0].transcript;
-        const isFinal =
-          (r as { isFinal?: boolean }).isFinal ??
-          (results[i] as unknown as { isFinal?: boolean }).isFinal;
-        if (isFinal) finalText += text;
-      }
-      if (finalText) {
-        setInput((prev) => (prev + " " + finalText).trim());
-      }
-    };
-    recognition.onend = () => {
-      setRecording(false);
-      recognitionRef.current = null;
-    };
-    recognition.onerror = () => {
-      setRecording(false);
-      recognitionRef.current = null;
-    };
-    recognitionRef.current = recognition;
-    recognition.start();
-    setRecording(true);
-  }
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    if (open && textareaRef.current) {
-      setTimeout(() => textareaRef.current?.focus(), 100);
-    }
-  }, [open]);
-
-  // ESC closes the overlay so the user isn't trapped. Also closes when
-  // the navigation route changes — see below.
+  // While open: lock page scroll, Esc closes, focus the composer, and
+  // lift toasts above the composer instead of the (hidden) tab bar.
   useEffect(() => {
     if (!open) return;
-    function onKey(e: KeyboardEvent) {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
-    }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const t = setTimeout(() => textareaRef.current?.focus(), 120);
+    const root = document.documentElement;
+    const ro =
+      typeof ResizeObserver !== "undefined" && composerRef.current
+        ? new ResizeObserver(([entry]) =>
+            root.style.setProperty(
+              "--toast-offset",
+              `${Math.round(entry.target.getBoundingClientRect().height) + 8}px`,
+            ),
+          )
+        : null;
+    if (ro && composerRef.current) ro.observe(composerRef.current);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+      clearTimeout(t);
+      ro?.disconnect();
+      root.style.removeProperty("--toast-offset");
+    };
   }, [open]);
 
-  // Close on route change — if the user navigates away from /today via
-  // browser back or a tab tap while Coach is open, dismiss the overlay
-  // instead of leaving it stuck on top of the new page.
-  // Only on an actual change — not on mount, or the lazy-load replay
-  // of the opening event (below) would be immediately undone.
+  // Close on an actual route change (not on mount, or the lazy-load
+  // replay below would be immediately undone).
   const lastPathRef = useRef(pathname);
   useEffect(() => {
     if (lastPathRef.current === pathname) return;
@@ -488,33 +125,25 @@ export default function Coach({
     setOpen(false);
   }, [pathname]);
 
+  // Cross-app trigger. Empty text just opens; `newChat` clears first;
+  // `send` fires immediately, otherwise the text pre-fills the composer
+  // with the cursor at the end. `initialAsk` is the event that caused
+  // CoachLazy to load this chunk — replayed once here.
   const replayedRef = useRef(false);
-  // Cross-app trigger: anyone can dispatch `regimen:ask` (see
-  // src/lib/coach-events.ts). Empty/absent text just opens the overlay;
-  // `newChat` clears the thread first. When `send: true` is set the
-  // message fires immediately (use for action-verbs like "Investigate",
-  // "Drop?"). Otherwise we pre-fill the input + put the cursor at the
-  // end so the user can append their own context before tapping send.
-  // `initialAsk` is the event that caused CoachLazy to load this chunk —
-  // it fired before our listener existed, so we replay it once here.
+  const { clear, sendText } = chat;
   useEffect(() => {
     function applyAsk(detail: CoachAskDetail | null | undefined) {
       setOpen(true);
       if (detail?.newChat) {
-        clearConversation();
+        clear();
         setInput("");
       }
       const text = detail?.text?.trim() ? detail.text : "";
       if (!text) return;
       if (detail?.send) {
         setInput("");
-        const seeded: Msg[] = [{ role: "user", content: text }];
-        setMessages(seeded);
-        void sendNow(seeded);
+        sendText(text, true);
       } else {
-        // Pre-fill — append a newline so the cursor sits on the next
-        // line ready for the user to type more context. Focus the
-        // textarea + scroll the cursor to the end.
         const seedText = text.endsWith("\n") ? text : text + "\n\n";
         setInput(seedText);
         setTimeout(() => {
@@ -523,7 +152,7 @@ export default function Coach({
           el.focus();
           el.setSelectionRange(seedText.length, seedText.length);
           el.scrollTop = el.scrollHeight;
-        }, 120);
+        }, 160);
       }
     }
     function onAsk(e: Event) {
@@ -535,14 +164,11 @@ export default function Coach({
       applyAsk(initialAsk);
     }
     window.addEventListener(COACH_EVENT, onAsk as EventListener);
-    return () =>
-      window.removeEventListener(COACH_EVENT, onAsk as EventListener);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => window.removeEventListener(COACH_EVENT, onAsk as EventListener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bind once; helpers are stable
   }, []);
 
-  // Don't render on auth/compliance pages — Coach needs a signed-
-  // in user, and these pages are reachable while logged out (per
-  // middleware PUBLIC_PATHS for /privacy + /terms).
+  // Coach needs a signed-in user; these pages are reachable signed out.
   if (
     pathname?.startsWith("/signin") ||
     pathname?.startsWith("/auth/") ||
@@ -551,1106 +177,118 @@ export default function Coach({
   ) {
     return null;
   }
+  if (!mounted) return null;
 
-  return (
-    <>
-      {open && (
-        <div
-          // z-[70] sits above TabNav (z-50) and ToastHost (z-50) — was
-          // overlapping before, with the bottom Tab bar visible behind
-          // the Coach input bar at the same Y.
-          className="fixed inset-0 z-[70] flex flex-col"
-          style={{ background: "var(--background)" }}
-        >
-          {/* Header */}
-          <header
-            className="px-5 py-3 flex items-center justify-between"
-            style={{
-              paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)",
-              background:
-                "linear-gradient(135deg, rgba(139, 124, 252, 0.14) 0%, rgba(52, 194, 142, 0.05) 100%)",
-              borderBottom: "1px solid var(--border)",
-            }}
-          >
-            <div className="flex items-center gap-2.5">
-              <span
-                className="h-9 w-9 rounded-xl flex items-center justify-center"
-                style={{
-                  background:
-                    "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
-                  color: "#FFFFFF",
-                  boxShadow:
-                    "inset 0 1px 0 rgba(255, 255, 255, 0.18)",
-                }}
-              >
-                <Icon name="sparkle" size={16} strokeWidth={2} />
-              </span>
-              <div>
-                <div
-                  className="text-[16px] leading-tight"
-                  style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
-                >
-                  Coach
-                </div>
-                <div
-                  className="text-[11px]"
-                  style={{ color: "var(--muted)" }}
-                >
-                  Educational · not medical advice
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              {messages.length > 0 && (
-                <button
-                  onClick={clearConversation}
-                  className="text-[12px] px-2.5 py-1.5"
-                  style={{ color: "var(--muted)" }}
-                  aria-label="Clear conversation"
-                >
-                  Clear
-                </button>
-              )}
-              <button
-                onClick={() => setOpen(false)}
-                className="h-9 w-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-                style={{
-                  background: "var(--surface-alt)",
-                  color: "var(--foreground)",
-                }}
-                aria-label="Close Coach"
-              >
-                <Icon name="plus" size={16} className="rotate-45" strokeWidth={2.2} />
-              </button>
-            </div>
-          </header>
+  const last = messages[messages.length - 1];
+  const showFollowUps =
+    last?.role === "assistant" &&
+    typeof last.content === "string" &&
+    last.content.length > 0 &&
+    !loading &&
+    !input.trim() &&
+    !chat.pendingImage;
 
-          {/* Body */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5">
-            {messages.length === 0 ? (
-              <EmptyState onPick={handleQuickAction} />
-            ) : (
-              <div className="flex flex-col gap-4 max-w-lg mx-auto">
-                {messages.map((m, i) => (
-                  <MessageBubble
-                    key={i}
-                    msg={m}
-                    executed={executed}
-                    onApprove={handleApprove}
-                    onDismiss={handleDismiss}
-                  />
-                ))}
-                {loading &&
-                  messages[messages.length - 1]?.role === "user" && (
-                    <div className="flex items-center gap-1.5 ml-1">
-                      <span className="coach-dot" />
-                      <span className="coach-dot" style={{ animationDelay: "0.15s" }} />
-                      <span className="coach-dot" style={{ animationDelay: "0.30s" }} />
-                    </div>
-                  )}
-              </div>
-            )}
-          </div>
-
-          {/* Input */}
-          <div
-            className="px-4 py-3"
-            style={{
-              borderTop: "1px solid var(--border)",
-              paddingBottom: "calc(env(safe-area-inset-bottom, 0) + 12px)",
-              background: "var(--background)",
-            }}
-          >
-            <div className="max-w-lg mx-auto">
-              {/* Suggested follow-ups — only when there's a Coach reply
-                  to follow up on AND the user hasn't started typing yet.
-                  Hidden during streaming. */}
-              {messages.length > 0 &&
-                messages[messages.length - 1].role === "assistant" &&
-                !loading &&
-                !input.trim() &&
-                !pendingImage && (
-                  <FollowUpChips
-                    lastAssistant={
-                      typeof messages[messages.length - 1].content === "string"
-                        ? (messages[messages.length - 1].content as string)
-                        : ""
-                    }
-                    onPick={(text, sendIt) => {
-                      if (sendIt) {
-                        const next: Msg[] = [
-                          ...messages,
-                          { role: "user", content: text },
-                        ];
-                        setMessages(next);
-                        void sendNow(next);
-                      } else {
-                        setInput(text);
-                        setTimeout(
-                          () => textareaRef.current?.focus(),
-                          50,
-                        );
-                      }
-                    }}
-                  />
-                )}
-
-              {/* Pending image preview */}
-              {pendingImage && (
-                <div className="flex items-center gap-2 mb-2 px-1">
-                  <div
-                    className="relative h-12 w-12 rounded-lg overflow-hidden"
-                    style={{ background: "var(--surface-alt)" }}
-                  >
-                    <img
-                      src={pendingImage.preview}
-                      alt="Attached"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div
-                    className="text-[12px] flex-1"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    Photo attached · ask anything about it
-                  </div>
-                  <button
-                    onClick={() => setPendingImage(null)}
-                    className="text-[12px] px-2 py-1"
-                    style={{ color: "var(--muted)" }}
-                    aria-label="Remove photo"
-                  >
-                    <Icon name="plus" size={14} className="rotate-45" />
-                  </button>
-                </div>
-              )}
-
-              <div className="flex gap-2 items-end">
-                {/* Photo */}
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handlePhotoSelect}
-                  className="hidden"
-                />
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  disabled={loading}
-                  className="shrink-0 h-[42px] w-[42px] rounded-xl flex items-center justify-center"
-                  style={{
-                    background: "var(--surface-alt)",
-                    color: "var(--foreground)",
-                  }}
-                  aria-label="Attach photo"
-                >
-                  <Icon name="camera" size={18} strokeWidth={1.7} />
-                </button>
-
-                {/* Voice */}
-                {voiceSupported && (
-                  <button
-                    onClick={toggleVoice}
-                    disabled={loading}
-                    className="shrink-0 h-[42px] w-[42px] rounded-xl flex items-center justify-center"
-                    style={{
-                      background: recording
-                        ? "var(--error)"
-                        : "var(--surface-alt)",
-                      color: recording ? "#FFFFFF" : "var(--foreground)",
-                    }}
-                    aria-label={recording ? "Stop recording" : "Start voice input"}
-                  >
-                    <span className={recording ? "coach-mic-pulse" : ""}>
-                      <MicIcon />
-                    </span>
-                  </button>
-                )}
-
-                <div className="flex-1 relative">
-                  {/* @-mention autocomplete popover — anchored above the
-                      textarea. Only renders when the user is mid-token. */}
-                  {mentionStart >= 0 && mentionMatches.length > 0 && (
-                    <div
-                      className="absolute left-0 right-0 bottom-full mb-1.5 rounded-xl overflow-hidden"
-                      style={{
-                        background: "var(--surface)",
-                        border: "1px solid var(--border)",
-                        boxShadow:
-                          "0 8px 24px rgba(0, 0, 0, 0.3)",
-                        maxHeight: 220,
-                        overflowY: "auto",
-                      }}
-                    >
-                      {mentionMatches.map((m, i) => (
-                        <button
-                          key={m.id}
-                          onMouseDown={(ev) => {
-                            ev.preventDefault();
-                            insertMention(m);
-                          }}
-                          className="w-full text-left px-3 py-2 flex items-center justify-between gap-2"
-                          style={{
-                            background:
-                              i === mentionIndex
-                                ? "var(--surface-alt)"
-                                : "transparent",
-                          }}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div
-                              className="text-[13px] truncate"
-                              style={{ fontWeight: 500 }}
-                            >
-                              {m.name}
-                            </div>
-                            {m.brand && (
-                              <div
-                                className="text-[11px] truncate"
-                                style={{ color: "var(--muted)" }}
-                              >
-                                {m.brand}
-                              </div>
-                            )}
-                          </div>
-                          {m.status !== "active" && (
-                            <span
-                              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0"
-                              style={{
-                                background: "var(--surface-alt)",
-                                color: "var(--muted)",
-                                fontWeight: 600,
-                              }}
-                            >
-                              {m.status}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  <textarea
-                    ref={textareaRef}
-                    value={input}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setInput(val);
-                      const cursor = e.target.selectionStart;
-                      const at = detectMentionAt(val, cursor);
-                      setMentionStart(at);
-                      setMentionIndex(0);
-                    }}
-                    onKeyUp={(e) => {
-                      // Cursor moves (arrows, click) without triggering
-                      // onChange — re-detect mention state.
-                      if (
-                        e.key === "ArrowLeft" ||
-                        e.key === "ArrowRight" ||
-                        e.key === "Home" ||
-                        e.key === "End"
-                      ) {
-                        const t = e.currentTarget;
-                        const at = detectMentionAt(
-                          t.value,
-                          t.selectionStart,
-                        );
-                        setMentionStart(at);
-                        setMentionIndex(0);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      // When the mention popover is open, capture
-                      // arrow / enter / escape for navigation.
-                      if (mentionStart >= 0 && mentionMatches.length > 0) {
-                        if (e.key === "ArrowDown") {
-                          e.preventDefault();
-                          setMentionIndex(
-                            (i) =>
-                              (i + 1) % mentionMatches.length,
-                          );
-                          return;
-                        }
-                        if (e.key === "ArrowUp") {
-                          e.preventDefault();
-                          setMentionIndex(
-                            (i) =>
-                              (i - 1 + mentionMatches.length) %
-                              mentionMatches.length,
-                          );
-                          return;
-                        }
-                        if (e.key === "Enter" || e.key === "Tab") {
-                          e.preventDefault();
-                          insertMention(mentionMatches[mentionIndex]);
-                          return;
-                        }
-                        if (e.key === "Escape") {
-                          e.preventDefault();
-                          setMentionStart(-1);
-                          return;
-                        }
-                      }
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
-                      }
-                    }}
-                    // Auto-grow when prefilled so the user can see the
-                    // whole prompt without scrolling inside the textarea.
-                    rows={input.length > 80 ? 4 : 1}
-                    placeholder={
-                      pendingImage
-                        ? "What do you want to know?"
-                        : "Ask anything… or @ to mention an item"
-                    }
-                    className="w-full resize-none rounded-xl px-3 py-2.5 text-[15px] max-h-48 focus:outline-none"
-                    style={{
-                      background: "var(--surface-alt)",
-                      color: "var(--foreground)",
-                      border: "1px solid var(--border)",
-                      minHeight: "42px",
-                    }}
-                  />
-                </div>
-
-                <button
-                  onClick={handleSend}
-                  disabled={(!input.trim() && !pendingImage) || loading}
-                  className="shrink-0 h-[42px] px-4 rounded-xl text-[14px] flex items-center gap-1.5"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
-                    color: "#FFFFFF",
-                    fontWeight: 600,
-                    opacity:
-                      (!input.trim() && !pendingImage) || loading ? 0.5 : 1,
-                  }}
-                  aria-label="Send"
-                >
-                  <Icon name="chevron-right" size={16} strokeWidth={2.5} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function EmptyState({ onPick }: { onPick: (a: QuickAction) => void }) {
-  return (
-    <div className="max-w-lg mx-auto pt-2">
-      <div
-        className="text-[20px] leading-snug mb-1"
-        style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-      >
-        What do you want to{" "}
-        <span
-          style={{
-            background:
-              "linear-gradient(135deg, var(--pro) 0%, var(--accent) 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-          }}
-        >
-          fix
-        </span>
-        ?
-      </div>
-      <p
-        className="text-[13px] mb-5 leading-relaxed"
-        style={{ color: "var(--muted)" }}
-      >
-        Tap a starting point — or just type. I see your full regimen, last
-        14 days of skips, reactions, and voice memos.
-      </p>
-
-      <div className="grid grid-cols-2 gap-2.5 mb-6">
-        {QUICK_ACTIONS.map((a) => (
-          <button
-            key={a.label}
-            onClick={() => onPick(a)}
-            className="text-left rounded-2xl p-3.5 card-glass active:scale-[0.98] transition-transform"
-          >
-            <span
-              className="h-9 w-9 rounded-xl flex items-center justify-center mb-2.5"
-              style={{
-                background: `${a.accent}1F`,
-                color: a.accent,
-              }}
-            >
-              <Icon name={a.icon} size={16} strokeWidth={1.8} />
-            </span>
-            <div
-              className="text-[13.5px] leading-snug"
-              style={{ fontWeight: 600 }}
-            >
-              {a.label}
-            </div>
-          </button>
-        ))}
-      </div>
-
-      <div
-        className="text-[11px] uppercase tracking-wider mb-2"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 600,
-          letterSpacing: "0.06em",
-        }}
-      >
-        Or try
-      </div>
-      <div className="flex flex-col gap-2">
-        {DEEP_PROMPTS.map((p) => (
-          <button
-            key={p}
-            onClick={() => {
-              const evt = new CustomEvent("regimen:ask", {
-                detail: { text: p, send: true },
-              });
-              window.dispatchEvent(evt);
-            }}
-            className="text-left text-[13px] rounded-xl px-3.5 py-2.5"
-            style={{
-              background: "var(--surface-alt)",
-              color: "var(--foreground-soft)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const DEEP_PROMPTS = [
-  "Give me a 7-day plan to fix my sleep, ranked by likely impact.",
-  "Pretend I have $0 budget — what 5 items in my stack would I keep?",
-  "What pattern would my next-best biomarker test reveal?",
-];
-
-// Synthesize a short, friendly chip-style label for technical
-// programmatic prompts (Audit Lenses, NextStep CTAs, etc.). The user
-// shouldn't see verbose engineering instructions in their own bubble.
-function compactUserLabel(text: string): string | null {
-  const trimmed = text.trim();
-  if (trimmed.length < 90) return null;
-  if (trimmed.includes("?") && trimmed.length < 140) return null;
-  // First sentence, max 80 chars, ellipsis if longer.
-  const first = trimmed.split(/[.\n]/)[0].trim();
-  if (first.length <= 80) return first;
-  // Word-boundary cut
-  const cut = first.slice(0, 80).split(" ").slice(0, -1).join(" ");
-  return (cut.length > 30 ? cut : first.slice(0, 77)) + "…";
-}
-
-// Threshold below which we auto-show the full message; above which we
-// truncate to the first ~3 paragraphs and offer a "Show more" toggle.
-// Coach answers can run very long (multi-paragraph reasoning before the
-// proposal card) — burying the proposal makes it hard to act on. We
-// collapse the prose so the proposal sits one tap away.
-const COLLAPSE_THRESHOLD = 480;
-
-function AssistantOrUserBubble({
-  isUser,
-  text,
-}: {
-  isUser: boolean;
-  text: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const long = !isUser && text.length > COLLAPSE_THRESHOLD;
-  // Take the first ~3 short blocks for the collapsed view. We split on
-  // blank lines and keep going until we have enough characters or hit
-  // 3 blocks, whichever comes first.
-  const collapsedText = (() => {
-    if (!long || expanded) return text;
-    const blocks = text.split(/\n{2,}/);
-    let out = "";
-    for (const b of blocks) {
-      if (out.length + b.length > 280 && out.length > 0) break;
-      out += (out ? "\n\n" : "") + b;
-      if (out.length > 280) break;
-    }
-    return out;
-  })();
   return (
     <div
-      className="rounded-2xl px-4 py-3 max-w-[88%] text-[14.5px]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Coach"
+      className="fixed inset-0 flex flex-col bg-[var(--background)]"
       style={{
-        background: isUser
-          ? "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)"
-          : "var(--surface-alt)",
-        color: isUser ? "#FFFFFF" : "var(--foreground)",
-        borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-        fontWeight: isUser ? 500 : 400,
+        zIndex: "var(--z-modal)" as unknown as number,
+        transform: shown ? "translateY(0)" : "translateY(24px)",
+        opacity: shown ? 1 : 0,
+        transition: `transform ${EXIT_MS}ms var(--ease-out), opacity ${EXIT_MS - 60}ms ease`,
+        paddingLeft: "env(safe-area-inset-left, 0px)",
+        paddingRight: "env(safe-area-inset-right, 0px)",
       }}
     >
-      {isUser ? (
-        // User messages stay plain — no markdown parsing needed (and we
-        // don't want their literal asterisks reinterpreted).
-        <div className="leading-relaxed whitespace-pre-wrap">{text}</div>
-      ) : (
-        <>
-          <CoachMarkdown text={collapsedText} />
-          {long && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="text-[12px] mt-2.5 inline-flex items-center gap-1"
-              style={{
-                color: "var(--pro)",
-                fontWeight: 600,
-              }}
-            >
-              {expanded ? "Show less" : "Show more"}
-              <Icon
-                name="chevron-right"
-                size={11}
-                strokeWidth={2.4}
-                className={expanded ? "-rotate-90" : "rotate-90"}
-              />
-            </button>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function MessageBubble({
-  msg,
-  executed,
-  onApprove,
-  onDismiss,
-}: {
-  msg: Msg;
-  executed: Record<string, "done" | "error" | "pending">;
-  onApprove: (p: Proposal) => void;
-  onDismiss: (p: Proposal) => void;
-}) {
-  const isUser = msg.role === "user";
-  const [showFull, setShowFull] = useState(false);
-
-  // Multimodal: extract image + text parts
-  let displayText = "";
-  let imageData: string | null = null;
-  if (typeof msg.content === "string") {
-    displayText = isUser ? msg.content : stripProposals(msg.content);
-  } else {
-    for (const part of msg.content) {
-      if (part.type === "text") displayText += (displayText ? "\n" : "") + part.text;
-      else if (part.type === "image")
-        imageData = `data:${part.source.media_type};base64,${part.source.data}`;
-    }
-    if (!isUser) displayText = stripProposals(displayText);
-  }
-  const proposals = isUser
-    ? []
-    : parseProposals(typeof msg.content === "string" ? msg.content : displayText);
-
-  // For user messages, hide verbose technical prompts behind a friendly
-  // chip. User-typed questions (short, often with ?) render normally.
-  const compactLabel = isUser ? compactUserLabel(displayText) : null;
-  const isCompact = compactLabel !== null && !showFull;
-
-  return (
-    <div
-      className={`flex flex-col ${isUser ? "items-end" : "items-start"} gap-2`}
-    >
-      {imageData && (
-        <div
-          className="rounded-2xl overflow-hidden max-w-[70%]"
-          style={{ background: "var(--surface-alt)" }}
-        >
-          <img
-            src={imageData}
-            alt="Attached photo"
-            className="block max-h-64 w-auto"
-          />
-        </div>
-      )}
-      {isCompact ? (
+      <header
+        className="glass-strong relative z-10 flex shrink-0 items-center gap-1 border-x-0 border-t-0 px-2 pb-2"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 6px)", boxShadow: "none" }}
+      >
         <button
-          onClick={() => setShowFull(true)}
-          className="text-[12px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full max-w-[85%] text-left"
-          style={{
-            background: "var(--pro-tint)",
-            color: "var(--pro)",
-            fontWeight: 600,
-          }}
-          title="Tap to see full request"
+          type="button"
+          onClick={close}
+          aria-label="Close Coach"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--foreground-soft)] hover:bg-[var(--surface-alt)]"
         >
-          <Icon name="sparkle" size={11} strokeWidth={2.2} />
-          <span className="truncate">{compactLabel}</span>
+          <Icon name="chevron-down" size={22} strokeWidth={2} />
         </button>
-      ) : (
-        displayText && (
-          <AssistantOrUserBubble
-            isUser={isUser}
-            text={displayText}
-          />
-        )
-      )}
-      {proposals.map((p) => (
-        <ProposalCard
-          key={p.id}
-          proposal={p}
-          state={executed[p.id]}
-          onApprove={onApprove}
-          onDismiss={onDismiss}
+        <div className="min-w-0 flex-1 text-center">
+          <div className="flex items-center justify-center gap-1.5 text-body font-semibold">
+            <Icon name="sparkle" size={15} strokeWidth={2} className="text-[var(--pro-soft)]" />
+            Coach
+          </div>
+          <div className="truncate text-caption text-[var(--muted)]">
+            Educational · not medical advice
+          </div>
+        </div>
+        <Link
+          href="/coach-history"
+          aria-label="Past conversations"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--foreground-soft)] hover:bg-[var(--surface-alt)]"
+        >
+          <Icon name="history" size={20} strokeWidth={1.8} />
+        </Link>
+        <button
+          type="button"
+          onClick={() => {
+            chat.clear();
+            setInput("");
+            textareaRef.current?.focus();
+          }}
+          disabled={messages.length === 0 && !input}
+          aria-label="New conversation"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--foreground-soft)] hover:bg-[var(--surface-alt)] disabled:!bg-transparent"
+        >
+          <Icon name="edit" size={19} strokeWidth={1.8} />
+        </button>
+      </header>
+
+      <MessageList
+        messages={messages}
+        loading={loading}
+        executed={chat.executed}
+        onApprove={chat.approve}
+        onDismiss={chat.dismiss}
+        empty={<EmptyState onSend={(t) => sendText(t)} />}
+        footer={
+          showFollowUps ? (
+            <FollowUpChips
+              lastAssistant={last.content as string}
+              onPick={(text, sendIt) => {
+                if (sendIt) sendText(text);
+                else {
+                  setInput(text);
+                  setTimeout(() => textareaRef.current?.focus(), 50);
+                }
+              }}
+            />
+          ) : null
+        }
+      />
+
+      <div
+        ref={composerRef}
+        className="shrink-0 bg-[var(--background)] px-3 pt-2"
+        style={{
+          paddingBottom: kb > 0 ? `${kb + 8}px` : "calc(env(safe-area-inset-bottom, 0px) + 10px)",
+        }}
+      >
+        <CoachComposer
+          open={open}
+          input={input}
+          setInput={setInput}
+          loading={loading}
+          pendingImage={chat.pendingImage}
+          onClearImage={() => chat.setPendingImage(null)}
+          onAttachPhoto={chat.attachPhoto}
+          onSend={chat.handleSend}
+          onStop={chat.stop}
+          textareaRef={textareaRef}
         />
-      ))}
-    </div>
-  );
-}
-
-// Map technical proposal extra keys to friendly bullet-style descriptions.
-// e.g. "timing_slot: breakfast" → "• Take at breakfast"
-const TIMING_LABELS: Record<string, string> = {
-  pre_breakfast: "first thing in the morning",
-  breakfast: "with breakfast",
-  pre_workout: "before your workout",
-  lunch: "with lunch",
-  dinner: "with dinner",
-  pre_bed: "before bed",
-  ongoing: "throughout the day",
-  situational: "as needed",
-};
-
-const FREQUENCY_LABELS: Record<string, string> = {
-  daily: "every day",
-  weekly: "weekly",
-  monthly: "monthly",
-  cycled_5_2: "cycled (5 days on, 2 off)",
-  cycled_8_4: "cycled (8 weeks on, 4 off)",
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  permanent: "your permanent stack",
-  temporary: "temporary — review later",
-  cycled: "cycled — on/off rotation",
-  situational: "as needed",
-  condition_linked: "tied to a condition",
-};
-
-function humanizeExtra(key: string, value: string): string | null {
-  switch (key) {
-    case "timing_slot":
-      return `Take ${TIMING_LABELS[value] ?? `at ${value.replace(/_/g, " ")}`}`;
-    case "frequency":
-      return FREQUENCY_LABELS[value] ?? value.replace(/_/g, " ");
-    case "category":
-      return `In ${CATEGORY_LABELS[value] ?? value.replace(/_/g, " ")}`;
-    case "dose":
-      return `Dose: ${value}`;
-    case "brand":
-      return `Brand: ${value}`;
-    case "goals": {
-      const list = value
-        .split(/[,;]/)
-        .map((g) => g.trim())
-        .filter(Boolean);
-      if (list.length === 0) return null;
-      return `For: ${list.join(" · ")}`;
-    }
-    case "item_type":
-      return null; // implied by rest of card
-    case "notes":
-      return value.length > 80 ? value.slice(0, 77) + "…" : value;
-    case "companion_of":
-      return `Pair with ${value}`;
-    case "companion_instruction":
-      return value;
-    default:
-      return `${key.replace(/_/g, " ")}: ${value}`;
-  }
-}
-
-type PreviewWarning = {
-  ingredient_key: string;
-  label: string;
-  unit: "mg" | "mcg";
-  total_amount: number;
-  ul: number;
-  ratio: number;
-  severity: "info" | "warning" | "critical";
-};
-type PreviewResponse = {
-  matched: boolean;
-  candidate: { id: string; name: string } | null;
-  added: PreviewWarning[];
-};
-
-function ProposalCard({
-  proposal,
-  state,
-  onApprove,
-  onDismiss,
-}: {
-  proposal: Proposal;
-  state?: "done" | "error" | "pending";
-  onApprove: (p: Proposal) => void;
-  onDismiss: (p: Proposal) => void;
-}) {
-  // For add/queue proposals — preview whether this would push any
-  // ingredient over UL. Surfaces inline before the Yes button so the
-  // user sees the safety impact before approving. Silent if there's no
-  // projected impact (the common case).
-  const [preview, setPreview] = useState<PreviewResponse | null>(null);
-  const isAdd = proposal.action === "add" || proposal.action === "queue";
-  useEffect(() => {
-    if (!isAdd) return;
-    const catalogId = proposal.extra?.catalog_item_id;
-    const params = new URLSearchParams();
-    if (catalogId) params.set("catalog_item_id", catalogId);
-    else params.set("name", proposal.item_name);
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch(`/api/ingredient-stack/preview?${params.toString()}`, {
-          credentials: "include",
-        });
-        if (!r.ok) return;
-        const j = (await r.json()) as PreviewResponse;
-        if (alive) setPreview(j);
-      } catch {
-        // silent — preview is non-blocking
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [isAdd, proposal.extra?.catalog_item_id, proposal.item_name]);
-  // Friendlier action labels. "Add to active" → "Yes, add it"; "Drop now"
-  // → "Yes, drop it"; etc. The action verb stays directional but reads
-  // like a person's choice, not a system command.
-  const ACTION_META: Record<
-    Proposal["action"],
-    { headline: string; accent: string; yes: string; no: string }
-  > = {
-    add: {
-      headline: "Add to your stack?",
-      accent: "var(--accent)",
-      yes: "Yes, add it",
-      no: "Not now",
-    },
-    update: {
-      headline: "Update this item?",
-      accent: "var(--pro)",
-      yes: "Yes, update",
-      no: "Leave it",
-    },
-    adjust: {
-      headline: "Adjust this?",
-      accent: "var(--pro)",
-      yes: "Yes, adjust",
-      no: "Leave it",
-    },
-    retire: {
-      headline: "Drop from your stack?",
-      accent: "var(--error)",
-      yes: "Yes, drop it",
-      no: "Keep it",
-    },
-    promote: {
-      headline: "Move to active?",
-      accent: "var(--accent)",
-      yes: "Yes, activate",
-      no: "Not now",
-    },
-    queue: {
-      headline: "Queue for later?",
-      accent: "var(--muted)",
-      yes: "Yes, queue",
-      no: "Not now",
-    },
-  };
-  const meta = ACTION_META[proposal.action] ?? ACTION_META.update;
-
-  // Humanize extras into bullet sentences instead of key:value pairs
-  const friendlyExtras = proposal.extra
-    ? Object.entries(proposal.extra)
-        .map(([k, v]) => humanizeExtra(k, v))
-        .filter((s): s is string => s !== null)
-    : [];
-
-  // After approval or dismissal, the card disappears entirely. The
-  // toast at the bottom of the screen + the items-changed event
-  // refreshing /today are the confirmation. Keeping the card around
-  // (even as a chip) clutters the chat thread.
-  if (state === "done" || state === "error") return null;
-
-  return (
-    <div
-      className="rounded-2xl p-3.5 max-w-[90%] w-full"
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-      }}
-    >
-      <div
-        className="text-[10px] uppercase tracking-wider mb-1"
-        style={{
-          color: meta.accent,
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
-        {meta.headline}
-      </div>
-      <div className="text-[16px]" style={{ fontWeight: 700 }}>
-        {proposal.item_name}
-      </div>
-      {proposal.reasoning && (
-        <div
-          className="text-[13px] mt-1.5 leading-relaxed"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          {proposal.reasoning}
-        </div>
-      )}
-      {friendlyExtras.length > 0 && (
-        <ul
-          className="text-[12px] mt-2.5 leading-snug flex flex-col gap-0.5"
-          style={{ color: "var(--muted)" }}
-        >
-          {friendlyExtras.map((s, i) => (
-            <li key={i} className="flex items-start gap-1.5">
-              <span
-                style={{ color: meta.accent, marginTop: 2 }}
-                aria-hidden
-              >
-                ·
-              </span>
-              <span>{s}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* UL safety preview — only renders if adding this would push any
-          ingredient into a more severe tier. Silent when safe. */}
-      {preview && preview.added.length > 0 ? (
-        <div
-          className="rounded-lg mt-2.5 px-3 py-2 text-[12px] leading-relaxed"
-          style={{
-            background:
-              preview.added.some((w) => w.severity === "critical") ||
-              preview.added.some((w) => w.severity === "warning")
-                ? "rgba(239, 68, 68, 0.10)"
-                : "rgba(245, 158, 11, 0.10)",
-            border:
-              "1px solid " +
-              (preview.added.some((w) => w.severity === "critical") ||
-              preview.added.some((w) => w.severity === "warning")
-                ? "rgba(239, 68, 68, 0.30)"
-                : "rgba(245, 158, 11, 0.30)"),
-            color: "var(--foreground-soft)",
-          }}
-        >
-          <div
-            className="text-[10px] uppercase tracking-wider mb-0.5"
-            style={{
-              color:
-                preview.added.some((w) => w.severity === "critical") ||
-                preview.added.some((w) => w.severity === "warning")
-                  ? "var(--error)"
-                  : "var(--warn)",
-              fontWeight: 700,
-              letterSpacing: "0.06em",
-            }}
-          >
-            ⚠ Stack impact
-          </div>
-          {preview.added.slice(0, 2).map((w) => (
-            <div key={w.ingredient_key} className="mt-0.5">
-              <strong style={{ color: "var(--foreground)" }}>{w.label}</strong>{" "}
-              would reach {w.total_amount} {w.unit} ({Math.round(w.ratio * 100)}% of UL {w.ul} {w.unit}).
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="flex gap-2 mt-3">
-        {/* state can only be "pending" or undefined here — the done/error
-            branches return null at the top of the component so the card
-            disappears entirely after the action lands. */}
-        <>
-            <button
-              onClick={() => onApprove(proposal)}
-              disabled={state === "pending"}
-              className="flex-1 px-3.5 py-2 rounded-lg text-[13.5px] flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
-              style={{
-                background: meta.accent,
-                color: "#FFFFFF",
-                fontWeight: 700,
-                opacity: state === "pending" ? 0.6 : 1,
-              }}
-            >
-              {state === "pending" ? (
-                "…"
-              ) : (
-                <>
-                  <Icon name="check-circle" size={13} strokeWidth={2.4} />
-                  {meta.yes}
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => onDismiss(proposal)}
-              className="px-3 py-2 rounded-lg text-[13px]"
-              style={{
-                color: "var(--muted)",
-                background: "var(--surface-alt)",
-                fontWeight: 600,
-              }}
-            >
-              {meta.no}
-            </button>
-          </>
       </div>
     </div>
-  );
-}
-
-/** Smart follow-up suggestion chips, rendered just above the Coach
- *  input when the last message is from Coach and the user hasn't
- *  started typing yet. The first chip auto-sends; the others pre-fill
- *  the input so the user can append context first. */
-function FollowUpChips({
-  lastAssistant,
-  onPick,
-}: {
-  lastAssistant: string;
-  onPick: (text: string, sendIt: boolean) => void;
-}) {
-  const lower = lastAssistant.toLowerCase();
-  const hasProposal = /<<<proposal|proposal>>>/i.test(lastAssistant);
-  const endsWithQuestion = /\?\s*$/.test(lastAssistant.trim());
-  const mentionsAdd = /\b(add|queue|try|consider)\b/i.test(lower);
-  const mentionsDrop = /\b(drop|retire|remove|stop)\b/i.test(lower);
-
-  // Compose 3-4 context-aware suggestions.
-  type Chip = { label: string; text: string; send: boolean };
-  const chips: Chip[] = [];
-
-  if (hasProposal) {
-    chips.push({
-      label: "Why this one?",
-      text: "Why this specific item over alternatives? What's the evidence + the trade-offs?",
-      send: true,
-    });
-    chips.push({
-      label: "Show alternatives",
-      text: "What are 2-3 alternatives I should compare against this proposal — different brand, dose, or mechanism?",
-      send: true,
-    });
-    chips.push({
-      label: "What about my…",
-      text: "What about my ",
-      send: false,
-    });
-  } else if (endsWithQuestion) {
-    chips.push({ label: "Yes", text: "Yes", send: true });
-    chips.push({ label: "No", text: "No", send: true });
-    chips.push({
-      label: "Tell me more first",
-      text: "Tell me more before I answer — what's the trade-off?",
-      send: true,
-    });
-  } else if (mentionsAdd) {
-    chips.push({
-      label: "Find a tighter version",
-      text: "Is there a tighter version — lower dose, different timing, cheaper brand — that fits better?",
-      send: true,
-    });
-    chips.push({
-      label: "Pair with what I have?",
-      text: "What in my current stack should I pair this with for max effect?",
-      send: true,
-    });
-    chips.push({
-      label: "Skip — why not?",
-      text: "Make the case for NOT adding this. Where could it go wrong?",
-      send: true,
-    });
-  } else if (mentionsDrop) {
-    chips.push({
-      label: "Drop now",
-      text: "Yes, drop it — emit the proposal.",
-      send: true,
-    });
-    chips.push({
-      label: "Reframe instead",
-      text: "Before I drop it, what's the smallest behavior change that would make it stick?",
-      send: true,
-    });
-    chips.push({
-      label: "What replaces it?",
-      text: "If I drop it, what do I replace the function of this item with?",
-      send: true,
-    });
-  } else {
-    chips.push({
-      label: "Why?",
-      text: "Why? Walk me through the reasoning.",
-      send: true,
-    });
-    chips.push({
-      label: "What's next?",
-      text: "Given my stack + recent data, what's the single highest-leverage next move?",
-      send: true,
-    });
-    chips.push({
-      label: "Add my context",
-      text: "",
-      send: false,
-    });
-  }
-
-  return (
-    <div className="flex flex-wrap gap-1.5 mb-2.5">
-      {chips.map((c) => (
-        <button
-          key={c.label}
-          onClick={() => onPick(c.text, c.send)}
-          className="text-[11.5px] px-2.5 py-1.5 rounded-full active:scale-[0.97] transition-transform"
-          style={{
-            background: "var(--surface-alt)",
-            color: "var(--foreground-soft)",
-            border: "1px solid var(--border)",
-            fontWeight: 500,
-          }}
-        >
-          {c.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function MicIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="9" y="2" width="6" height="12" rx="3" />
-      <path d="M5 10v2a7 7 0 0 0 14 0v-2" />
-      <line x1="12" y1="19" x2="12" y2="22" />
-    </svg>
   );
 }

@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { showToast } from "@/lib/toast";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 
 export default function NewRecipePage() {
   const router = useRouter();
@@ -80,159 +83,135 @@ export default function NewRecipePage() {
       router.push(`/recipes/${data.id}`);
       router.refresh();
     } else if (error) {
-      window.dispatchEvent(
-        new CustomEvent("regimen:toast", {
-          detail: { kind: "error", text: `Couldn't save: ${error.message}` },
-        }),
-      );
+      console.error("recipes: insert", error);
+      showToast("Couldn’t save your recipe — try again", { tone: "error" });
     }
   }
 
-  const field = {
-    background: "var(--background)",
-    color: "var(--foreground)",
-  };
-
   return (
     <div className="pb-24">
-      <div className="mb-4">
-        <Link
-          href="/recipes"
-          className="text-[13px]"
-          style={{ color: "var(--muted)" }}
-        >
-          ← Recipes
-        </Link>
-      </div>
+      <PageHeader title="New recipe" back="/recipes" backLabel="Recipes" />
 
-      <header className="mb-6">
-        <h1 className="text-[34px] leading-tight" style={{ fontWeight: 700, letterSpacing: "-0.024em" }}>
-          New recipe
-        </h1>
-      </header>
-
-      <form onSubmit={handleSave} className="flex flex-col gap-5">
-        <Field label="Name" required>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            autoFocus
-            placeholder="e.g. Nourishing post-op soup"
-            className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-            style={field}
-          />
-        </Field>
-
-        <Field label="Description (optional)">
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-            className="w-full border-hair rounded-lg p-3 text-[14px] resize-none focus:outline-none focus:border-hair-strong"
-            style={field}
-          />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Servings">
+      <form onSubmit={handleSave} className="flex flex-col gap-4">
+        <Card padding="md" className="flex flex-col gap-4">
+          <Field label="Name" required>
             <input
-              type="number"
-              min="1"
-              value={servings}
-              onChange={(e) => setServings(e.target.value)}
-              className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-              style={field}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              autoFocus
+              placeholder="e.g. Lemon herb chicken bowl"
+              className="input-field"
             />
           </Field>
-          <Field label="Calories / serving">
-            <input
-              type="number"
-              value={calories}
-              onChange={(e) => setCalories(e.target.value)}
-              className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-              style={field}
+
+          <Field label="Description" optional>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="input-field resize-none"
             />
           </Field>
-        </div>
+        </Card>
 
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Protein g">
-            <input
-              type="number"
-              value={protein}
-              onChange={(e) => setProtein(e.target.value)}
-              className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-              style={field}
+        <Card padding="md" className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Servings">
+              <input
+                type="number"
+                inputMode="numeric"
+                min="1"
+                value={servings}
+                onChange={(e) => setServings(e.target.value)}
+                className="input-field"
+              />
+            </Field>
+            <Field label="Calories per serving">
+              <input
+                type="number"
+                inputMode="numeric"
+                value={calories}
+                onChange={(e) => setCalories(e.target.value)}
+                className="input-field"
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Protein (g)">
+              <input
+                type="number"
+                inputMode="numeric"
+                value={protein}
+                onChange={(e) => setProtein(e.target.value)}
+                className="input-field"
+              />
+            </Field>
+            <Field label="Fat (g)">
+              <input
+                type="number"
+                inputMode="numeric"
+                value={fat}
+                onChange={(e) => setFat(e.target.value)}
+                className="input-field"
+              />
+            </Field>
+            <Field label="Carbs (g)">
+              <input
+                type="number"
+                inputMode="numeric"
+                value={carbs}
+                onChange={(e) => setCarbs(e.target.value)}
+                className="input-field"
+              />
+            </Field>
+          </div>
+        </Card>
+
+        <Card padding="md" className="flex flex-col gap-4">
+          <Field label="Ingredients" hint="One per line">
+            <textarea
+              value={ingredients}
+              onChange={(e) => setIngredients(e.target.value)}
+              rows={6}
+              placeholder={"2 tbsp olive oil\n150g chicken breast\n1 cup rice"}
+              className="input-field resize-none"
             />
           </Field>
-          <Field label="Fat g">
-            <input
-              type="number"
-              value={fat}
-              onChange={(e) => setFat(e.target.value)}
-              className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-              style={field}
+
+          <Field label="Steps" hint="One per line">
+            <textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              rows={6}
+              placeholder={"Heat the oil…\nAdd the chicken…"}
+              className="input-field resize-none"
             />
           </Field>
-          <Field label="Carbs g">
+
+          <Field label="Tags" hint="Separate with commas">
             <input
-              type="number"
-              value={carbs}
-              onChange={(e) => setCarbs(e.target.value)}
-              className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-              style={field}
+              type="text"
+              value={tagsStr}
+              onChange={(e) => setTagsStr(e.target.value)}
+              placeholder="high-protein, quick, lunch"
+              className="input-field"
             />
           </Field>
-        </div>
+        </Card>
 
-        <Field label="Ingredients (one per line)">
-          <textarea
-            value={ingredients}
-            onChange={(e) => setIngredients(e.target.value)}
-            rows={6}
-            placeholder={"2 tbsp ghee\n150g grass-fed ground beef\n1 cup bone broth"}
-            className="w-full border-hair rounded-lg p-3 text-[14px] resize-none focus:outline-none focus:border-hair-strong"
-            style={field}
-          />
-        </Field>
-
-        <Field label="Instructions">
-          <textarea
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-            rows={6}
-            placeholder={"1. Heat ghee…\n2. Add beef…"}
-            className="w-full border-hair rounded-lg p-3 text-[14px] resize-none focus:outline-none focus:border-hair-strong"
-            style={field}
-          />
-        </Field>
-
-        <Field label="Tags (comma-separated)">
-          <input
-            type="text"
-            value={tagsStr}
-            onChange={(e) => setTagsStr(e.target.value)}
-            placeholder="gut-healing, soup, post-op"
-            className="w-full border-hair rounded-lg px-3 py-2.5 text-[15px] focus:outline-none focus:border-hair-strong"
-            style={field}
-          />
-        </Field>
-
-        <button
+        <Button
           type="submit"
-          disabled={saving || !name.trim()}
-          className="px-4 py-3 rounded-lg text-[15px] mt-2"
-          style={{
-            background: "var(--foreground)",
-            color: "var(--background)",
-            fontWeight: 500,
-            opacity: saving || !name.trim() ? 0.5 : 1,
-          }}
+          size="lg"
+          fullWidth
+          className="mt-2"
+          loading={saving}
+          disabled={!name.trim()}
         >
           {saving ? "Saving…" : "Save recipe"}
-        </button>
+        </Button>
       </form>
     </div>
   );
@@ -241,22 +220,35 @@ export default function NewRecipePage() {
 function Field({
   label,
   required,
+  optional,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
+  optional?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <label
-        className="text-[12px] uppercase tracking-wider mb-2 block"
-        style={{ color: "var(--muted)", fontWeight: 500 }}
-      >
-        {label}
-        {required ? " *" : ""}
-      </label>
+    <label className="block">
+      <span className="mb-1.5 flex items-baseline justify-between gap-2">
+        <span className="text-footnote font-medium text-[var(--foreground-soft)]">
+          {label}
+          {required && (
+            <span aria-hidden className="text-[var(--muted)]">
+              {" "}
+              *
+            </span>
+          )}
+        </span>
+        {(hint || optional) && (
+          <span className="text-caption text-[var(--muted)]">
+            {hint ?? "Optional"}
+          </span>
+        )}
+      </span>
       {children}
-    </div>
+    </label>
   );
 }

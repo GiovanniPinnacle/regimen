@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   ACTIVITY_LABELS,
   calcMacros,
@@ -11,6 +10,14 @@ import {
   type Sex,
 } from "@/lib/macros";
 import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import { ChipButton } from "@/components/ui/Chip";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import Segmented from "@/components/ui/Segmented";
+import { SectionHeader, Stat } from "@/components/ui/Section";
+import { SkeletonCard } from "@/components/Skeleton";
 
 type Unit = "metric" | "imperial";
 
@@ -29,7 +36,7 @@ export default function ProfilePage() {
   const [postOpDate, setPostOpDate] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [now] = useState(() => Date.now());
 
   useEffect(() => {
@@ -96,300 +103,249 @@ export default function ProfilePage() {
       }),
     });
     const d = await res.json();
-    setMsg(d.ok ? "✓ Saved" : `Error: ${d.error}`);
+    setMsg(
+      d.ok
+        ? { ok: true, text: "Saved" }
+        : { ok: false, text: `Couldn't save — ${d.error ?? "try again"}` },
+    );
     setSaving(false);
   }
 
   return (
     <div className="pb-24">
-      <header className="mb-5">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            You
-          </Link>
-        </div>
-        <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-        >
-          Profile + macros
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Your body + goals → your portion targets. Coach uses these when
-          suggesting meals.
-        </p>
-      </header>
+      <PageHeader
+        title="Body & targets"
+        back="/you"
+        backLabel="You"
+        subtitle="Your body and goals set your daily nutrition targets. Coach uses them when suggesting meals."
+      />
 
       {loaded && (!computedKg || !computedCm || !age) && (
-        <button
-          onClick={() => {
-            window.dispatchEvent(
-              new CustomEvent("regimen:ask", {
-                detail: {
-                  text:
-                    "I'm setting up my Profile + macros for the first time. Walk me through what each field affects (weight, height, age, sex, activity level, body goal, meals/day) and what's reasonable for my situation. Keep it tight.",
-                  send: true,
-                },
-              }),
-            );
-          }}
-          className="w-full mb-5 rounded-2xl card-glass p-3.5 flex items-center gap-2.5 active:scale-[0.99] transition-transform text-left"
-        >
-          <span
-            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{
-              background: "var(--pro-tint)",
-              color: "var(--pro)",
+        <ListGroup className="mb-6">
+          <ListRow
+            icon="sparkle"
+            iconTone="coach"
+            title="First time? Coach can guide you"
+            subtitle="A quick walkthrough of every field"
+            chevron
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent("regimen:ask", {
+                  detail: {
+                    text:
+                      "I'm setting up my Profile + macros for the first time. Walk me through what each field affects (weight, height, age, sex, activity level, body goal, meals/day) and what's reasonable for my situation. Keep it tight.",
+                    send: true,
+                  },
+                }),
+              );
             }}
-          >
-            <Icon name="sparkle" size={16} strokeWidth={1.8} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div
-              className="text-[13.5px] leading-snug"
-              style={{ fontWeight: 600 }}
-            >
-              First time? Coach can guide you
-            </div>
-            <div
-              className="text-[11.5px] mt-0.5 leading-snug"
-              style={{ color: "var(--muted)" }}
-            >
-              Get a 60-second walkthrough of every field
-            </div>
-          </div>
-          <Icon name="chevron-right" size={14} className="shrink-0 opacity-50" />
-        </button>
+          />
+        </ListGroup>
       )}
 
       {!loaded ? (
-        <div className="py-8 text-center" style={{ color: "var(--muted)" }}>
-          Loading…
+        <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading">
+          <SkeletonCard height={44} />
+          <SkeletonCard height={260} />
+          <SkeletonCard height={200} />
         </div>
       ) : (
-        <div className="flex flex-col gap-6">
-          {/* Unit toggle */}
-          <div className="flex gap-1.5">
-            {(["imperial", "metric"] as Unit[]).map((u) => (
-              <button
-                key={u}
-                onClick={() => setUnit(u)}
-                className="text-[12px] px-3 py-1.5 rounded-full border-hair"
-                style={{
-                  background: unit === u ? "var(--foreground)" : "var(--background)",
-                  color: unit === u ? "var(--background)" : "var(--muted)",
-                  fontWeight: unit === u ? 500 : 400,
-                }}
-              >
-                {u === "imperial" ? "lbs + ft/in" : "kg + cm"}
-              </button>
-            ))}
-          </div>
+        <div className="flex flex-col">
+          <Segmented
+            ariaLabel="Units"
+            value={unit}
+            onChange={setUnit}
+            options={[
+              { value: "imperial", label: "lb · ft/in" },
+              { value: "metric", label: "kg · cm" },
+            ]}
+          />
 
-          <Field label="Weight">
-            {unit === "imperial" ? (
-              <div className="flex items-center gap-2">
-                <NumberInput
-                  value={weightLbs}
-                  onChange={setWeightLbs}
-                  placeholder="165"
-                />
-                <span style={{ color: "var(--muted)" }}>lbs</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <NumberInput
-                  value={weightKg}
-                  onChange={setWeightKg}
-                  placeholder="75"
-                />
-                <span style={{ color: "var(--muted)" }}>kg</span>
-              </div>
-            )}
-          </Field>
-
-          <Field label="Height">
-            {unit === "imperial" ? (
-              <div className="flex items-center gap-2">
-                <NumberInput
-                  value={heightFt}
-                  onChange={setHeightFt}
-                  placeholder="5"
-                />
-                <span style={{ color: "var(--muted)" }}>ft</span>
-                <NumberInput
-                  value={heightIn}
-                  onChange={setHeightIn}
-                  placeholder="10"
-                />
-                <span style={{ color: "var(--muted)" }}>in</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <NumberInput
-                  value={heightCm}
-                  onChange={setHeightCm}
-                  placeholder="180"
-                />
-                <span style={{ color: "var(--muted)" }}>cm</span>
-              </div>
-            )}
-          </Field>
-
-          <Field label="Age">
-            <div className="flex items-center gap-2">
-              <NumberInput value={age} onChange={setAge} placeholder="28" />
-              <span style={{ color: "var(--muted)" }}>years</span>
-            </div>
-          </Field>
-
-          <Field label="Biological sex">
-            <ChipRow
-              options={[
-                { v: "male", l: "Male" },
-                { v: "female", l: "Female" },
-              ]}
-              value={sex}
-              onChange={(v) => setSex(v as Sex)}
-            />
-          </Field>
-
-          <Field label="Activity level">
-            <ChipRow
-              options={(Object.keys(ACTIVITY_LABELS) as ActivityLevel[]).map(
-                (k) => ({ v: k, l: ACTIVITY_LABELS[k] }),
+          <SectionHeader title="Body" />
+          <Card padding="lg" className="flex flex-col gap-5">
+            <Field label="Weight" htmlFor="profile-weight">
+              {unit === "imperial" ? (
+                <div className="flex items-center gap-2">
+                  <NumberInput
+                    id="profile-weight"
+                    value={weightLbs}
+                    onChange={setWeightLbs}
+                    placeholder="165"
+                  />
+                  <Unit>lb</Unit>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <NumberInput
+                    id="profile-weight"
+                    value={weightKg}
+                    onChange={setWeightKg}
+                    placeholder="75"
+                  />
+                  <Unit>kg</Unit>
+                </div>
               )}
-              value={activity}
-              onChange={(v) => setActivity(v as ActivityLevel)}
-            />
-          </Field>
+            </Field>
 
-          <Field label="Body composition goal">
-            <ChipRow
-              options={(Object.keys(GOAL_LABELS_BODY) as BodyGoal[]).map(
-                (k) => ({ v: k, l: GOAL_LABELS_BODY[k] }),
+            <Field label="Height" htmlFor="profile-height">
+              {unit === "imperial" ? (
+                <div className="flex items-center gap-2">
+                  <NumberInput
+                    id="profile-height"
+                    value={heightFt}
+                    onChange={setHeightFt}
+                    placeholder="5"
+                    ariaLabel="Height, feet"
+                  />
+                  <Unit>ft</Unit>
+                  <NumberInput
+                    value={heightIn}
+                    onChange={setHeightIn}
+                    placeholder="10"
+                    ariaLabel="Height, inches"
+                  />
+                  <Unit>in</Unit>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <NumberInput
+                    id="profile-height"
+                    value={heightCm}
+                    onChange={setHeightCm}
+                    placeholder="180"
+                  />
+                  <Unit>cm</Unit>
+                </div>
               )}
-              value={goal}
-              onChange={(v) => setGoal(v as BodyGoal)}
-            />
-          </Field>
+            </Field>
 
-          <Field label="Meals per day">
-            <ChipRow
-              options={[
-                { v: "2", l: "2" },
-                { v: "3", l: "3" },
-                { v: "4", l: "4" },
-                { v: "5", l: "5" },
-              ]}
-              value={String(meals)}
-              onChange={(v) => setMeals(parseInt(v))}
-            />
-          </Field>
+            <Field label="Age" htmlFor="profile-age">
+              <div className="flex items-center gap-2">
+                <NumberInput
+                  id="profile-age"
+                  value={age}
+                  onChange={setAge}
+                  placeholder="28"
+                />
+                <Unit>years</Unit>
+              </div>
+            </Field>
 
-          <Field label="Recent surgery date (optional)">
-            <input
-              type="date"
-              value={postOpDate}
-              onChange={(e) => setPostOpDate(e.target.value)}
-              className="border-hair rounded-lg px-3 py-2.5 text-[15px] w-full focus:outline-none focus:border-hair-strong"
-              style={{
-                background: "var(--background)",
-                color: "var(--foreground)",
-              }}
-            />
-            <div
-              className="text-[11px] mt-1.5 leading-relaxed"
-              style={{ color: "var(--muted)" }}
-            >
-              If you&apos;re recovering from surgery, Coach bumps your protein
-              target by ~30% for 6 months and warns about anything that thins
-              blood.
-            </div>
-          </Field>
+            <Field label="Biological sex">
+              <ChipRow
+                label="Biological sex"
+                options={[
+                  { v: "male", l: "Male" },
+                  { v: "female", l: "Female" },
+                ]}
+                value={sex}
+                onChange={(v) => setSex(v as Sex)}
+              />
+            </Field>
+          </Card>
 
-          <button
+          <SectionHeader title="Lifestyle & goal" />
+          <Card padding="lg" className="flex flex-col gap-5">
+            <Field label="Activity level">
+              <ChipRow
+                label="Activity level"
+                options={(Object.keys(ACTIVITY_LABELS) as ActivityLevel[]).map(
+                  (k) => ({ v: k, l: ACTIVITY_LABELS[k] }),
+                )}
+                value={activity}
+                onChange={(v) => setActivity(v as ActivityLevel)}
+              />
+            </Field>
+
+            <Field label="Body composition goal">
+              <ChipRow
+                label="Body composition goal"
+                options={(Object.keys(GOAL_LABELS_BODY) as BodyGoal[]).map(
+                  (k) => ({ v: k, l: GOAL_LABELS_BODY[k] }),
+                )}
+                value={goal}
+                onChange={(v) => setGoal(v as BodyGoal)}
+              />
+            </Field>
+
+            <Field label="Meals per day">
+              <ChipRow
+                label="Meals per day"
+                options={[
+                  { v: "2", l: "2" },
+                  { v: "3", l: "3" },
+                  { v: "4", l: "4" },
+                  { v: "5", l: "5" },
+                ]}
+                value={String(meals)}
+                onChange={(v) => setMeals(parseInt(v))}
+              />
+            </Field>
+
+            <Field label="Recent surgery date (optional)" htmlFor="profile-surgery">
+              <input
+                id="profile-surgery"
+                type="date"
+                value={postOpDate}
+                onChange={(e) => setPostOpDate(e.target.value)}
+                className="input-field"
+              />
+              <p className="mt-2 text-caption text-[var(--muted)]">
+                If you&apos;re recovering from surgery, your protein target goes
+                up for six months and Coach flags anything that may affect
+                healing.
+              </p>
+            </Field>
+          </Card>
+
+          <Button
             onClick={save}
-            disabled={saving || !macros}
-            className="px-4 py-3 rounded-lg text-[15px] mt-2"
-            style={{
-              background: "var(--foreground)",
-              color: "var(--background)",
-              fontWeight: 500,
-              opacity: saving || !macros ? 0.5 : 1,
-            }}
+            disabled={!macros}
+            loading={saving}
+            fullWidth
+            size="lg"
+            className="mt-6 disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save profile"}
-          </button>
+            {saving ? "Saving…" : "Save"}
+          </Button>
           {msg && (
-            <div className="text-[12px]" style={{ color: "var(--muted)" }}>
-              {msg}
-            </div>
+            <p
+              role="status"
+              className={`mt-3 flex items-center justify-center gap-1.5 text-footnote ${
+                msg.ok ? "text-[var(--success)]" : "text-[var(--error)]"
+              }`}
+            >
+              {msg.ok && <Icon name="check" size={14} strokeWidth={2.4} />}
+              {msg.text}
+            </p>
           )}
 
           {macros && (
-            <section className="mt-6">
-              <h2
-                className="text-[11px] uppercase tracking-wider mb-3"
-                style={{ color: "var(--muted)", fontWeight: 500 }}
-              >
-                Your daily targets
-              </h2>
-              <div className="border-hair rounded-xl p-4 mb-3">
-                <div className="grid grid-cols-2 gap-3 text-[14px]">
-                  <Stat label="Calories" value={`${macros.calories}`} unit="kcal" />
-                  <Stat label="Protein" value={`${macros.protein_g}`} unit="g" />
-                  <Stat label="Fat" value={`${macros.fat_g}`} unit="g" />
-                  <Stat label="Carbs" value={`${macros.carbs_g}`} unit="g" />
+            <>
+              <SectionHeader title="Your daily targets" />
+              <Card padding="lg">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-5">
+                  <Stat label="Calories" value={macros.calories} unit="kcal" size="sm" />
+                  <Stat label="Protein" value={macros.protein_g} unit="g" size="sm" />
+                  <Stat label="Fat" value={macros.fat_g} unit="g" size="sm" />
+                  <Stat label="Carbs" value={macros.carbs_g} unit="g" size="sm" />
                 </div>
-                <div
-                  className="text-[11px] mt-3"
-                  style={{ color: "var(--muted)" }}
-                >
-                  BMR {macros.bmr} kcal · TDEE {macros.tdee} kcal
-                  {postOp ? " · post-op protein bonus active" : ""}
-                </div>
-              </div>
+                <p className="mt-4 border-t border-[var(--border)] pt-3 text-caption text-[var(--muted)]">
+                  Resting burn {macros.bmr} kcal · Daily burn {macros.tdee} kcal
+                  {postOp ? " · Recovery protein boost on" : ""}
+                </p>
+              </Card>
 
-              <h2
-                className="text-[11px] uppercase tracking-wider mb-3"
-                style={{ color: "var(--muted)", fontWeight: 500 }}
-              >
-                Per meal ({meals}x/day)
-              </h2>
-              <div className="border-hair rounded-xl p-4">
-                <div className="grid grid-cols-2 gap-3 text-[14px]">
-                  <Stat
-                    label="Calories"
-                    value={`${macros.per_meal.calories}`}
-                    unit="kcal"
-                  />
-                  <Stat
-                    label="Protein"
-                    value={`${macros.per_meal.protein_g}`}
-                    unit="g"
-                  />
-                  <Stat
-                    label="Fat"
-                    value={`${macros.per_meal.fat_g}`}
-                    unit="g"
-                  />
-                  <Stat
-                    label="Carbs"
-                    value={`${macros.per_meal.carbs_g}`}
-                    unit="g"
-                  />
+              <SectionHeader title={`Per meal · ${meals} a day`} />
+              <Card padding="lg">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-5">
+                  <Stat label="Calories" value={macros.per_meal.calories} unit="kcal" size="sm" />
+                  <Stat label="Protein" value={macros.per_meal.protein_g} unit="g" size="sm" />
+                  <Stat label="Fat" value={macros.per_meal.fat_g} unit="g" size="sm" />
+                  <Stat label="Carbs" value={macros.per_meal.carbs_g} unit="g" size="sm" />
                 </div>
-              </div>
-            </section>
+              </Card>
+            </>
           )}
         </div>
       )}
@@ -399,100 +355,85 @@ export default function ProfilePage() {
 
 function Field({
   label,
+  htmlFor,
   children,
 }: {
   label: string;
+  htmlFor?: string;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <label
-        className="text-[12px] uppercase tracking-wider mb-2 block"
-        style={{ color: "var(--muted)", fontWeight: 500 }}
-      >
-        {label}
-      </label>
+      {htmlFor ? (
+        <label
+          htmlFor={htmlFor}
+          className="mb-2 block text-footnote font-medium text-[var(--foreground-soft)]"
+        >
+          {label}
+        </label>
+      ) : (
+        <div className="mb-2 text-footnote font-medium text-[var(--foreground-soft)]">
+          {label}
+        </div>
+      )}
       {children}
     </div>
   );
 }
 
+function Unit({ children }: { children: React.ReactNode }) {
+  return <span className="text-callout text-[var(--muted)]">{children}</span>;
+}
+
 function NumberInput({
+  id,
   value,
   onChange,
   placeholder,
+  ariaLabel,
 }: {
+  id?: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  ariaLabel?: string;
 }) {
   return (
     <input
+      id={id}
       type="number"
+      inputMode="decimal"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="border-hair rounded-lg px-3 py-2.5 text-[15px] w-24 focus:outline-none focus:border-hair-strong"
-      style={{ background: "var(--background)", color: "var(--foreground)" }}
+      aria-label={ariaLabel}
+      className="input-field !w-24 tabular-nums"
     />
   );
 }
 
 function ChipRow({
+  label,
   options,
   value,
   onChange,
 }: {
+  label: string;
   options: { v: string; l: string }[];
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div role="group" aria-label={label} className="flex flex-wrap gap-2">
       {options.map((o) => (
-        <button
+        <ChipButton
           key={o.v}
+          selected={value === o.v}
           onClick={() => onChange(o.v)}
-          className="text-[12px] px-3 py-1.5 rounded-full border-hair"
-          style={{
-            background: value === o.v ? "var(--foreground)" : "var(--background)",
-            color: value === o.v ? "var(--background)" : "var(--muted)",
-            fontWeight: value === o.v ? 500 : 400,
-          }}
         >
           {o.l}
-        </button>
+        </ChipButton>
       ))}
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  unit,
-}: {
-  label: string;
-  value: string;
-  unit: string;
-}) {
-  return (
-    <div>
-      <div
-        className="text-[11px] uppercase tracking-wider"
-        style={{ color: "var(--muted)", fontWeight: 500 }}
-      >
-        {label}
-      </div>
-      <div className="text-[18px]" style={{ fontWeight: 500 }}>
-        {value}{" "}
-        <span
-          className="text-[12px]"
-          style={{ color: "var(--muted)", fontWeight: 400 }}
-        >
-          {unit}
-        </span>
-      </div>
     </div>
   );
 }

@@ -1,29 +1,35 @@
 import ItemForm from "@/components/ItemForm";
-import Link from "next/link";
+import PageHeader from "@/components/ui/PageHeader";
 
-export default function NewItemPage() {
+const BACK_LABEL: Record<string, string> = {
+  "/stack": "Stack",
+  "/today": "Today",
+  "/you": "You",
+  "/fuel": "Fuel",
+  "/train": "Train",
+  "/purchases": "Shopping",
+};
+
+export default async function NewItemPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  // Back goes where the user came from (same ?from= rule ItemForm uses
+  // after saving), else the stack.
+  const { from } = await searchParams;
+  const back =
+    from && from.startsWith("/") && !from.startsWith("//") ? from : "/stack";
+  const backLabel = BACK_LABEL[back.split("?")[0]] ?? "Back";
+
   return (
-    <div>
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-[34px] leading-tight" style={{ fontWeight: 700, letterSpacing: "-0.024em" }}>
-            Add item
-          </h1>
-          <div
-            className="text-[13px] mt-1"
-            style={{ color: "var(--muted)" }}
-          >
-            Supplement, topical, device, practice, food, gear — anything in your regimen
-          </div>
-        </div>
-        <Link
-          href="/stack"
-          className="text-[13px]"
-          style={{ color: "var(--muted)" }}
-        >
-          Cancel
-        </Link>
-      </header>
+    <div className="pb-24">
+      <PageHeader
+        title="Add to your stack"
+        back={back}
+        backLabel={backLabel}
+        subtitle="Supplements, topicals, devices, practices, foods, gear — anything in your routine."
+      />
       <ItemForm />
     </div>
   );

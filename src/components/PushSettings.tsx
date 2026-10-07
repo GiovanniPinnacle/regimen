@@ -16,7 +16,7 @@ export default function PushSettings() {
     return Notification.permission as State;
   });
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function handleEnable() {
     setBusy(true);
@@ -24,9 +24,9 @@ export default function PushSettings() {
     const res = await subscribeToPush();
     if (res.ok) {
       setState("granted");
-      setMsg("Notifications are on for this device.");
+      setMsg({ ok: true, text: "Notifications are on for this device." });
     } else {
-      setMsg(`Couldn't turn on notifications: ${res.error}`);
+      setMsg({ ok: false, text: `Couldn't turn on notifications — ${res.error}` });
     }
     setBusy(false);
   }
@@ -35,8 +35,13 @@ export default function PushSettings() {
     setBusy(true);
     setMsg(null);
     const res = await sendTestPush();
-    if (res.ok) setMsg("Test sent — it should arrive in a few seconds.");
-    else setMsg(`Test failed: ${res.error ?? "unknown error"}`);
+    if (res.ok)
+      setMsg({ ok: true, text: "Test sent — it should arrive in a few seconds." });
+    else
+      setMsg({
+        ok: false,
+        text: `The test didn't go through — ${res.error ?? "try again in a moment"}`,
+      });
     setBusy(false);
   }
 
@@ -109,8 +114,11 @@ export default function PushSettings() {
       )}
 
       {msg && (
-        <p className="px-1 text-footnote text-[var(--muted)]" role="status">
-          {msg}
+        <p
+          className={`px-1 text-footnote ${msg.ok ? "text-[var(--muted)]" : "text-[var(--error)]"}`}
+          role="status"
+        >
+          {msg.text}
         </p>
       )}
     </div>

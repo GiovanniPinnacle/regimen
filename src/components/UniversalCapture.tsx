@@ -16,9 +16,13 @@
 //   - if action === "chat", we fire regimen:ask to open Coach
 //   - cross-tab refresh via regimen:items-changed
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Icon from "@/components/Icon";
+import Sheet from "@/components/ui/Sheet";
+import Button from "@/components/ui/Button";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { Eyebrow } from "@/components/ui/Section";
 import { showToast } from "@/lib/toast";
 
 type Props = {
@@ -228,7 +232,14 @@ export default function UniversalCapture({ open, onClose }: Props) {
     }
   }
 
-  if (!open) return null;
+  // Sheet re-binds its keyboard/focus effect whenever onClose changes
+  // identity; closeAndReset is recreated every render (every keystroke),
+  // so hand the Sheet a stable wrapper that always calls the latest one.
+  const closeRef = useRef(closeAndReset);
+  useEffect(() => {
+    closeRef.current = closeAndReset;
+  });
+  const stableClose = useCallback(() => closeRef.current(), []);
 
   // Tab-aware placeholder text — "captures" the user's mental model
   // and biases the AI's classifier slightly.
@@ -240,300 +251,174 @@ export default function UniversalCapture({ open, onClose }: Props) {
         ? "Ask Coach anything"
         : "Tell Coach anything…";
 
+  const canSend = !!text.trim() || !!imageData;
+  const showFooter = mode !== "idle" && mode !== "voice_listening";
+
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-end justify-center"
-      style={{
-        background: "rgba(0, 0, 0, 0.6)",
-        backdropFilter: "blur(4px)",
-        WebkitBackdropFilter: "blur(4px)",
-      }}
-      onClick={closeAndReset}
-    >
-      <div
-        className="w-full max-w-md rounded-t-3xl glass-strong overflow-hidden"
-        style={{
-          paddingBottom: "calc(env(safe-area-inset-bottom, 0) + 1rem)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header
-          className="px-5 pt-5 pb-3 flex items-baseline justify-between"
-          style={{ borderBottom: "1px solid var(--border)" }}
-        >
-          <div>
-            <div
-              className="text-[11px] uppercase tracking-wider"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-              }}
-            >
-              Log
-            </div>
-            <div
-              className="text-[16px] mt-0.5"
-              style={{ fontWeight: 600 }}
-            >
-              {tabHint}
-            </div>
-            <div
-              className="text-[11px] mt-1 leading-relaxed"
-              style={{ color: "var(--muted)" }}
-            >
-              Voice, photo, or type. Coach figures out what to do with it.
-            </div>
-          </div>
-          <button
-            onClick={closeAndReset}
-            className="leading-none px-1"
-            style={{ color: "var(--muted)" }}
-            aria-label="Close"
-          >
-            <Icon name="plus" size={16} className="rotate-45" />
-          </button>
-        </header>
-
-        {/* Mode picker — three big buttons. Tapping voice starts
-            recording immediately; photo opens the camera; text
-            jumps to the textarea. */}
-        {mode === "idle" && (
-          <div className="px-5 pt-4 pb-2">
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={startListening}
-                className="rounded-2xl py-4 flex flex-col items-center justify-center gap-1.5"
-                style={{
-                  background: "var(--surface-alt)",
-                  color: "var(--foreground)",
-                  border: "1px solid var(--border)",
-                  minHeight: 92,
-                }}
-              >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <rect x="9" y="2" width="6" height="12" rx="3" />
-                  <path d="M5 11a7 7 0 0 0 14 0" />
-                  <path d="M12 18v3" />
-                </svg>
-                <span className="text-[12px]" style={{ fontWeight: 700 }}>
-                  Speak
-                </span>
-              </button>
-              <button
-                onClick={pickPhoto}
-                className="rounded-2xl py-4 flex flex-col items-center justify-center gap-1.5"
-                style={{
-                  background: "var(--surface-alt)",
-                  color: "var(--foreground)",
-                  border: "1px solid var(--border)",
-                  minHeight: 92,
-                }}
-              >
-                <Icon name="camera" size={24} strokeWidth={1.7} />
-                <span className="text-[12px]" style={{ fontWeight: 700 }}>
-                  Photo
-                </span>
-              </button>
-              <button
-                onClick={() => setMode("text")}
-                className="rounded-2xl py-4 flex flex-col items-center justify-center gap-1.5"
-                style={{
-                  background: "var(--surface-alt)",
-                  color: "var(--foreground)",
-                  border: "1px solid var(--border)",
-                  minHeight: 92,
-                }}
-              >
-                <Icon name="edit" size={24} strokeWidth={1.7} />
-                <span className="text-[12px]" style={{ fontWeight: 700 }}>
-                  Type
-                </span>
-              </button>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={onPhotoSelected}
-              className="hidden"
-            />
-            <ExamplesHint pathname={pathname ?? ""} />
-          </div>
-        )}
-
-        {/* Voice listening — pulsing mic + live transcript */}
-        {mode === "voice_listening" && (
-          <div className="px-5 pt-4 pb-2 flex flex-col items-center">
-            <button
-              onClick={stopListening}
-              aria-label="Stop recording"
-              className="h-16 w-16 rounded-full flex items-center justify-center mb-3"
-              style={{
-                background: "var(--error)",
-                color: "#FFFFFF",
-                animation: "pulse 1.5s ease-in-out infinite",
-              }}
-            >
-              <svg
-                width="28"
-                height="28"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-hidden
-              >
-                <rect x="7" y="7" width="10" height="10" rx="1" />
-              </svg>
-            </button>
-            <div
-              className="text-[11px] uppercase tracking-wider mb-2"
-              style={{
-                color: "var(--error)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Listening… tap to stop
-            </div>
-            <div
-              className="rounded-xl px-3 py-3 w-full text-[14px] leading-relaxed min-h-[80px]"
-              style={{
-                background: "var(--surface-alt)",
-                border: "1px solid var(--border)",
-                color: text ? "var(--foreground)" : "var(--muted)",
-                fontStyle: text ? "normal" : "italic",
-              }}
-            >
-              {text || "Start talking…"}
-            </div>
-          </div>
-        )}
-
-        {/* Voice done OR text mode — show a textarea + submit */}
-        {(mode === "voice_done" || mode === "text") && (
-          <div className="px-5 pt-4 pb-2">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={tabHint}
-              rows={4}
-              autoFocus={mode === "text"}
-              className="w-full rounded-xl px-3 py-2.5 text-[14px] resize-none"
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--foreground)",
-                minHeight: 100,
-              }}
-            />
-            {mode === "voice_done" && (
-              <button
-                onClick={startListening}
-                className="text-[12px] underline mt-1"
-                style={{ color: "var(--foreground-soft)" }}
-              >
-                ↻ Re-record
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Photo selected — preview + caption field */}
-        {mode === "photo" && imageData && (
-          <div className="px-5 pt-4 pb-2 flex flex-col gap-2">
-            <img
-              src={imageData}
-              alt="Captured"
-              className="w-full rounded-xl"
-              style={{ maxHeight: 240, objectFit: "cover" }}
-            />
-            <input
-              type="text"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Optional caption (e.g. 'lunch')"
-              className="w-full rounded-xl px-3 py-2.5 text-[13px]"
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--foreground)",
-              }}
-            />
-            <button
-              onClick={() => {
-                setImageData(null);
-                setImageMime(null);
-                setMode("idle");
-              }}
-              className="text-[12px] underline self-start"
-              style={{ color: "var(--muted)" }}
-            >
-              ↻ Pick a different photo
-            </button>
-          </div>
-        )}
-
-        {/* Submit + cancel */}
-        {mode !== "idle" && mode !== "voice_listening" && (
-          <div
-            className="px-5 py-3 flex gap-2"
-            style={{ borderTop: "1px solid var(--border)" }}
-          >
-            <button
-              onClick={submit}
-              disabled={busy || (!text.trim() && !imageData)}
-              className="flex-1 px-4 py-3 rounded-xl text-[14px]"
-              style={{
-                background: "var(--primary)",
-                color: "var(--primary-fg)",
-                fontWeight: 700,
-                opacity: busy || (!text.trim() && !imageData) ? 0.5 : 1,
-                minHeight: 44,
-              }}
-            >
-              {busy ? "Coach is reading…" : "Send"}
-            </button>
-            <button
-              onClick={closeAndReset}
-              className="px-4 py-3 rounded-xl text-[13px]"
-              style={{
-                background: "var(--surface-alt)",
-                color: "var(--muted)",
-                fontWeight: 500,
-                minHeight: 44,
-              }}
+    <Sheet
+      open={open}
+      onClose={stableClose}
+      title={tabHint}
+      description="Speak, snap, or type. Coach figures out where it goes."
+      footer={
+        showFooter ? (
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              onClick={stableClose}
+              className="shrink-0"
             >
               Cancel
+            </Button>
+            <Button
+              fullWidth
+              icon="send"
+              onClick={submit}
+              loading={busy}
+              disabled={!canSend}
+              className="flex-1"
+            >
+              {busy ? "Coach is reading…" : "Send"}
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={onPhotoSelected}
+        className="hidden"
+        aria-hidden
+        tabIndex={-1}
+      />
+
+      {/* Mode picker. Voice starts recording immediately; photo opens
+          the camera; text jumps to the textarea. */}
+      {mode === "idle" && (
+        <div className="pt-1">
+          <ListGroup>
+            <ListRow
+              icon="mic"
+              title="Speak"
+              subtitle="Say it out loud, we'll transcribe"
+              onClick={startListening}
+              chevron
+            />
+            <ListRow
+              icon="camera"
+              title="Photo"
+              subtitle="A plate, a label, a bottle"
+              onClick={pickPhoto}
+              chevron
+            />
+            <ListRow
+              icon="edit"
+              title="Type"
+              subtitle="Write a quick note"
+              onClick={() => setMode("text")}
+              chevron
+            />
+          </ListGroup>
+          <ExamplesHint pathname={pathname ?? ""} />
+        </div>
+      )}
+
+      {/* Voice listening — pulsing stop button + live transcript */}
+      {mode === "voice_listening" && (
+        <div className="flex flex-col items-center pt-2">
+          <div className="relative mb-3 flex h-20 w-20 items-center justify-center">
+            <span
+              aria-hidden
+              className="absolute inset-0 animate-ping rounded-full bg-[var(--error-tint)] motion-reduce:animate-none"
+            />
+            <button
+              type="button"
+              onClick={stopListening}
+              aria-label="Stop recording"
+              className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[var(--error)] text-[var(--error-fg)] active:scale-95"
+            >
+              <Icon name="stop" size={26} strokeWidth={2} />
             </button>
           </div>
-        )}
-      </div>
+          <div
+            role="status"
+            className="mb-3 flex items-center gap-1.5 text-footnote font-medium text-[var(--error)]"
+          >
+            <Icon name="waveform" size={14} strokeWidth={2} />
+            Listening. Tap to stop.
+          </div>
+          <div
+            aria-live="polite"
+            className={`min-h-[88px] w-full rounded-[14px] border border-[var(--border)] bg-[var(--surface-alt)] p-3 text-body leading-relaxed ${
+              text ? "text-[var(--foreground)]" : "text-[var(--muted)]"
+            }`}
+          >
+            {text || "Start talking…"}
+          </div>
+        </div>
+      )}
 
-      <style jsx>{`
-        @keyframes pulse {
-          0%,
-          100% {
-            transform: scale(1);
-            box-shadow: 0 0 0 0 rgba(176, 0, 32, 0.4);
-          }
-          50% {
-            transform: scale(1.06);
-            box-shadow: 0 0 0 12px rgba(176, 0, 32, 0);
-          }
-        }
-      `}</style>
-    </div>
+      {/* Voice done OR text mode — textarea */}
+      {(mode === "voice_done" || mode === "text") && (
+        <div className="pt-1">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={tabHint}
+            aria-label={tabHint}
+            rows={4}
+            autoFocus={mode === "text"}
+            className="input-field min-h-[112px] resize-none"
+          />
+          {mode === "voice_done" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mic"
+              onClick={startListening}
+              className="relative mt-2 -ml-2 before:absolute before:-inset-y-1 before:inset-x-0 before:content-['']"
+            >
+              Record again
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Photo selected — preview + caption field */}
+      {mode === "photo" && imageData && (
+        <div className="flex flex-col gap-3 pt-1">
+          <img
+            src={imageData}
+            alt="Your photo"
+            className="max-h-60 w-full rounded-[14px] border border-[var(--border)] object-cover"
+          />
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Add a caption (optional), e.g. lunch"
+            aria-label="Caption"
+            className="input-field"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="image"
+            onClick={() => {
+              setImageData(null);
+              setImageMime(null);
+              setMode("idle");
+            }}
+            className="relative -ml-2 self-start before:absolute before:-inset-y-1 before:inset-x-0 before:content-['']"
+          >
+            Choose a different photo
+          </Button>
+        </div>
+      )}
+    </Sheet>
   );
 }
 
@@ -565,25 +450,16 @@ function ExamplesHint({ pathname }: { pathname: string }) {
     ];
   }
   return (
-    <div className="mt-3">
-      <div
-        className="text-[10px] uppercase tracking-wider mb-1.5"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 600,
-          letterSpacing: "0.06em",
-        }}
-      >
-        Try
-      </div>
-      <ul className="flex flex-col gap-0.5">
+    <div className="mt-5 px-1">
+      <Eyebrow className="mb-2">Try saying</Eyebrow>
+      <ul className="flex flex-col gap-1.5">
         {lines.map((l) => (
           <li
             key={l}
-            className="text-[12px] leading-relaxed"
-            style={{ color: "var(--muted)" }}
+            className="flex items-center gap-2 text-footnote text-[var(--muted)]"
           >
-            · {l}
+            <Icon name="message" size={13} strokeWidth={1.8} className="shrink-0" />
+            {l}
           </li>
         ))}
       </ul>

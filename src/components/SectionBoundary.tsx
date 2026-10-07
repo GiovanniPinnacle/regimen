@@ -13,11 +13,14 @@
 //     <InsightsBanner />
 //   </SectionBoundary>
 //
-// The placeholder is intentionally small + dismissable so the rest of
+// The placeholder is intentionally small + retryable so the rest of
 // the page stays usable. We log the error to console so DevTools still
 // surfaces the stack trace for debugging.
 
 import React from "react";
+import Icon from "@/components/Icon";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
 
 type Props = {
   /** Short label shown in the placeholder ("Insights", "Patterns"). */
@@ -58,45 +61,29 @@ export default class SectionBoundary extends React.Component<Props, State> {
     if (!this.state.error) return this.props.children;
     if (this.props.silent) return null;
     return (
-      <div
-        className="rounded-xl px-3 py-2.5 mb-3 flex items-center justify-between gap-2"
-        style={{
-          background: "rgba(176, 0, 32, 0.06)",
-          border: "1px solid rgba(176, 0, 32, 0.20)",
-          color: "var(--error)",
-        }}
+      <Card
+        padding="sm"
+        role="alert"
+        className="mb-3 flex items-center justify-between gap-3"
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-            style={{ flexShrink: 0 }}
-          >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 8v4M12 16v0.01" />
-          </svg>
-          <span
-            className="text-[12px] truncate"
-            style={{ fontWeight: 500 }}
-          >
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+            <Icon name="info" size={16} strokeWidth={1.8} />
+          </span>
+          <span className="truncate text-footnote text-[var(--foreground-soft)]">
             {this.props.label ?? "This section"} couldn&apos;t load
           </span>
         </div>
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
+          icon="refresh"
           onClick={this.reset}
-          className="text-[11px] underline shrink-0"
-          style={{ color: "var(--error)", fontWeight: 600 }}
+          className="shrink-0 relative before:absolute before:-inset-1 before:content-['']"
         >
-          Retry
-        </button>
-      </div>
+          Try again
+        </Button>
+      </Card>
     );
   }
 }

@@ -2,17 +2,24 @@
 
 // /audit — fast-paced "have / need / skip" triage of every item you'd
 // actually buy. Tap once per item, items disappear, counters tick up.
-// One-tap-per-item is the design goal. Tightened: card-glass styling,
-// removed emoji buttons in favor of color-coded labeled buttons, added
-// "Bulk-audit with Coach" CTA so users can offload the work entirely.
+// One-tap-per-item is the design goal. A "Have Coach sort the rest"
+// row lets users offload the work entirely.
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { Item, ItemType } from "@/lib/types";
 import { ITEM_TYPE_LABELS } from "@/lib/constants";
 import Icon from "@/components/Icon";
+import ItemTypeIcon from "@/components/ItemTypeIcon";
 import StackWarningsBanner from "@/components/StackWarningsBanner";
+import EmptyGlyph from "@/components/EmptyGlyph";
+import { SkeletonCard } from "@/components/Skeleton";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Button, { ButtonLink } from "@/components/ui/Button";
+import Chip from "@/components/ui/Chip";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { SectionHeader } from "@/components/ui/Section";
 
 // Types that make sense to audit — things you BUY (not foods, not practices).
 const AUDITABLE_TYPES: ItemType[] = [
@@ -126,122 +133,108 @@ export default function AuditPage() {
     return map;
   }, [items]);
 
+
   const remaining = items.length;
   const sessionTotal = haveCount + needCount + skipCount;
 
+  const header = (
+    <PageHeader
+      title="Stock check"
+      back="/you"
+      backLabel="You"
+      subtitle="One tap per item: have it, need it, or skip it. Items clear as you go."
+    />
+  );
+
   if (loading) {
     return (
-      <div className="py-12 text-center" style={{ color: "var(--muted)" }}>
-        Loading…
+      <div className="pb-24" aria-busy>
+        {header}
+        <div className="flex flex-col gap-3">
+          {[0, 1, 2].map((k) => (
+            <SkeletonCard key={k} height={132} />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Stack audit
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Tap once per item — Have, Need, or Skip. Items disappear as you go.
-        </p>
-      </header>
+      {header}
 
-      {/* Progress + bulk-audit CTA */}
-      <section className="rounded-2xl card-glass p-4 mb-6">
-        <div className="flex items-baseline justify-between gap-3">
-          <div>
-            <div
-              className="text-[20px] tabular-nums leading-none"
-              style={{ fontWeight: 700, letterSpacing: "-0.02em" }}
-            >
-              {remaining}
-              <span
-                className="text-[13px] ml-1.5"
-                style={{ color: "var(--muted)", fontWeight: 400 }}
-              >
-                left
+      {/* Progress */}
+      <Card padding="md">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-title-2 font-bold tabular-nums">
+                {remaining}
               </span>
+              <span className="text-footnote text-[var(--muted)]">left</span>
             </div>
             {sessionTotal > 0 && (
-              <div
-                className="text-[11px] mt-1.5 flex gap-3 tabular-nums"
-                style={{ color: "var(--muted)" }}
-              >
+              <div className="mt-2 flex flex-wrap gap-1.5">
                 {haveCount > 0 && (
-                  <span style={{ color: "var(--accent)" }}>
+                  <Chip size="sm" tone="success" icon="check">
                     {haveCount} have
-                  </span>
+                  </Chip>
                 )}
                 {needCount > 0 && (
-                  <span style={{ color: "var(--premium)" }}>
+                  <Chip size="sm" icon="shopping-bag">
                     {needCount} need
-                  </span>
+                  </Chip>
                 )}
-                {skipCount > 0 && <span>{skipCount} skipped</span>}
+                {skipCount > 0 && <Chip size="sm">{skipCount} skipped</Chip>}
               </div>
             )}
           </div>
           {needCount > 0 && (
-            <Link
+            <ButtonLink
               href="/purchases"
-              className="text-[12.5px] px-3 py-2 rounded-lg flex items-center gap-1"
-              style={{
-                background: "var(--premium)",
-                color: "#FFFFFF",
-                fontWeight: 600,
-              }}
+              variant="secondary"
+              iconRight="chevron-right"
             >
               Shopping list
-              <Icon name="chevron-right" size={12} strokeWidth={2.2} />
-            </Link>
+            </ButtonLink>
           )}
         </div>
-        {remaining > 3 && (
-          <button
+      </Card>
+
+      {remaining > 3 && (
+        <ListGroup className="mt-3">
+          <ListRow
+            icon="sparkle"
+            iconTone="coach"
+            title="Have Coach sort the rest"
+            subtitle="Coach suggests have, need, or skip for each item"
             onClick={fireCoachAudit}
-            className="w-full mt-3 text-[12.5px] px-3 py-2 rounded-lg flex items-center justify-center gap-1.5"
-            style={{
-              background: "var(--pro-tint)",
-              color: "var(--pro)",
-              fontWeight: 600,
-              border: "1px solid var(--pro-tint)",
-            }}
-          >
-            <Icon name="sparkle" size={12} strokeWidth={2} />
-            Have Coach audit the rest
-          </button>
-        )}
-      </section>
+            chevron
+          />
+        </ListGroup>
+      )}
 
       {/* Cumulative ingredient safety check — surfaces here too because
           /audit is where the user is actively triaging the stack. If
           anything's over UL, this is the moment to act. Persistent here
           (no dismiss) since this is exactly the surface for action. */}
-      <StackWarningsBanner surface="audit" persistent />
+      <div className="mt-3">
+        <StackWarningsBanner surface="audit" persistent />
+      </div>
 
       {TYPE_ORDER.map((type) => {
         const list = grouped[type];
         if (!list || list.length === 0) return null;
         return (
-          <section key={type} className="mb-6">
-            <h2
-              className="text-[11px] uppercase tracking-wider mb-2.5"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-              }}
-            >
-              {ITEM_TYPE_LABELS[type]}s · {list.length}
-            </h2>
+          <section key={type}>
+            <SectionHeader
+              title={`${ITEM_TYPE_LABELS[type]}s`}
+              action={
+                <span className="shrink-0 text-footnote tabular-nums text-[var(--muted)]">
+                  {list.length}
+                </span>
+              }
+            />
             <div className="flex flex-col gap-2">
               {list.map((item) => (
                 <AuditRow
@@ -257,45 +250,28 @@ export default function AuditPage() {
       })}
 
       {remaining === 0 && (
-        <div className="rounded-2xl card-glass p-8 text-center">
-          <span
-            className="inline-flex items-center justify-center h-12 w-12 rounded-2xl mb-3"
-            style={{
-              background: "var(--accent-tint)",
-              color: "var(--accent)",
-            }}
-          >
-            <Icon name="check-circle" size={24} strokeWidth={1.8} />
-          </span>
-          <div
-            className="text-[16px] leading-snug"
-            style={{ fontWeight: 600 }}
-          >
-            {sessionTotal > 0 ? "All clear" : "Nothing to audit"}
-          </div>
-          <div
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            {sessionTotal > 0
-              ? `Audited ${sessionTotal} ${sessionTotal === 1 ? "item" : "items"} this session.`
-              : "Every item has been audited."}
-          </div>
-          {needCount > 0 && (
-            <Link
-              href="/purchases"
-              className="inline-flex items-center gap-1 mt-4 px-4 py-2 rounded-xl text-[13px]"
-              style={{
-                background: "var(--premium)",
-                color: "#FFFFFF",
-                fontWeight: 600,
-              }}
-            >
-              See shopping list
-              <Icon name="chevron-right" size={12} strokeWidth={2.2} />
-            </Link>
+        <Card padding="xl" className="mt-6 flex flex-col items-center text-center">
+          {sessionTotal > 0 ? (
+            <span className="flex h-16 w-16 items-center justify-center rounded-[18px] bg-[var(--success-tint)] text-[var(--success)]">
+              <Icon name="check-circle" size={30} strokeWidth={1.8} />
+            </span>
+          ) : (
+            <EmptyGlyph icon="check-circle" tone="muted" size={64} />
           )}
-        </div>
+          <div className="mt-4 text-title-3">
+            {sessionTotal > 0 ? "All caught up" : "Nothing to check"}
+          </div>
+          <p className="mt-1 text-callout text-[var(--muted)]">
+            {sessionTotal > 0
+              ? `You sorted ${sessionTotal} ${sessionTotal === 1 ? "item" : "items"} this session.`
+              : "Everything in your stack is already sorted."}
+          </p>
+          {needCount > 0 && (
+            <ButtonLink href="/purchases" className="mt-5" iconRight="chevron-right">
+              See shopping list
+            </ButtonLink>
+          )}
+        </Card>
       )}
     </div>
   );
@@ -311,98 +287,53 @@ function AuditRow({
   onChoice: (item: Item, choice: "have" | "need" | "skip") => void;
 }) {
   return (
-    <div
-      className="rounded-2xl card-glass p-3.5"
-      style={{ opacity: busy ? 0.5 : 1, transition: "opacity 0.15s" }}
+    <Card
+      padding="md"
+      className={`transition-opacity duration-150 ${busy ? "opacity-50" : ""}`}
     >
-      <div className="mb-3">
-        <div
-          className="text-[14.5px] leading-snug"
-          style={{ fontWeight: 600 }}
-        >
-          {item.name}
+      <div className="mb-3 flex items-start gap-3">
+        <ItemTypeIcon type={item.item_type} size={32} />
+        <div className="min-w-0 flex-1">
+          <div className="text-callout font-semibold leading-snug">
+            {item.name}
+          </div>
+          {(item.brand || item.dose) && (
+            <div className="mt-0.5 truncate text-caption text-[var(--muted)]">
+              {[item.brand, item.dose].filter(Boolean).join(" · ")}
+            </div>
+          )}
+          {item.status === "queued" && item.review_trigger && (
+            <div className="mt-0.5 text-caption text-[var(--muted)]">
+              Planned: {item.review_trigger}
+            </div>
+          )}
         </div>
-        {(item.brand || item.dose) && (
-          <div
-            className="text-[12px] mt-0.5"
-            style={{ color: "var(--muted)" }}
-          >
-            {[item.brand, item.dose].filter(Boolean).join(" · ")}
-          </div>
-        )}
-        {item.status === "queued" && item.review_trigger && (
-          <div
-            className="text-[11px] mt-0.5 italic"
-            style={{ color: "var(--muted)" }}
-          >
-            Scheduled: {item.review_trigger}
-          </div>
-        )}
       </div>
-      <div className="flex gap-1.5">
-        <ChoiceButton
-          label="Have"
-          busy={busy}
-          variant="have"
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant="secondary"
+          icon="check"
+          disabled={busy}
           onClick={() => onChoice(item, "have")}
-        />
-        <ChoiceButton
-          label="Need"
-          busy={busy}
-          variant="need"
+        >
+          Have
+        </Button>
+        <Button
+          variant="secondary"
+          icon="shopping-bag"
+          disabled={busy}
           onClick={() => onChoice(item, "need")}
-        />
-        <ChoiceButton
-          label="Skip"
-          busy={busy}
-          variant="skip"
+        >
+          Need
+        </Button>
+        <Button
+          variant="ghost"
+          disabled={busy}
           onClick={() => onChoice(item, "skip")}
-        />
+        >
+          Skip
+        </Button>
       </div>
-    </div>
-  );
-}
-
-function ChoiceButton({
-  label,
-  busy,
-  variant,
-  onClick,
-}: {
-  label: string;
-  busy: boolean;
-  variant: "have" | "need" | "skip";
-  onClick: () => void;
-}) {
-  const styles =
-    variant === "have"
-      ? {
-          background: "var(--primary)",
-          color: "var(--primary-fg)",
-          fontWeight: 700 as const,
-        }
-      : variant === "need"
-        ? {
-            background: "var(--premium)",
-            color: "#FFFFFF",
-            fontWeight: 700 as const,
-          }
-        : {
-            background: "var(--surface-alt)",
-            color: "var(--foreground-soft)",
-            fontWeight: 600 as const,
-          };
-  return (
-    <button
-      onClick={onClick}
-      disabled={busy}
-      className="flex-1 py-2.5 rounded-xl text-[13.5px] active:scale-[0.98] transition-transform"
-      style={{
-        ...styles,
-        opacity: busy ? 0.5 : 1,
-      }}
-    >
-      {label}
-    </button>
+    </Card>
   );
 }

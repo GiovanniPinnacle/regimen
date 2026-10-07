@@ -13,6 +13,7 @@ import { Eyebrow } from "@/components/ui/Section";
 import ListRow, { ListGroup } from "@/components/ui/ListRow";
 import Icon, { type IconName } from "@/components/Icon";
 import { openCoach } from "@/lib/coach-events";
+import { SkeletonCard } from "@/components/Skeleton";
 
 const CHANGE_META: Record<string, { icon: IconName; label: string }> = {
   add: { icon: "plus", label: "Added" },
@@ -72,11 +73,11 @@ export default function ChangelogPage() {
       <PageHeader
         back="/you"
         backLabel="You"
-        title="Changelog"
+        title="Change log"
         subtitle={
           entries
             ? `${entries.length} ${entries.length === 1 ? "change" : "changes"}, each with the reason behind it.`
-            : "Every change to your stack, with the reason."
+            : "Every change to your routine, with the reason."
         }
       />
 
@@ -100,7 +101,10 @@ export default function ChangelogPage() {
       )}
 
       {entries == null ? (
-        <Card className="h-[240px] animate-pulse" />
+        <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading">
+          <SkeletonCard height={200} />
+          <SkeletonCard height={140} />
+        </div>
       ) : entries.length === 0 ? (
         <Card padding="lg" className="text-center">
           <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[14px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
@@ -117,58 +121,79 @@ export default function ChangelogPage() {
           {groups.map((g) => (
             <section key={g.key}>
               <Eyebrow className="mb-2.5 px-1">{monthLabel(g.key)}</Eyebrow>
-              <ListGroup>
-                {g.rows.map((e) => {
-                  const meta = CHANGE_META[e.change_type] ?? {
-                    icon: "edit" as IconName,
-                    label: e.change_type,
-                  };
-                  const date = new Date(`${e.date.slice(0, 10)}T12:00:00`).toLocaleDateString(
-                    undefined,
-                    { month: "short", day: "numeric" },
-                  );
-                  const by = e.triggered_by ? BY_LABEL[e.triggered_by] : null;
-                  const body = (
-                    <>
-                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
-                        <Icon name={meta.icon} size={16} strokeWidth={1.9} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-callout font-semibold">
-                            {e.item_name ?? "Stack change"}
-                          </span>
-                          <span className="shrink-0 text-caption tabular-nums text-[var(--muted)]">
-                            {date}
-                          </span>
-                        </span>
-                        <span className="block text-caption text-[var(--muted)]">
-                          {meta.label}
-                          {by ? ` · ${by}` : ""}
-                        </span>
-                        {e.reasoning && (
-                          <span className="mt-1.5 block text-footnote text-[var(--foreground-soft)]">
-                            {e.reasoning}
-                          </span>
+              <Card padding="none" className="overflow-hidden">
+                <ol>
+                  {g.rows.map((e, i) => {
+                    const meta = CHANGE_META[e.change_type] ?? {
+                      icon: "edit" as IconName,
+                      label: e.change_type,
+                    };
+                    const date = new Date(`${e.date.slice(0, 10)}T12:00:00`).toLocaleDateString(
+                      undefined,
+                      { month: "short", day: "numeric" },
+                    );
+                    const by = e.triggered_by ? BY_LABEL[e.triggered_by] : null;
+                    const isLast = i === g.rows.length - 1;
+                    const body = (
+                      <>
+                        {/* Timeline rail: node + connector to the next entry */}
+                        {!isLast && (
+                          <span
+                            aria-hidden
+                            className="absolute left-[31px] top-[48px] bottom-[-16px] w-px bg-[var(--border-strong)]"
+                          />
                         )}
-                      </span>
-                    </>
-                  );
-                  return e.item_id ? (
-                    <Link
-                      key={e.id}
-                      href={`/items/${e.item_id}`}
-                      className="flex items-start gap-3 px-4 py-3 active:bg-[var(--surface-alt)]"
-                    >
-                      {body}
-                    </Link>
-                  ) : (
-                    <div key={e.id} className="flex items-start gap-3 px-4 py-3">
-                      {body}
-                    </div>
-                  );
-                })}
-              </ListGroup>
+                        <span className="relative z-[1] flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+                          <Icon name={meta.icon} size={15} strokeWidth={2} />
+                        </span>
+                        <span className="min-w-0 flex-1 pt-0.5">
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className="truncate text-callout font-semibold">
+                              {e.item_name ?? "Routine change"}
+                            </span>
+                            <span className="shrink-0 text-caption tabular-nums text-[var(--muted)]">
+                              {date}
+                            </span>
+                          </span>
+                          <span className="block text-caption text-[var(--muted)]">
+                            {meta.label}
+                            {by ? ` · by ${by}` : ""}
+                          </span>
+                          {e.reasoning && (
+                            <span className="mt-2 block text-footnote text-[var(--foreground-soft)]">
+                              {e.reasoning}
+                            </span>
+                          )}
+                        </span>
+                        {e.item_id && (
+                          <Icon
+                            name="chevron-right"
+                            size={16}
+                            strokeWidth={2}
+                            className="mt-2 shrink-0 text-[var(--muted)]"
+                          />
+                        )}
+                      </>
+                    );
+                    const cls =
+                      "relative flex items-start gap-3 px-4 py-4 min-h-[52px]";
+                    return (
+                      <li key={e.id}>
+                        {e.item_id ? (
+                          <Link
+                            href={`/items/${e.item_id}`}
+                            className={`${cls} transition-colors active:bg-[var(--surface-alt)]`}
+                          >
+                            {body}
+                          </Link>
+                        ) : (
+                          <div className={cls}>{body}</div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </Card>
             </section>
           ))}
         </div>

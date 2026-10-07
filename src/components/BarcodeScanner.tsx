@@ -1,6 +1,6 @@
 "use client";
 
-// BarcodeScanner — full-screen camera sheet that decodes UPC/EAN
+// BarcodeScanner — full-screen camera viewfinder that decodes UPC/EAN
 // barcodes via the browser-native BarcodeDetector API. On a hit, calls
 // /api/catalog/lookup-upc which finds the product in our catalog or
 // fetches it from Open Food Facts (3M+ products).
@@ -11,6 +11,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "@/components/Icon";
+import Button, { IconButton } from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
 
 // Browser typings for BarcodeDetector — not in TS lib by default
 type DetectedBarcode = {
@@ -178,138 +181,126 @@ export default function BarcodeScanner({ open, onClose, onMatch }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex flex-col"
-      style={{ background: "rgba(0,0,0,0.92)" }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Scan a barcode"
+      className="fixed inset-0 flex flex-col bg-[var(--background)] text-[var(--foreground)]"
+      style={{
+        zIndex: "var(--z-modal)" as unknown as number,
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}
     >
-      <header
-        className="flex items-center justify-between px-4 py-3"
-        style={{ color: "#FFFFFF" }}
-      >
+      <header className="flex min-h-[56px] items-center justify-between gap-3 px-4">
         <div className="flex items-center gap-2">
-          <Icon name="search" size={16} strokeWidth={1.8} />
-          <div className="text-[14px]" style={{ fontWeight: 600 }}>
-            Scan a barcode
-          </div>
+          <Icon name="barcode" size={20} strokeWidth={1.8} />
+          <h2 className="text-title-3">Scan a barcode</h2>
         </div>
-        <button
-          onClick={onClose}
-          className="text-[13px] px-3 py-1.5 rounded-lg"
-          style={{ background: "rgba(255,255,255,0.16)", color: "#FFFFFF" }}
-        >
-          Close
-        </button>
+        <IconButton icon="x" label="Close scanner" onClick={onClose} />
       </header>
 
-      <div className="flex-1 flex items-center justify-center px-4">
+      <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 pb-6">
         {result ? (
           <ResultCard result={result} onConfirm={confirm} />
         ) : supported === null ? (
-          <div className="text-[14px]" style={{ color: "#FFFFFF" }}>
+          <div role="status" className="text-callout text-[var(--muted)]">
             Starting camera…
           </div>
         ) : supported ? (
-          <div className="w-full max-w-md flex flex-col gap-3">
-            <div
-              className="relative rounded-2xl overflow-hidden"
-              style={{
-                aspectRatio: "4 / 3",
-                background: "rgba(255,255,255,0.04)",
-              }}
-            >
+          <div className="flex w-full max-w-md flex-col gap-4">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]">
               <video
                 ref={videoRef}
                 playsInline
                 muted
-                className="absolute inset-0 w-full h-full object-cover"
+                className="absolute inset-0 h-full w-full object-cover"
               />
-              {/* Aim guide */}
-              <div
-                className="absolute"
-                style={{
-                  left: "10%",
-                  right: "10%",
-                  top: "40%",
-                  bottom: "40%",
-                  border: "2px solid rgba(52, 194, 142, 0.85)",
-                  borderRadius: 8,
-                  boxShadow: "0 0 0 200vmax rgba(0,0,0,0.45) inset",
-                }}
-                aria-hidden
-              />
+              <Reticle active={scanning} />
             </div>
-            <div
-              className="text-[12.5px] text-center"
-              style={{ color: "rgba(255, 255, 255, 0.85)" }}
+            <p
+              role="status"
+              className="flex items-center justify-center gap-1.5 text-center text-footnote text-[var(--foreground-soft)]"
             >
-              {scanning
-                ? "Aim the green box at the barcode"
-                : "Looking…"}
-            </div>
-            {err && (
-              <div
-                className="text-[12.5px] text-center px-3 py-2 rounded-lg"
-                style={{
-                  background: "rgba(239, 68, 68, 0.18)",
-                  color: "#FFFFFF",
-                }}
-              >
-                {err}
-              </div>
-            )}
+              <Icon name="scan" size={14} strokeWidth={2} />
+              {scanning ? "Line the barcode up inside the frame" : "Looking…"}
+            </p>
+            {err && <ErrorNote>{err}</ErrorNote>}
           </div>
         ) : (
-          <div
-            className="w-full max-w-md flex flex-col gap-3"
-            style={{ color: "#FFFFFF" }}
-          >
-            <div className="text-[14px] text-center">
-              Your browser doesn&apos;t support barcode scanning. Type the
-              UPC instead:
-            </div>
-            <div className="flex gap-2">
+          <div className="flex w-full max-w-md flex-col gap-3">
+            <p className="text-center text-callout text-[var(--foreground-soft)]">
+              This browser can&apos;t scan barcodes. Type the number under the
+              barcode instead.
+            </p>
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleManual();
+              }}
+            >
               <input
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 value={manualUpc}
                 onChange={(e) => setManualUpc(e.target.value)}
-                placeholder="UPC / EAN"
-                className="flex-1 rounded-xl px-3 py-2.5 text-[15px]"
-                style={{
-                  background: "rgba(255,255,255,0.10)",
-                  color: "#FFFFFF",
-                  border: "1px solid rgba(255,255,255,0.20)",
-                }}
+                placeholder="Barcode number"
+                aria-label="Barcode number"
+                className="input-field min-w-0 flex-1 tabular-nums"
               />
-              <button
-                onClick={handleManual}
-                disabled={!manualUpc.trim() || manualBusy}
-                className="px-4 rounded-xl text-[14px]"
-                style={{
-                  background: "var(--primary)",
-                  color: "var(--primary-fg)",
-                  fontWeight: 700,
-                  opacity: !manualUpc.trim() || manualBusy ? 0.5 : 1,
-                }}
+              <Button
+                type="submit"
+                size="lg"
+                disabled={!manualUpc.trim()}
+                loading={manualBusy}
               >
-                {manualBusy ? "…" : "Look up"}
-              </button>
-            </div>
-            {err && (
-              <div
-                className="text-[12.5px] text-center px-3 py-2 rounded-lg"
-                style={{
-                  background: "rgba(239, 68, 68, 0.18)",
-                  color: "#FFFFFF",
-                }}
-              >
-                {err}
-              </div>
-            )}
+                Look up
+              </Button>
+            </form>
+            {err && <ErrorNote>{err}</ErrorNote>}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+/** Viewfinder overlay: dimmed surround, a clear window with corner
+ *  brackets, and a soft scan line while the detector is running. */
+function Reticle({ active }: { active: boolean }) {
+  const corner = "absolute h-6 w-6 border-[var(--foreground)]";
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      <div className="absolute inset-x-[10%] top-[30%] bottom-[30%] rounded-[14px] shadow-[0_0_0_200vmax_rgba(0,0,0,0.5)]">
+        <span className={`${corner} top-0 left-0 rounded-tl-[14px] border-t-[3px] border-l-[3px]`} />
+        <span className={`${corner} top-0 right-0 rounded-tr-[14px] border-t-[3px] border-r-[3px]`} />
+        <span className={`${corner} bottom-0 left-0 rounded-bl-[14px] border-b-[3px] border-l-[3px]`} />
+        <span className={`${corner} right-0 bottom-0 rounded-br-[14px] border-r-[3px] border-b-[3px]`} />
+        {active && (
+          <span className="absolute inset-x-4 top-1/2 h-px bg-[var(--foreground)] opacity-70 motion-safe:animate-pulse" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ErrorNote({ children }: { children: React.ReactNode }) {
+  return (
+    <Card
+      tone="danger"
+      padding="sm"
+      role="alert"
+      className="flex items-start gap-2 text-footnote text-[var(--foreground)]"
+    >
+      <Icon
+        name="alert"
+        size={16}
+        strokeWidth={2}
+        className="mt-px shrink-0 text-[var(--error)]"
+      />
+      <span>{children}</span>
+    </Card>
   );
 }
 
@@ -321,94 +312,62 @@ function ResultCard({
   onConfirm: () => void;
 }) {
   const { item } = result;
+  const macros: { label: string; value: string }[] = [];
+  if (item.calories != null)
+    macros.push({ label: "kcal", value: String(Math.round(item.calories)) });
+  if (item.protein_g != null)
+    macros.push({ label: "Protein", value: `${Math.round(item.protein_g)}g` });
+  if (item.fat_g != null)
+    macros.push({ label: "Fat", value: `${Math.round(item.fat_g)}g` });
+  if (item.carbs_g != null)
+    macros.push({ label: "Carbs", value: `${Math.round(item.carbs_g)}g` });
   return (
-    <div
-      className="rounded-2xl max-w-md w-full p-5"
-      style={{
-        background: "var(--surface)",
-        color: "var(--foreground)",
-      }}
-    >
-      <div
-        className="text-[10px] uppercase tracking-wider mb-1.5"
-        style={{
-          color: "var(--accent)",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
-        Match found · {result.source === "local" ? "from catalog" : "Open Food Facts"}
+    <Card variant="raised" padding="lg" className="w-full max-w-md">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Chip tone="success" icon="check">
+          Match found
+        </Chip>
+        <span className="text-caption text-[var(--muted)]">
+          {result.source === "local" ? "From our catalog" : "From Open Food Facts"}
+        </span>
       </div>
-      <div className="text-[18px] leading-snug" style={{ fontWeight: 700 }}>
-        {item.name}
-      </div>
+      <h3 className="text-title-2 leading-snug">{item.name}</h3>
       {item.brand && (
-        <div className="text-[12.5px] mt-0.5" style={{ color: "var(--muted)" }}>
+        <div className="mt-0.5 text-footnote text-[var(--muted)]">
           {item.brand}
         </div>
       )}
       {(item.calories != null || item.protein_g != null) && (
-        <div className="grid grid-cols-4 gap-2 mt-3">
-          {item.calories != null && (
-            <Stat label="kcal" value={String(Math.round(item.calories))} />
-          )}
-          {item.protein_g != null && (
-            <Stat label="P" value={`${Math.round(item.protein_g)}g`} />
-          )}
-          {item.fat_g != null && (
-            <Stat label="F" value={`${Math.round(item.fat_g)}g`} />
-          )}
-          {item.carbs_g != null && (
-            <Stat label="C" value={`${Math.round(item.carbs_g)}g`} />
-          )}
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          {macros.map((m) => (
+            <div
+              key={m.label}
+              className="rounded-[14px] bg-[var(--surface)] px-1 py-2.5 text-center"
+            >
+              <div className="text-title-3 leading-none tabular-nums">
+                {m.value}
+              </div>
+              <div className="mt-1 text-caption text-[var(--muted)]">
+                {m.label}
+              </div>
+            </div>
+          ))}
         </div>
       )}
       {item.coach_summary && (
-        <div
-          className="text-[12.5px] mt-3 leading-relaxed"
-          style={{ color: "var(--foreground-soft)" }}
-        >
+        <p className="mt-3 text-callout leading-relaxed text-[var(--foreground-soft)]">
           {item.coach_summary}
-        </div>
+        </p>
       )}
-      <button
+      <Button
+        icon="plus"
+        size="lg"
+        fullWidth
         onClick={onConfirm}
-        className="w-full mt-4 py-3 rounded-xl text-[14px] flex items-center justify-center gap-1.5"
-        style={{
-          background: "var(--primary)",
-          color: "var(--primary-fg)",
-          fontWeight: 700,
-        }}
+        className="mt-5"
       >
-        <Icon name="plus" size={13} strokeWidth={2.4} />
         Use this item
-      </button>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      className="rounded-xl p-2 text-center"
-      style={{ background: "var(--surface-alt)" }}
-    >
-      <div
-        className="text-[14px] tabular-nums leading-none"
-        style={{ fontWeight: 700 }}
-      >
-        {value}
-      </div>
-      <div
-        className="text-[9.5px] mt-1 uppercase tracking-wider"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
-        {label}
-      </div>
-    </div>
+      </Button>
+    </Card>
   );
 }

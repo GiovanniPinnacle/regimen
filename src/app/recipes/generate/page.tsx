@@ -1,13 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import { ChipButton } from "@/components/ui/Chip";
+import Segmented from "@/components/ui/Segmented";
+import { Eyebrow } from "@/components/ui/Section";
 
 const EXAMPLES = [
-  "4 pasture eggs, 150g grass-fed ground beef, spinach, avocado, ghee",
-  "wild salmon fillet, broccoli, cauliflower, olive oil, lemon, garlic",
-  "chicken thighs, sweet potato, kale, coconut oil, Redmond salt",
+  { label: "Eggs & greens", text: "4 eggs, 150g ground beef, spinach, avocado, butter" },
+  { label: "Salmon & veg", text: "salmon fillet, broccoli, cauliflower, olive oil, lemon, garlic" },
+  { label: "Chicken tray", text: "chicken thighs, sweet potato, kale, olive oil, salt" },
 ];
 
 export default function GenerateRecipePage() {
@@ -35,11 +40,11 @@ export default function GenerateRecipePage() {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.error ?? `Error ${res.status}`);
+        throw new Error(j.error ?? "Coach couldn’t make a recipe right now. Try again.");
       }
       const { id } = await res.json();
       if (id) router.push(`/recipes/${id}`);
-      else throw new Error("No recipe id returned");
+      else throw new Error("Coach didn’t return a recipe. Try again.");
     } catch (e) {
       setErr((e as Error).message);
       setGenerating(false);
@@ -48,150 +53,99 @@ export default function GenerateRecipePage() {
 
   return (
     <div className="pb-24">
-      <div className="mb-4">
-        <Link
-          href="/recipes"
-          className="text-[13px]"
-          style={{ color: "var(--muted)" }}
-        >
-          ← Recipes
-        </Link>
-      </div>
+      <PageHeader
+        title="Make a meal"
+        back="/recipes"
+        backLabel="Recipes"
+        subtitle="Tell Coach what you have. It works around your food rules and macro targets."
+      />
 
-      <header className="mb-6">
-        <h1 className="text-[34px] leading-tight" style={{ fontWeight: 700, letterSpacing: "-0.024em" }}>
-          Generate a meal
-        </h1>
-        <div className="text-[13px] mt-1" style={{ color: "var(--muted)" }}>
-          Coach uses your hard-NOs, triggers, and macro targets.
-        </div>
-      </header>
-
-      <section className="mb-5">
-        <label
-          className="text-[12px] uppercase tracking-wider mb-2 block"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          What's in the fridge / pantry?
+      <Card padding="md">
+        <label className="block">
+          <span className="mb-1.5 block text-footnote font-medium text-[var(--foreground-soft)]">
+            What&rsquo;s in your fridge and pantry?
+          </span>
+          <textarea
+            value={fridge}
+            onChange={(e) => setFridge(e.target.value)}
+            rows={5}
+            placeholder="e.g. 3 eggs, 200g ground beef, spinach, avocado, rice, olive oil"
+            className="input-field resize-none"
+          />
         </label>
-        <textarea
-          value={fridge}
-          onChange={(e) => setFridge(e.target.value)}
-          rows={5}
-          placeholder="e.g. 3 pasture eggs, 200g ground beef, spinach, avocado, sauerkraut, ghee, sweet potato"
-          className="w-full border-hair rounded-lg p-3 text-[14px] resize-none focus:outline-none focus:border-hair-strong"
-          style={{
-            background: "var(--background)",
-            color: "var(--foreground)",
-          }}
-        />
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {EXAMPLES.map((ex, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setFridge(ex)}
-              className="text-[11px] px-2.5 py-1 rounded-full border-hair"
-              style={{ color: "var(--muted)" }}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-caption text-[var(--muted)]">Try:</span>
+          {EXAMPLES.map((ex) => (
+            <ChipButton
+              key={ex.label}
+              selected={fridge === ex.text}
+              onClick={() => setFridge(ex.text)}
             >
-              Example {i + 1}
-            </button>
+              {ex.label}
+            </ChipButton>
           ))}
         </div>
-      </section>
+      </Card>
 
-      <section className="mb-5">
-        <label
-          className="text-[12px] uppercase tracking-wider mb-2 block"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          Meal
-        </label>
-        <Chips
+      <section className="mt-6">
+        <Eyebrow className="mb-2">Meal</Eyebrow>
+        <Segmented
+          ariaLabel="Meal"
           value={mealType}
+          onChange={(v) => setMealType(v)}
           options={[
             { value: "breakfast", label: "Breakfast" },
             { value: "lunch", label: "Lunch" },
             { value: "dinner", label: "Dinner" },
           ]}
-          onChange={(v) => setMealType(v as typeof mealType)}
         />
       </section>
 
-      <section className="mb-6">
-        <label
-          className="text-[12px] uppercase tracking-wider mb-2 block"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          Style
-        </label>
-        <Chips
-          value={style}
-          options={[
-            { value: "bowl", label: "Bowl" },
-            { value: "soup", label: "Soup" },
-            { value: "sheet_pan", label: "Sheet pan" },
-            { value: "quick", label: "Quick (<15 min)" },
-          ]}
-          onChange={(v) => setStyle(v as typeof style)}
-        />
+      <section className="mt-6">
+        <Eyebrow className="mb-2">Style</Eyebrow>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Style">
+          {(
+            [
+              { value: "bowl", label: "Bowl" },
+              { value: "soup", label: "Soup" },
+              { value: "sheet_pan", label: "Sheet pan" },
+              { value: "quick", label: "Under 15 min" },
+            ] as const
+          ).map((o) => (
+            <ChipButton
+              key={o.value}
+              selected={style === o.value}
+              onClick={() => setStyle(o.value)}
+            >
+              {o.label}
+            </ChipButton>
+          ))}
+        </div>
       </section>
 
-      <button
+      <Button
+        variant="coach"
+        size="lg"
+        icon="sparkle"
+        fullWidth
+        className="mt-8"
         onClick={handleGenerate}
-        disabled={generating || !fridge.trim()}
-        className="w-full px-4 py-3 rounded-lg text-[15px]"
-        style={{
-          background: "var(--foreground)",
-          color: "var(--background)",
-          fontWeight: 500,
-          opacity: generating || !fridge.trim() ? 0.5 : 1,
-        }}
+        loading={generating}
+        disabled={!fridge.trim()}
       >
-        {generating ? "Thinking… (15–25s)" : "✨ Generate"}
-      </button>
+        {generating ? "Coach is cooking… (15–25s)" : "Make my meal"}
+      </Button>
 
       {err && (
-        <div
-          className="mt-4 border-hair rounded-lg p-3 text-[13px]"
-          style={{ color: "#b00020" }}
+        <Card
+          tone="danger"
+          padding="sm"
+          role="alert"
+          className="mt-4 text-footnote text-[var(--error)]"
         >
           {err}
-        </div>
+        </Card>
       )}
-    </div>
-  );
-}
-
-function Chips({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map((o) => {
-        const active = value === o.value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => onChange(o.value)}
-            className="text-[12px] px-3 py-1.5 rounded-full border-hair"
-            style={{
-              background: active ? "var(--foreground)" : "var(--background)",
-              color: active ? "var(--background)" : "var(--muted)",
-              fontWeight: active ? 500 : 400,
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
     </div>
   );
 }

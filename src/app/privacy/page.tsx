@@ -5,26 +5,31 @@
 
 import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata = {
   title: "Privacy — Regimen",
 };
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  // Public page: signed-in readers go back to You, signed-out readers
+  // (from the landing or sign-in screen) go back home.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="pb-24">
       <PageHeader
         title="Privacy"
         subtitle="Last updated: May 8, 2026."
-        back="/you"
-        backLabel="You"
+        back={user ? "/you" : "/"}
+        backLabel={user ? "You" : "Home"}
         showCoach={false}
       />
 
-      <div
-        className="prose-tight space-y-5 text-[14px] leading-relaxed"
-        style={{ color: "var(--foreground-soft)" }}
-      >
+      <article className="max-w-[65ch] space-y-9 text-body text-[var(--foreground-soft)]">
         <Section title="The short version">
           <p>
             Regimen is a personal health tracker. Your data — supplements,
@@ -34,53 +39,53 @@ export default function PrivacyPage() {
             (2) to keep the app running.
           </p>
           <p>
-            Two service providers see your data: Supabase (database +
-            authentication) and Anthropic (Coach). Both are contractually
+            Two service providers see your data: Supabase (storage and
+            sign-in) and Anthropic (Coach). Both are contractually
             barred from training models on your data or using it for
             anything beyond serving your requests.
           </p>
         </Section>
 
         <Section title="What we collect">
-          <ul className="list-disc pl-5 space-y-1.5">
+          <ul className="list-disc space-y-2.5 pl-5 marker:text-[var(--muted)]">
             <li>
-              <strong>Account info</strong> — email address, when you signed
+              <strong className="font-semibold text-[var(--foreground)]">Account info</strong> — email address, when you signed
               up, when you last signed in.
             </li>
             <li>
-              <strong>Health entries you log</strong> — supplements you
-              take, food + meals, mood ratings, symptoms, training sessions,
+              <strong className="font-semibold text-[var(--foreground)]">Health entries you log</strong> — supplements you
+              take, food and meals, mood ratings, symptoms, training sessions,
               recovery scores, photos you upload, voice notes you record.
             </li>
             <li>
-              <strong>Profile data</strong> — anything you put in Profile
+              <strong className="font-semibold text-[var(--foreground)]">Profile data</strong> — anything you put in Profile
               (weight, height, age, biological sex, activity level, body
               goal, recent surgery date if applicable).
             </li>
             <li>
-              <strong>Bloodwork + biomarkers</strong> — values from any
-              lab reports you parse with the bloodwork tool.
+              <strong className="font-semibold text-[var(--foreground)]">Bloodwork + biomarkers</strong> — values from any
+              lab reports you upload.
             </li>
             <li>
-              <strong>Coach conversations</strong> — the messages you send
-              to Coach + Coach&apos;s replies. Used to maintain context
-              within a conversation. Stored linked to your account.
+              <strong className="font-semibold text-[var(--foreground)]">Coach conversations</strong> — the messages you send
+              to Coach + Coach&apos;s replies, used to keep the
+              conversation in context. Stored linked to your account.
             </li>
             <li>
-              <strong>Imported data</strong> — Oura, Apple Health, CGM
+              <strong className="font-semibold text-[var(--foreground)]">Imported data</strong> — Oura, Apple Health, CGM
               data, etc., if you connect those sources. We only pull what
               you authorize.
             </li>
             <li>
-              <strong>Usage telemetry</strong> — which routes you hit
-              and how often, used to enforce per-user rate limits and
-              detect abuse. No marketing analytics.
+              <strong className="font-semibold text-[var(--foreground)]">Usage information</strong> — which screens and
+              features you use and how often, used to enforce fair-use
+              limits and detect abuse. No marketing analytics.
             </li>
           </ul>
         </Section>
 
         <Section title="What we don't collect">
-          <ul className="list-disc pl-5 space-y-1.5">
+          <ul className="list-disc space-y-2.5 pl-5 marker:text-[var(--muted)]">
             <li>Your contacts, location, browser history, or any
               data outside the app.</li>
             <li>Tracking pixels, advertising IDs, or third-party
@@ -95,9 +100,9 @@ export default function PrivacyPage() {
 
         <Section title="Where it lives">
           <p>
-            Data is stored in Supabase (Postgres) on AWS US-East. Photos
-            and audio uploads are stored in the same Supabase project.
-            Coach calls are routed to Anthropic&apos;s API.
+            Your data is stored with Supabase on servers in the eastern
+            United States (AWS US-East), including photos and audio you
+            upload. Coach requests are sent to Anthropic.
           </p>
           <p>
             Per Anthropic&apos;s commercial terms, your prompts and
@@ -108,27 +113,27 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="Your rights">
-          <ul className="list-disc pl-5 space-y-1.5">
+          <ul className="list-disc space-y-2.5 pl-5 marker:text-[var(--muted)]">
             <li>
-              <strong>Export</strong> — download a complete JSON dump of
-              every row of yours from <Link href="/account" className="underline">Account</Link>.
+              <strong className="font-semibold text-[var(--foreground)]">Export</strong> — download a complete copy of
+              all your data from <Link href="/account" className="text-[var(--foreground)] underline underline-offset-2">Account</Link>.
             </li>
             <li>
-              <strong>Delete</strong> — wipe your account + every row of
-              data from the same page. The deletion runs immediately;
+              <strong className="font-semibold text-[var(--foreground)]">Delete</strong> — erase your account and all of
+              your data from the same page. The deletion runs immediately;
               there&apos;s no soft-delete or grace period.
             </li>
             <li>
-              <strong>Correction</strong> — every value in the app is
+              <strong className="font-semibold text-[var(--foreground)]">Correction</strong> — every value in the app is
               user-editable. If anything looks wrong, edit it.
             </li>
             <li>
-              <strong>Portability</strong> — your export is a standard
-              JSON file you can ingest anywhere.
+              <strong className="font-semibold text-[var(--foreground)]">Portability</strong> — your export is a standard
+              file (JSON) that other apps and tools can read.
             </li>
           </ul>
           <p>
-            EU + California users have additional rights under GDPR / CCPA
+            EU and California users have additional rights under GDPR / CCPA
             including the right to object to processing and the right to
             lodge a complaint with a supervisory authority. Email
             privacy@regimen.app to exercise these.
@@ -181,12 +186,12 @@ export default function PrivacyPage() {
         <Section title="Contact">
           <p>
             Questions or data requests:{" "}
-            <a href="mailto:privacy@regimen.app" className="underline">
+            <a href="mailto:privacy@regimen.app" className="text-[var(--foreground)] underline underline-offset-2">
               privacy@regimen.app
             </a>.
           </p>
         </Section>
-      </div>
+      </article>
     </div>
   );
 }
@@ -202,17 +207,8 @@ function Section({
 }) {
   return (
     <section id={id} className="scroll-mt-6">
-      <h2
-        className="text-[18px] mb-2"
-        style={{
-          color: "var(--foreground)",
-          fontWeight: 700,
-          letterSpacing: "-0.012em",
-        }}
-      >
-        {title}
-      </h2>
-      <div className="space-y-3">{children}</div>
+      <h2 className="mb-3 text-title-3 text-[var(--foreground)]">{title}</h2>
+      <div className="space-y-4">{children}</div>
     </section>
   );
 }

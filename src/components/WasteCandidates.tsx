@@ -6,6 +6,7 @@
 // Coach (drop vs. make it stick) rather than retiring anything directly.
 
 import Icon from "@/components/Icon";
+import { cardClass } from "@/components/ui/Card";
 import { formatUSD } from "@/lib/cost";
 import { openCoach } from "@/lib/coach-events";
 
@@ -34,7 +35,12 @@ export default function WasteCandidates({
   }
 
   return (
-    <div className="overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)] divide-y divide-[var(--border)]">
+    <div
+      className={cardClass({
+        padding: "none",
+        className: "overflow-hidden divide-y divide-[var(--border)]",
+      })}
+    >
       {candidates.map((c) => {
         const monthlyWaste = c.monthly_cost * (1 - c.adherence_rate);
         return (
@@ -57,7 +63,9 @@ export default function WasteCandidates({
               </span>
               <span className="block text-caption text-[var(--muted)]">unused/mo</span>
             </span>
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--pro-tint)] text-[var(--pro-soft)]">
+            <span
+              aria-hidden
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--pro-tint)] text-[var(--pro-soft)]">
               <Icon name="sparkle" size={15} strokeWidth={1.8} />
             </span>
           </button>

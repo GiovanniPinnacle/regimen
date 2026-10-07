@@ -107,19 +107,21 @@ export default function CostStepper({
     };
   }, []);
 
-  const btnH = size === "md" ? 36 : 30;
-  const btnW = size === "md" ? 36 : 30;
+  const md = size === "md";
+  // Visual height 44 (md) / 36 (sm); sm buttons expand their hit area
+  // to 44px with a pseudo-element so inline rows stay compact.
+  const btnBase = `relative flex shrink-0 items-center justify-center select-none active:bg-[var(--surface)] disabled:opacity-40 ${
+    md ? "h-11 w-11" : "h-9 w-9 before:absolute before:-inset-y-1 before:inset-x-0 before:content-['']"
+  }`;
+  const btnCls = `${btnBase} text-[var(--foreground-soft)]`;
   const display =
     value != null && !editing ? `${showCurrency ? "$" : ""}${value}` : "";
 
   return (
     <div
-      className={`inline-flex items-center gap-0 rounded-lg overflow-hidden ${className}`}
-      style={{
-        background: "var(--surface-alt)",
-        border: "1px solid var(--border)",
-        opacity: disabled ? 0.5 : 1,
-      }}
+      className={`inline-flex items-center overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--surface-alt)] ${
+        disabled ? "opacity-50" : ""
+      } ${className}`}
     >
       <button
         type="button"
@@ -128,27 +130,16 @@ export default function CostStepper({
         onPointerLeave={stopAccel}
         onPointerCancel={stopAccel}
         disabled={disabled || (value ?? 0) <= 0}
-        className="flex items-center justify-center select-none"
-        style={{
-          width: btnW,
-          height: btnH,
-          color: "var(--foreground-soft)",
-          fontSize: 18,
-          fontWeight: 600,
-        }}
+        className={btnCls}
         aria-label="Decrease"
       >
-        −
+        <Icon name="minus" size={md ? 18 : 16} strokeWidth={2} />
       </button>
 
       <div
-        className="flex-1 px-1 text-center tabular-nums select-none"
-        style={{
-          minWidth: size === "md" ? 70 : 56,
-          fontSize: size === "md" ? 14 : 12.5,
-          fontWeight: 600,
-          color: value != null ? "var(--foreground)" : "var(--muted)",
-        }}
+        className={`flex-1 px-1 text-center font-semibold tabular-nums select-none ${
+          md ? "min-w-[72px] text-callout" : "min-w-[56px] text-footnote"
+        } ${value != null ? "text-[var(--foreground)]" : "text-[var(--muted)]"}`}
       >
         {editing ? (
           <input
@@ -159,6 +150,7 @@ export default function CostStepper({
             value={text}
             autoFocus
             inputMode="numeric"
+            aria-label={placeholder}
             onChange={(e) => setText(e.target.value)}
             onBlur={() => {
               const n = parseFloat(text);
@@ -179,8 +171,9 @@ export default function CostStepper({
                 setEditing(false);
               }
             }}
-            className="w-full text-center bg-transparent outline-none tabular-nums"
-            style={{ fontSize: "inherit", fontWeight: "inherit" }}
+            className={`w-full bg-transparent text-center tabular-nums outline-none ${
+              md ? "h-11" : "h-9"
+            }`}
           />
         ) : (
           <button
@@ -190,13 +183,8 @@ export default function CostStepper({
               setEditing(true);
               setText(value != null ? String(value) : "");
             }}
-            className="w-full"
-            style={{
-              minHeight: btnH,
-              fontSize: "inherit",
-              fontWeight: "inherit",
-              color: "inherit",
-            }}
+            aria-label={value != null ? `Edit ${placeholder.toLowerCase()}` : placeholder}
+            className={`w-full ${md ? "h-11" : "h-9"}`}
           >
             {display || placeholder}
           </button>
@@ -210,17 +198,10 @@ export default function CostStepper({
         onPointerLeave={stopAccel}
         onPointerCancel={stopAccel}
         disabled={disabled || (value ?? 0) >= max}
-        className="flex items-center justify-center select-none"
-        style={{
-          width: btnW,
-          height: btnH,
-          color: "var(--foreground-soft)",
-          fontSize: 16,
-          fontWeight: 600,
-        }}
+        className={btnCls}
         aria-label="Increase"
       >
-        +
+        <Icon name="plus" size={md ? 18 : 16} strokeWidth={2} />
       </button>
 
       {!noClear && value != null && !disabled && (
@@ -230,16 +211,10 @@ export default function CostStepper({
             commit(null);
             setText("");
           }}
-          className="flex items-center justify-center select-none"
-          style={{
-            width: btnW - 8,
-            height: btnH,
-            color: "var(--muted)",
-            borderLeft: "1px solid var(--border)",
-          }}
+          className={`${btnBase} border-l border-[var(--border)] text-[var(--muted)]`}
           aria-label="Clear cost"
         >
-          <Icon name="plus" size={11} className="rotate-45" />
+          <Icon name="x" size={14} strokeWidth={2} />
         </button>
       )}
     </div>

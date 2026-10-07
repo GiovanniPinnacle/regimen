@@ -1,9 +1,12 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GOAL_LABELS } from "@/lib/constants";
 import type { Recipe } from "@/lib/types";
 import RecipeActions from "@/components/RecipeActions";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import { SectionHeader, Stat } from "@/components/ui/Section";
 
 export default async function RecipeDetailPage({
   params,
@@ -25,171 +28,150 @@ export default async function RecipeDetailPage({
   const steps = recipe.instructions
     ? recipe.instructions
         .split(/\n+/)
-        .map((s) => s.trim())
+        // Drop any "1." / "Step 1:" prefix — the list numbers them.
+        .map((s) => s.trim().replace(/^(step\s*)?\d+[.):]\s*/i, ""))
         .filter(Boolean)
     : [];
 
+  const macros = [
+    { label: "Calories", value: recipe.calories_per_serving, unit: "kcal" },
+    { label: "Protein", value: recipe.protein_g, unit: "g" },
+    { label: "Carbs", value: recipe.carbs_g, unit: "g" },
+    { label: "Fat", value: recipe.fat_g, unit: "g" },
+  ].filter((m) => m.value != null);
+
+  const meta = [
+    recipe.servings > 1 ? `${recipe.servings} servings` : null,
+    recipe.times_made > 0 ? `Made ${recipe.times_made}×` : null,
+  ].filter(Boolean);
+
   return (
     <div className="pb-24">
-      <div className="mb-4">
-        <Link
-          href="/recipes"
-          className="text-[13px]"
-          style={{ color: "var(--muted)" }}
-        >
-          ← Recipes
-        </Link>
-      </div>
+      <PageHeader
+        title={recipe.name}
+        back="/recipes"
+        backLabel="Recipes"
+        subtitle={recipe.description ?? undefined}
+      />
 
-      <header className="mb-6">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h1 className="text-[24px] leading-tight" style={{ fontWeight: 500 }}>
-            {recipe.is_favorite && <span className="mr-1">★</span>}
-            {recipe.name}
-          </h1>
-        </div>
-        {recipe.description && (
-          <p
-            className="text-[14px] leading-relaxed mt-1"
-            style={{ color: "var(--muted)" }}
-          >
-            {recipe.description}
-          </p>
-        )}
-        <div
-          className="text-[12px] mt-3 flex flex-wrap gap-x-3 gap-y-1"
-          style={{ color: "var(--muted)" }}
-        >
-          {recipe.calories_per_serving != null && (
-            <span>{recipe.calories_per_serving} kcal</span>
+      {(recipe.is_favorite || recipe.source === "claude" ||
+        meta.length > 0 ||
+        (recipe.tags?.length ?? 0) > 0 ||
+        (recipe.goals?.length ?? 0) > 0) && (
+        <div className="-mt-2 mb-5 flex flex-wrap gap-1.5">
+          {recipe.is_favorite && (
+            <Chip icon="star">Favorite</Chip>
           )}
-          {recipe.protein_g != null && <span>{recipe.protein_g}g protein</span>}
-          {recipe.fat_g != null && <span>{recipe.fat_g}g fat</span>}
-          {recipe.carbs_g != null && <span>{recipe.carbs_g}g carbs</span>}
-          {recipe.servings > 1 && <span>{recipe.servings} servings</span>}
-          {recipe.times_made > 0 && <span>Made {recipe.times_made}×</span>}
           {recipe.source === "claude" && (
-            <span
-              className="text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1"
-              style={{
-                background: "var(--pro-tint)",
-                color: "var(--pro)",
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: "var(--pro)",
-                }}
-              />
-              Coach-generated
-            </span>
+            <Chip tone="coach" icon="sparkle">
+              Made by Coach
+            </Chip>
           )}
+          {meta.map((m) => (
+            <Chip key={m}>{m}</Chip>
+          ))}
+          {recipe.goals?.map((g) => (
+            <Chip key={g}>{GOAL_LABELS[g]}</Chip>
+          ))}
+          {recipe.tags?.map((t) => (
+            <Chip key={t}>{t}</Chip>
+          ))}
         </div>
-        {recipe.tags && recipe.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {recipe.tags.map((t) => (
-              <span
-                key={t}
-                className="text-[11px] px-2 py-0.5 rounded-full border-hair"
-                style={{ color: "var(--muted)" }}
-              >
-                {t}
-              </span>
+      )}
+
+      {macros.length > 0 && (
+        <Card padding="md" className="mb-4">
+          <div
+            className="grid gap-3"
+            style={{ gridTemplateColumns: `repeat(${macros.length}, minmax(0, 1fr))` }}
+          >
+            {macros.map((m) => (
+              <Stat
+                key={m.label}
+                size="sm"
+                label={m.label}
+                value={m.value}
+                unit={m.unit}
+              />
             ))}
           </div>
-        )}
-        {recipe.goals && recipe.goals.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1.5">
-            {recipe.goals.map((g) => (
-              <span
-                key={g}
-                className="text-[11px] px-2 py-0.5 rounded-full"
-                style={{
-                  background: "var(--surface-alt)",
-                  color: "var(--muted)",
-                }}
-              >
-                {GOAL_LABELS[g]}
-              </span>
-            ))}
-          </div>
-        )}
-      </header>
+          {recipe.servings > 1 && (
+            <p className="mt-3 text-caption text-[var(--muted)]">Per serving</p>
+          )}
+        </Card>
+      )}
 
       <RecipeActions recipe={recipe} />
 
       {recipe.ingredients && recipe.ingredients.length > 0 && (
-        <Section title="Ingredients">
-          <ul className="flex flex-col gap-1.5">
-            {recipe.ingredients.map((ing, i) => (
-              <li key={i} className="text-[14px] leading-relaxed flex gap-2">
-                <span style={{ color: "var(--muted)" }}>•</span>
-                <span>
+        <section>
+          <SectionHeader
+            title="Ingredients"
+            action={
+              <span className="text-footnote text-[var(--muted)]">
+                {recipe.ingredients.length}
+              </span>
+            }
+          />
+          <Card padding="none">
+            <ul className="divide-y divide-[var(--border)]">
+              {recipe.ingredients.map((ing, i) => (
+                <li
+                  key={i}
+                  className="flex min-h-[48px] items-baseline gap-3 px-4 py-3 text-body"
+                >
+                  <span className="min-w-0 flex-1">
+                    {ing.name}
+                    {ing.notes && (
+                      <span className="block text-footnote text-[var(--muted)]">
+                        {ing.notes}
+                      </span>
+                    )}
+                  </span>
                   {ing.amount && (
-                    <span style={{ fontWeight: 500 }}>{ing.amount} </span>
-                  )}
-                  {ing.name}
-                  {ing.notes && (
-                    <span style={{ color: "var(--muted)" }}>
-                      {" "}
-                      — {ing.notes}
+                    <span className="shrink-0 text-callout font-medium tabular-nums text-[var(--foreground-soft)]">
+                      {ing.amount}
                     </span>
                   )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Section>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </section>
       )}
 
       {steps.length > 0 && (
-        <Section title="Instructions">
-          <ol className="flex flex-col gap-2">
+        <section>
+          <SectionHeader title="Steps" />
+          <ol className="flex flex-col gap-4">
             {steps.map((s, i) => (
-              <li key={i} className="text-[14px] leading-relaxed">
-                {s}
+              <li key={i} className="flex gap-3">
+                <span
+                  aria-hidden
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-alt)] text-footnote font-semibold tabular-nums text-[var(--foreground-soft)]"
+                >
+                  {i + 1}
+                </span>
+                <p className="min-w-0 flex-1 pt-0.5 text-body leading-relaxed">
+                  <span className="sr-only">Step {i + 1}: </span>
+                  {s}
+                </p>
               </li>
             ))}
           </ol>
-        </Section>
+        </section>
       )}
 
       {recipe.fridge_snapshot && (
-        <Section title="Generated from">
-          <p
-            className="text-[12px] leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            {recipe.fridge_snapshot}
-          </p>
-        </Section>
+        <section>
+          <SectionHeader title="Made from what you had" />
+          <Card variant="inset" padding="md">
+            <p className="text-footnote leading-relaxed text-[var(--muted)]">
+              {recipe.fridge_snapshot}
+            </p>
+          </Card>
+        </section>
       )}
     </div>
-  );
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mb-6">
-      <h2
-        className="text-[11px] uppercase tracking-wider mb-2"
-        style={{ color: "var(--muted)", fontWeight: 500 }}
-      >
-        {title}
-      </h2>
-      {children}
-    </section>
   );
 }

@@ -57,7 +57,6 @@
   --accent-deep: #1F9C70;
   --accent-soft: #5FD9A6;
   --accent-tint: rgba(52, 194, 142, 0.12);
-  --accent-glow: rgba(52, 194, 142, 0.28);
 
   /* ─── Premium — refined gold. Slightly desaturated from v2 so it
      speaks the same restrained palette as accent. Used ONLY for
@@ -512,36 +511,6 @@ a:active {
   border: 1px solid var(--border);
   box-shadow: var(--shadow-glass);
 }
-.glass-tint-purple {
-  background: linear-gradient(
-    135deg,
-    var(--pro-tint) 0%,
-    rgba(139, 124, 252, 0.03) 100%
-  );
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(139, 124, 252, 0.18);
-}
-.glass-tint-olive {
-  background: linear-gradient(
-    135deg,
-    var(--accent-tint) 0%,
-    rgba(52, 194, 142, 0.04) 100%
-  );
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(52, 194, 142, 0.20);
-}
-.glass-tint-tan {
-  background: linear-gradient(
-    135deg,
-    var(--premium-tint) 0%,
-    rgba(212, 166, 69, 0.03) 100%
-  );
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(212, 166, 69, 0.18);
-}
 
 /* ============== Card variants ============== */
 .card {
@@ -560,73 +529,6 @@ a:active {
   box-shadow: var(--shadow-card);
 }
 
-/* ============== Buttons ==============
-   Base classes — components still use inline styles for color so this
-   stays a foundation. Common rule: never let label clip.
-
-   Layout safety:
-   - max-width: 100% so the button never overflows its parent.
-   - text-overflow: clip (not ellipsis) — paired with white-space: nowrap
-     this keeps short labels intact and prevents the "…" stub the user
-     was seeing on overflowing buttons.
-   - min-width: 0 lets the button shrink inside flex parents that have
-     constrained widths (the most common cause of clipped CTAs).
-   - box-sizing: border-box so padding doesn't push past 100%. */
-.btn-primary {
-  background: var(--primary);
-  color: var(--primary-fg);
-  font-weight: 700;
-  border-radius: 12px;
-  padding: 0.75rem 1.125rem;
-  white-space: nowrap;
-  min-height: 44px;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  letter-spacing: -0.005em;
-  box-shadow: var(--shadow-button);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-.btn-primary:hover {
-  background: var(--primary-deep);
-}
-.btn-primary:active {
-  transform: scale(0.98);
-}
-.btn-purple {
-  background: var(--pro);
-  color: #FFFFFF;
-  font-weight: 700;
-  border-radius: 12px;
-  padding: 0.75rem 1.125rem;
-  white-space: nowrap;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-}
-.btn-ghost {
-  background: var(--surface-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  color: var(--foreground-soft);
-  font-weight: 600;
-  border-radius: 12px;
-  padding: 0.625rem 1rem;
-  white-space: nowrap;
-  min-height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-}
-
 /* ============== Pill / chip ============== */
 .chip {
   display: inline-flex;
@@ -634,36 +536,14 @@ a:active {
   gap: 0.25rem;
   padding: 0.25rem 0.625rem;
   border-radius: 9999px;
-  font-size: 11px;
+  font-size: 12px;
   border: 1px solid var(--border);
   background: var(--surface-glass);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   white-space: nowrap;
 }
-.chip-active {
-  background: var(--foreground);
-  color: var(--background);
-  border-color: var(--foreground);
-}
-.chip-purple {
-  background: var(--pro-tint);
-  color: var(--pro-soft);
-  border-color: rgba(139, 124, 252, 0.22);
-}
-.chip-olive {
-  background: var(--olive-tint);
-  color: var(--olive);
-  border-color: rgba(52, 194, 142, 0.26);
-}
 
-/* ============== Accent text ============== */
-.accent-purple {
-  color: var(--pro);
-}
-.accent-olive {
-  color: var(--olive);
-}
 
 /* Scrollbar polish — thinner, neutral */
 ::-webkit-scrollbar {
@@ -688,23 +568,6 @@ a:active {
 }
 
 /* ============== Coach (AI assistant) ============== */
-.coach-fab {
-  animation: coach-fab-pulse 3.6s ease-in-out infinite;
-}
-@keyframes coach-fab-pulse {
-  0%, 100% {
-    box-shadow:
-      0 12px 32px rgba(139, 124, 252, 0.35),
-      0 4px 12px rgba(110, 93, 240, 0.28),
-      0 0 0 0 rgba(139, 124, 252, 0.40);
-  }
-  50% {
-    box-shadow:
-      0 14px 36px rgba(139, 124, 252, 0.45),
-      0 6px 14px rgba(110, 93, 240, 0.35),
-      0 0 0 10px rgba(139, 124, 252, 0);
-  }
-}
 
 .coach-dot {
   width: 7px;

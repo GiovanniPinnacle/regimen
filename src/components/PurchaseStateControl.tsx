@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Item, PurchaseState } from "@/lib/types";
 import { localDateISO } from "@/lib/series";
+import Button from "@/components/ui/Button";
+import { ChipButton } from "@/components/ui/Chip";
 
 const LABEL: Record<PurchaseState, string> = {
   needed: "Needed",
@@ -73,45 +75,37 @@ export default function PurchaseStateControl({
   ];
 
   if (compact) {
-    // Single primary button: advance to next state
+    // Single button: advance to next state
     const next = state ? NEXT[state] : "needed";
     return (
-      <button
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={() => next && setTo(next)}
         disabled={busy || !next}
-        className="px-3 py-1.5 rounded-lg text-[12px] border-hair"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 500,
-          opacity: busy ? 0.5 : 1,
-        }}
+        loading={busy}
+        iconRight={next ? "arrow-right" : undefined}
+        aria-label={next ? `Mark as ${LABEL[next]}` : undefined}
+        className="relative before:absolute before:-inset-y-1 before:inset-x-0 before:content-['']"
       >
-        {busy ? "…" : next ? `→ ${LABEL[next]}` : "—"}
-      </button>
+        {next ? LABEL[next] : "Done"}
+      </Button>
     );
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {all.map((s) => {
-        const active = state === s;
-        return (
-          <button
-            key={s}
-            onClick={() => setTo(s)}
-            disabled={busy}
-            className="px-3 py-1.5 rounded-full text-[12px] border-hair"
-            style={{
-              background: active ? "var(--foreground)" : "var(--background)",
-              color: active ? "var(--background)" : "var(--muted)",
-              fontWeight: active ? 500 : 400,
-              opacity: busy ? 0.5 : 1,
-            }}
-          >
-            {LABEL[s]}
-          </button>
-        );
-      })}
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Purchase status">
+      {all.map((s) => (
+        <ChipButton
+          key={s}
+          selected={state === s}
+          onClick={() => setTo(s)}
+          disabled={busy}
+          className={busy ? "opacity-50" : ""}
+        >
+          {LABEL[s]}
+        </ChipButton>
+      ))}
     </div>
   );
 }

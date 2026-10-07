@@ -15,6 +15,10 @@
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import SwipeDismiss from "@/components/SwipeDismiss";
+import { cardClass } from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import { IconButton } from "@/components/ui/Button";
+import { Eyebrow } from "@/components/ui/Section";
 import type { IngredientStackResult, IngredientWarning } from "@/lib/ingredient-stack";
 import { localDateISO } from "@/lib/series";
 
@@ -22,27 +26,24 @@ const HIDE_KEY_BASE = "regimen.stackwarn.dismissed_today.v1";
 
 const SEV_STYLE: Record<
   IngredientWarning["severity"],
-  { bg: string; border: string; chip: string; chipText: string; label: string }
+  { tone: "danger" | "warn"; text: string; tile: string; label: string }
 > = {
   critical: {
-    bg: "linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(239, 68, 68, 0.06) 100%)",
-    border: "rgba(239, 68, 68, 0.40)",
-    chip: "rgba(239, 68, 68, 0.20)",
-    chipText: "var(--error)",
+    tone: "danger",
+    text: "text-[var(--error)]",
+    tile: "bg-[var(--error-tint)] text-[var(--error)]",
     label: "Critical",
   },
   warning: {
-    bg: "linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(245, 158, 11, 0.06) 100%)",
-    border: "rgba(245, 158, 11, 0.40)",
-    chip: "rgba(245, 158, 11, 0.20)",
-    chipText: "var(--warn)",
+    tone: "warn",
+    text: "text-[var(--warn)]",
+    tile: "bg-[var(--warn-tint)] text-[var(--warn)]",
     label: "Over UL",
   },
   info: {
-    bg: "linear-gradient(135deg, rgba(245, 158, 11, 0.10) 0%, rgba(245, 158, 11, 0.03) 100%)",
-    border: "rgba(245, 158, 11, 0.25)",
-    chip: "rgba(245, 158, 11, 0.14)",
-    chipText: "var(--warn)",
+    tone: "warn",
+    text: "text-[var(--warn)]",
+    tile: "bg-[var(--warn-tint)] text-[var(--warn)]",
     label: "Approaching",
   },
 };
@@ -120,158 +121,111 @@ export default function StackWarningsBanner({
 
   return (
     <SwipeDismiss onDismiss={dismiss} disabled={persistent}>
-    <section
-      className="rounded-2xl mb-5 overflow-hidden relative"
-      style={{
-        background: style.bg,
-        border: `1px solid ${style.border}`,
-      }}
-    >
-      <div className="px-4 py-3.5 flex items-start gap-3">
-        <span
-          className="shrink-0 mt-0.5 h-9 w-9 rounded-lg flex items-center justify-center"
-          style={{ background: style.chip, color: style.chipText }}
-          aria-hidden
-        >
-          <Icon name="alert" size={18} strokeWidth={1.8} />
-        </span>
-        <div className="flex-1 min-w-0">
-          <div
-            className="text-[10px] uppercase tracking-wider"
-            style={{
-              color: style.chipText,
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            Stack safety check
-          </div>
-          <div
-            className="text-[15px] leading-snug mt-0.5"
-            style={{ fontWeight: 600 }}
-          >
-            {headline}
-          </div>
-          <div
-            className="text-[12px] mt-1 leading-relaxed"
-            style={{ color: "var(--foreground-soft)" }}
-          >
-            Cumulative dose across multiple items — single labels won&apos;t flag this.
-          </div>
-        </div>
-        {persistent ? null : (
-          <button
-            onClick={dismiss}
-            className="shrink-0 leading-none px-1 -mr-1"
-            style={{ color: "var(--muted)" }}
-            aria-label="Dismiss for today"
-          >
-            <Icon name="plus" size={14} className="rotate-45" />
-          </button>
-        )}
-      </div>
-
-      <div
-        className="px-4 pb-3 pt-1 space-y-2"
-        style={{ borderTop: `1px solid ${style.border}` }}
-      >
-        {data.warnings.map((w) => {
-          const ws = SEV_STYLE[w.severity];
-          const isOpen = expandedKey === w.ingredient_key;
-          return (
-            <div
-              key={w.ingredient_key}
-              className="rounded-lg overflow-hidden"
-              style={{ background: "rgba(0, 0, 0, 0.18)" }}
-            >
-              <button
-                onClick={() =>
-                  setExpandedKey(isOpen ? null : w.ingredient_key)
-                }
-                className="w-full px-3 py-2.5 flex items-center gap-3 text-left"
-              >
-                <span
-                  className="shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded"
-                  style={{
-                    background: ws.chip,
-                    color: ws.chipText,
-                    fontWeight: 700,
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  {ws.label}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div
-                    className="text-[13px] truncate"
-                    style={{ fontWeight: 600 }}
-                  >
-                    {w.label}
-                  </div>
-                  <div
-                    className="text-[11px]"
-                    style={{ color: "var(--foreground-soft)" }}
-                  >
-                    {w.total_amount} {w.unit} / day · UL {w.ul} {w.unit} ·{" "}
-                    <span style={{ color: ws.chipText, fontWeight: 600 }}>
-                      {Math.round(w.ratio * 100)}%
-                    </span>
-                  </div>
-                </div>
-                <span
-                  style={{ color: "var(--muted)" }}
-                  className="shrink-0"
-                >
-                  <Icon
-                    name="chevron-right"
-                    size={14}
-                    className={isOpen ? "rotate-90" : ""}
-                  />
-                </span>
-              </button>
-              {isOpen ? (
-                <div
-                  className="px-3 pb-3 pt-1 text-[12px] space-y-2"
-                  style={{ color: "var(--foreground-soft)" }}
-                >
-                  <div className="leading-relaxed">{w.rationale}</div>
-                  <div>
-                    <div
-                      className="text-[10px] uppercase tracking-wider mb-1"
-                      style={{
-                        color: "var(--muted)",
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                      }}
-                    >
-                      Sources
-                    </div>
-                    <ul className="space-y-1">
-                      {w.sources.map((s, i) => (
-                        <li
-                          key={`${s.item_id}-${i}`}
-                          className="flex items-baseline justify-between gap-3"
-                        >
-                          <span
-                            style={{ color: "var(--foreground)" }}
-                            className="truncate"
-                          >
-                            {s.item_name}
-                          </span>
-                          <span style={{ color: "var(--muted)" }}>
-                            +{s.amount} {s.unit}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          );
+      <section
+        className={cardClass({
+          tone: style.tone,
+          padding: "none",
+          className: "relative mb-5 overflow-hidden",
         })}
-      </div>
-    </section>
+      >
+        <div className="flex items-start gap-3 px-4 py-3.5">
+          <span
+            className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${style.tile}`}
+            aria-hidden
+          >
+            <Icon name="alert" size={18} strokeWidth={1.8} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className={`text-eyebrow uppercase ${style.text}`}>
+              Stack safety check
+            </div>
+            <div className="mt-0.5 text-body font-semibold leading-snug">
+              {headline}
+            </div>
+            <div className="mt-1 text-footnote leading-relaxed text-[var(--foreground-soft)]">
+              Cumulative dose across multiple items — single labels won&apos;t flag this.
+            </div>
+          </div>
+          {persistent ? null : (
+            <IconButton
+              icon="x"
+              label="Dismiss for today"
+              tone="plain"
+              size={32}
+              iconSize={16}
+              onClick={dismiss}
+              className="-mr-1.5 -mt-1"
+            />
+          )}
+        </div>
+
+        <div className="space-y-2 border-t border-[var(--border)] px-4 pb-3 pt-3">
+          {data.warnings.map((w) => {
+            const ws = SEV_STYLE[w.severity];
+            const isOpen = expandedKey === w.ingredient_key;
+            return (
+              <div
+                key={w.ingredient_key}
+                className="overflow-hidden rounded-[14px] bg-[var(--surface)]"
+              >
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  onClick={() =>
+                    setExpandedKey(isOpen ? null : w.ingredient_key)
+                  }
+                  className="flex min-h-[44px] w-full items-center gap-3 px-3 py-2.5 text-left"
+                >
+                  <Chip tone={ws.tone} className="shrink-0">
+                    {ws.label}
+                  </Chip>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-callout font-semibold">
+                      {w.label}
+                    </div>
+                    <div className="text-caption tabular-nums text-[var(--foreground-soft)]">
+                      {w.total_amount} {w.unit} / day · UL {w.ul} {w.unit} ·{" "}
+                      <span className={`font-semibold ${ws.text}`}>
+                        {Math.round(w.ratio * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-[var(--muted)]">
+                    <Icon
+                      name="chevron-right"
+                      size={16}
+                      className={`transition-transform ${isOpen ? "rotate-90" : ""}`}
+                    />
+                  </span>
+                </button>
+                {isOpen ? (
+                  <div className="space-y-2 px-3 pb-3 pt-1 text-footnote text-[var(--foreground-soft)]">
+                    <div className="leading-relaxed">{w.rationale}</div>
+                    <div>
+                      <Eyebrow className="mb-1">Sources</Eyebrow>
+                      <ul className="space-y-1">
+                        {w.sources.map((s, i) => (
+                          <li
+                            key={`${s.item_id}-${i}`}
+                            className="flex items-baseline justify-between gap-3"
+                          >
+                            <span className="truncate text-[var(--foreground)]">
+                              {s.item_name}
+                            </span>
+                            <span className="shrink-0 tabular-nums text-[var(--muted)]">
+                              +{s.amount} {s.unit}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </SwipeDismiss>
   );
 }

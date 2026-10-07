@@ -36,7 +36,7 @@ export default function MetricDelta({
   baseline,
   direction = "good_higher",
   unit,
-  iconSize = 11,
+  iconSize = 12,
   hideOnZero = true,
 }: Props) {
   if (hideOnZero && Math.abs(delta) < 0.0001) return null;
@@ -50,19 +50,13 @@ export default function MetricDelta({
         ? isPositive
         : !isPositive;
 
-  const color =
+  // Good = success (target-direction hit), bad = warn, neutral = muted.
+  const toneCls =
     isGood == null
-      ? "var(--muted)"
+      ? "bg-[var(--surface-alt)] text-[var(--muted)]"
       : isGood
-        ? "var(--accent)"
-        : "var(--warn)";
-
-  const tintBg =
-    isGood == null
-      ? "var(--surface-alt)"
-      : isGood
-        ? "var(--accent-tint)"
-        : "rgba(232, 181, 71, 0.12)";
+        ? "bg-[var(--success-tint)] text-[var(--success)]"
+        : "bg-[var(--warn-tint)] text-[var(--warn)]";
 
   // Round to 1 decimal for non-integer deltas, drop trailing zeros.
   const formatted = (() => {
@@ -75,13 +69,7 @@ export default function MetricDelta({
 
   return (
     <span
-      className="inline-flex items-center gap-1 px-1.5 py-[2px] rounded-full text-[10.5px] tabular-nums"
-      style={{
-        background: tintBg,
-        color,
-        fontWeight: 700,
-        letterSpacing: "-0.005em",
-      }}
+      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-caption font-semibold tabular-nums ${toneCls}`}
     >
       <Icon
         name={isPositive ? "arrow-up" : "arrow-down"}
@@ -92,9 +80,7 @@ export default function MetricDelta({
         {formatted}
         {unit ?? ""}
       </span>
-      {baseline && (
-        <span style={{ opacity: 0.78, fontWeight: 600 }}>{baseline}</span>
-      )}
+      {baseline && <span className="font-medium opacity-80">{baseline}</span>}
     </span>
   );
 }

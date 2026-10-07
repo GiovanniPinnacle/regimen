@@ -1,13 +1,18 @@
 "use client";
 
 // Rich-context profile page. Essentials first + everything else collapsed.
-// Body comp basics live on /profile (linked from header).
+// Body basics live on /profile (linked from the summary card).
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import AboutMeQuickInputs from "@/components/AboutMeQuickInputs";
 import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { Eyebrow } from "@/components/ui/Section";
+import { SkeletonCard, SkeletonLine } from "@/components/Skeleton";
 
 type AboutMe = {
   // Essentials (always visible)
@@ -67,18 +72,18 @@ const ESSENTIALS: Field[] = [
   { key: "why_doing_this", label: "Why?", placeholder: "What's driving this — story, motivation, fear, mission", rows: 2 },
   { key: "family_history", label: "Family history", placeholder: "Heart, diabetes, cancer, autoimmune, longevity, anything genetic", rows: 2 },
   { key: "past_diagnoses", label: "Past diagnoses", placeholder: "Anything a doctor labeled" },
-  { key: "current_medications", label: "Current medications", placeholder: "Any Rx" },
-  { key: "allergies_sensitivities", label: "Allergies / sensitivities", placeholder: "Food, environmental, drugs" },
-  { key: "communication_style", label: "How should Coach talk to you?", placeholder: "Tight + terse, or detailed and explanatory. Pick a vibe." },
+  { key: "current_medications", label: "Current medications", placeholder: "Anything prescribed, with dose if you know it" },
+  { key: "allergies_sensitivities", label: "Allergies & sensitivities", placeholder: "Food, environmental, drugs" },
+  { key: "communication_style", label: "How should Coach talk to you?", placeholder: "Short and direct, or detailed with the why behind it" },
 ];
 
 const LIFESTYLE: Field[] = [
   { key: "current_stressors", label: "Current stressors", placeholder: "What's actually weighing on you right now", rows: 2 },
   { key: "chronic_issues", label: "Chronic issues", placeholder: "Recurring symptoms, gut, joints, sleep", rows: 2 },
-  { key: "past_surgeries", label: "Past surgeries / procedures", placeholder: "Date + brief description of any surgery or procedure" },
+  { key: "past_surgeries", label: "Past surgeries or procedures", placeholder: "Date + brief description of any surgery or procedure" },
   { key: "typical_wake", label: "Typical wake time", placeholder: "6:30 AM" },
   { key: "typical_bed", label: "Typical bed time", placeholder: "10:30 PM" },
-  { key: "work_type", label: "Work + intensity", placeholder: "What you do + how heavy the day is" },
+  { key: "work_type", label: "Work & intensity", placeholder: "What you do and how demanding the day is" },
 ];
 
 const BODY_EXTRA: Field[] = [
@@ -91,8 +96,8 @@ const BODY_EXTRA: Field[] = [
 const PREFERENCES: Field[] = [
   { key: "hard_food_dislikes", label: "Won't eat", placeholder: "Foods you hard-pass on" },
   { key: "cuisine_preferences", label: "Cuisine you actually eat", placeholder: "Mediterranean, Italian, BBQ, Asian, anything" },
-  { key: "cooking_ability", label: "Cooking ability + frequency", placeholder: "Comfortable, cook 5×/wk — or order out most days" },
-  { key: "exercise_preferences", label: "Exercise preferences", placeholder: "Lift > run, mornings, classes, whatever" },
+  { key: "cooking_ability", label: "Cooking ability & frequency", placeholder: "Comfortable, cook 5 times a week — or order out most days" },
+  { key: "exercise_preferences", label: "Exercise preferences", placeholder: "Lifting, running, classes — mornings or evenings" },
 ];
 
 const VISION: Field[] = [
@@ -106,18 +111,18 @@ const VISION: Field[] = [
 ];
 
 const ETC: Field[] = [
-  { key: "travel_pattern", label: "Travel pattern", placeholder: "1 trip/mo" },
-  { key: "kitchen_access", label: "Kitchen + grocery setup", placeholder: "Full kitchen, near Whole Foods" },
-  { key: "relationship_status", label: "Relationship status", placeholder: "Single / dating / partnered" },
-  { key: "social_context", label: "Social context", placeholder: "Active vs reclusive phase" },
+  { key: "travel_pattern", label: "Travel pattern", placeholder: "About one trip a month" },
+  { key: "kitchen_access", label: "Kitchen & grocery setup", placeholder: "Full kitchen, grocery store nearby" },
+  { key: "relationship_status", label: "Relationship status", placeholder: "Single, dating, partnered" },
+  { key: "social_context", label: "Social context", placeholder: "Busy social life, or a quieter stretch" },
 ];
 
 const SECTIONS: { title: string; fields: Field[]; collapsed: boolean }[] = [
   { title: "Essentials", fields: ESSENTIALS, collapsed: false },
-  { title: "Lifestyle + history", fields: LIFESTYLE, collapsed: true },
-  { title: "Body baseline (beyond /profile)", fields: BODY_EXTRA, collapsed: true },
+  { title: "Lifestyle & history", fields: LIFESTYLE, collapsed: true },
+  { title: "Body baseline", fields: BODY_EXTRA, collapsed: true },
   { title: "Preferences", fields: PREFERENCES, collapsed: true },
-  { title: "Vision + values", fields: VISION, collapsed: true },
+  { title: "Vision & values", fields: VISION, collapsed: true },
   { title: "Other context", fields: ETC, collapsed: true },
 ];
 
@@ -178,8 +183,14 @@ export default function AboutMePage() {
 
   if (loading) {
     return (
-      <div className="py-12 text-center" style={{ color: "var(--muted)" }}>
-        Loading…
+      <div className="pb-24">
+        <PageHeader title="About me" back="/you" backLabel="You" />
+        <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading">
+          <SkeletonLine width="60%" />
+          <SkeletonCard height={72} />
+          <SkeletonCard height={140} />
+          <SkeletonCard height={220} />
+        </div>
       </div>
     );
   }
@@ -191,104 +202,60 @@ export default function AboutMePage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-5">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px]"
-            style={{ color: "var(--muted)" }}
-          >
-            ← You
-          </Link>
-        </div>
-        <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-        >
-          About me
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          {filledCount}/{allFields.length} filled · the more Coach knows, the
-          better the calls.
-        </p>
-      </header>
+      <PageHeader
+        title="About me"
+        back="/you"
+        backLabel="You"
+        subtitle={`${filledCount} of ${allFields.length} filled — the more Coach knows, the better its advice.`}
+      />
 
       {filledCount < 5 && (
-        <button
-          onClick={() => {
-            window.dispatchEvent(
-              new CustomEvent("regimen:ask", {
-                detail: {
-                  text:
-                    "I'm setting up my About me profile. Ask me 3-5 high-leverage questions you'd want answered to give me great advice. Keep them concrete and personal — not generic.",
-                  send: true,
-                },
-              }),
-            );
-          }}
-          className="w-full mb-5 rounded-2xl card-glass p-3.5 flex items-center gap-2.5 active:scale-[0.99] transition-transform text-left"
-        >
-          <span
-            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{
-              background: "var(--pro-tint)",
-              color: "var(--pro)",
+        <ListGroup className="mb-6">
+          <ListRow
+            icon="sparkle"
+            iconTone="coach"
+            title="Let Coach interview you"
+            subtitle="Answer a few questions instead of filling forms"
+            chevron
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent("regimen:ask", {
+                  detail: {
+                    text:
+                      "I'm setting up my About me profile. Ask me 3-5 high-leverage questions you'd want answered to give me great advice. Keep them concrete and personal — not generic.",
+                    send: true,
+                  },
+                }),
+              );
             }}
-          >
-            <Icon name="sparkle" size={16} strokeWidth={1.8} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div
-              className="text-[13.5px] leading-snug"
-              style={{ fontWeight: 600 }}
-            >
-              Let Coach interview you
-            </div>
-            <div
-              className="text-[11.5px] mt-0.5 leading-snug"
-              style={{ color: "var(--muted)" }}
-            >
-              Answer 3-5 questions instead of filling forms
-            </div>
-          </div>
-          <Icon name="chevron-right" size={14} className="shrink-0 opacity-50" />
-        </button>
+          />
+        </ListGroup>
       )}
 
-      {/* Body comp summary card — pulls from /profile */}
-      <section
-        className="card-glass rounded-2xl p-4 mb-5"
-      >
-        <div className="flex items-baseline justify-between mb-2">
-          <div
-            className="text-[11px] uppercase tracking-wider"
-            style={{ color: "var(--muted)", fontWeight: 500 }}
-          >
-            Body basics
-          </div>
+      {/* Body basics summary — edited on /profile */}
+      <Card padding="md" className="mb-6">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <Eyebrow>Body basics</Eyebrow>
           <Link
             href="/profile"
-            className="text-[11px]"
-            style={{ color: "var(--olive)", textDecoration: "underline" }}
+            className="-my-3 inline-flex min-h-[44px] items-center gap-0.5 text-footnote font-medium text-[var(--foreground-soft)]"
           >
-            Edit on /profile →
+            Edit
+            <Icon name="chevron-right" size={14} strokeWidth={2} />
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-3 text-[13px]">
-          <Stat label="Height" value={basics?.height_cm ? `${basics.height_cm} cm` : "—"} />
-          <Stat label="Weight" value={basics?.weight_kg ? `${basics.weight_kg} kg` : "—"} />
-          <Stat label="Age" value={basics?.age ? String(basics.age) : "—"} />
-          <Stat label="Sex" value={basics?.biological_sex ?? "—"} />
-          <Stat label="Body goal" value={basics?.body_goal ?? "—"} />
-        </div>
-      </section>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <BasicStat label="Height" value={basics?.height_cm ? `${basics.height_cm} cm` : "—"} />
+          <BasicStat label="Weight" value={basics?.weight_kg ? `${basics.weight_kg} kg` : "—"} />
+          <BasicStat label="Age" value={basics?.age ? String(basics.age) : "—"} />
+          <BasicStat label="Sex" value={basics?.biological_sex ?? "—"} />
+          <BasicStat label="Body goal" value={basics?.body_goal ?? "—"} />
+        </dl>
+      </Card>
 
       <AboutMeQuickInputs />
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         {SECTIONS.map((section) => (
           <SectionBlock
             key={section.title}
@@ -303,23 +270,19 @@ export default function AboutMePage() {
         ))}
       </div>
 
-      <footer
-        className="mt-10 text-[11px] leading-relaxed"
-        style={{ color: "var(--muted)" }}
-      >
-        Everything filled goes into Coach&apos;s system prompt every chat. Half of it is plenty.
-      </footer>
+      <p className="mt-8 px-1 text-footnote text-[var(--muted)]">
+        Coach reads everything here before every conversation. You don&apos;t
+        need to fill it all — half is plenty.
+      </p>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function BasicStat({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="text-[10px]" style={{ color: "var(--muted)" }}>
-        {label}
-      </div>
-      <div style={{ fontWeight: 500 }}>{value}</div>
+    <div className="min-w-0">
+      <dt className="text-caption text-[var(--muted)]">{label}</dt>
+      <dd className="truncate text-body font-medium capitalize">{value}</dd>
     </div>
   );
 }
@@ -346,51 +309,51 @@ function SectionBlock({
   ).length;
 
   return (
-    <details className="group" open={!collapsedDefault}>
-      <summary className="cursor-pointer list-none flex items-center justify-between py-2">
-        <div className="flex items-center gap-2">
-          <span
-            className="text-[11px] uppercase tracking-wider"
-            style={{ color: "var(--foreground-soft)", fontWeight: 600 }}
-          >
-            {title}
-          </span>
-          <span
-            className="text-[10px] px-1.5 py-[1px] rounded-full chip-olive"
-            style={{ fontWeight: 600 }}
-          >
+    <details
+      className="group overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]"
+      open={!collapsedDefault}
+    >
+      <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
+        <span className="text-body font-medium">{title}</span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="text-footnote tabular-nums text-[var(--muted)]">
             {filled}/{fields.length}
           </span>
-        </div>
-        <span
-          className="text-[12px] transition-transform group-open:rotate-180"
-          style={{ color: "var(--muted)" }}
-        >
-          ⌄
+          <Icon
+            name="chevron-down"
+            size={16}
+            strokeWidth={2}
+            className="text-[var(--muted)] transition-transform duration-200 group-open:rotate-180"
+          />
         </span>
       </summary>
-      <div className="flex flex-col gap-4 mt-2">
+      <div className="flex flex-col gap-4 border-t border-[var(--border)] px-4 pt-4 pb-5">
         {fields.map((f) => {
           const isSaving = saving[f.key];
           // savedAt[key] is now a bool that's auto-cleared 3s after
           // save. Pure render — no Date.now() / readNow().
           const recentSave = !!savedAt[f.key];
+          const id = `about-${String(f.key)}`;
           return (
             <div key={String(f.key)}>
-              <label
-                className="text-[12px] mb-1.5 flex items-center justify-between"
-                style={{ color: "var(--muted)" }}
-              >
-                <span>{f.label}</span>
-                {isSaving && <span className="text-[10px]">saving…</span>}
-                {!isSaving && recentSave && (
-                  <span className="text-[10px]" style={{ color: "var(--olive)" }}>
-                    ✓ saved
-                  </span>
-                )}
-              </label>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <label htmlFor={id} className="text-footnote font-medium text-[var(--foreground-soft)]">
+                  {f.label}
+                </label>
+                <span aria-live="polite" className="text-caption text-[var(--muted)]">
+                  {isSaving ? (
+                    "Saving…"
+                  ) : recentSave ? (
+                    <span className="inline-flex items-center gap-1 text-[var(--success)]">
+                      <Icon name="check" size={12} strokeWidth={2.4} />
+                      Saved
+                    </span>
+                  ) : null}
+                </span>
+              </div>
               {f.rows && f.rows > 1 ? (
                 <textarea
+                  id={id}
                   defaultValue={(data[f.key] as string) ?? ""}
                   onBlur={(e) => {
                     const v = e.target.value.trim();
@@ -400,14 +363,11 @@ function SectionBlock({
                   }}
                   rows={f.rows}
                   placeholder={f.placeholder}
-                  className="w-full border-hair rounded-lg p-3 text-[13px] resize-none focus:outline-none focus:border-hair-strong"
-                  style={{
-                    background: "var(--background)",
-                    color: "var(--foreground)",
-                  }}
+                  className="input-field resize-none"
                 />
               ) : (
                 <input
+                  id={id}
                   type="text"
                   defaultValue={(data[f.key] as string) ?? ""}
                   onBlur={(e) => {
@@ -417,11 +377,7 @@ function SectionBlock({
                     }
                   }}
                   placeholder={f.placeholder}
-                  className="w-full border-hair rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-hair-strong"
-                  style={{
-                    background: "var(--background)",
-                    color: "var(--foreground)",
-                  }}
+                  className="input-field"
                 />
               )}
             </div>

@@ -4,24 +4,29 @@
 // Shown after the item has been active long enough that a reaction is meaningful
 // (default 7 days; protocols can override via research_summary).
 //
-// Tap an emoji to set today's reaction. Tap the same emoji again to clear.
+// Tap an icon to set today's reaction. Tap the same icon again to clear.
 // Today's reaction is highlighted. Multiple reactions over time become the
 // signal Coach uses for refinement: "no_change ×5 in 30 days → drop candidate."
 
 import { useEffect, useRef, useState } from "react";
 import { getReactionForToday, setReaction } from "@/lib/storage";
-import {
-  REACTION_EMOJI,
-  REACTION_LABELS,
-  type ReactionType,
-} from "@/lib/types";
+import { REACTION_LABELS, type ReactionType } from "@/lib/types";
 import { showToast } from "@/lib/toast";
+import Icon, { type IconName } from "@/components/Icon";
+import Button from "@/components/ui/Button";
+
+const REACTION_ICON: Record<ReactionType, IconName> = {
+  helped: "thumbs-up",
+  no_change: "minus",
+  worse: "thumbs-down",
+  forgot: "help",
+};
 
 const REACTIONS: ReactionType[] = ["helped", "no_change", "worse", "forgot"];
 
 type Props = {
   itemId: string;
-  /** Compact mode hides labels, only emojis. */
+  /** Compact mode hides labels, only icons. */
   compact?: boolean;
 };
 
@@ -89,46 +94,35 @@ export default function ReactionRow({ itemId, compact = true }: Props) {
 
   return (
     <div className="mt-2">
-      <div className="flex items-center gap-1.5">
-        <span
-          className="text-[10px] uppercase tracking-wider"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          Today:
-        </span>
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Today's reaction">
+        <span className="text-eyebrow uppercase text-[var(--muted)]">Today</span>
         {REACTIONS.map((r) => {
           const active = current === r;
           return (
             <button
               key={r}
+              type="button"
               onClick={(e) => pick(r, e)}
-              className="px-2 py-1 rounded-full transition-all flex items-center gap-1"
-              style={{
-                background: active ? "var(--olive)" : "transparent",
-                border: active
-                  ? "1px solid var(--olive)"
-                  : "1px solid var(--border)",
-                color: active ? "#FFFFFF" : "var(--muted)",
-                fontSize: compact ? "13px" : "14px",
-                minHeight: "26px",
-              }}
+              className={`relative inline-flex h-8 items-center gap-1 rounded-full border text-caption font-medium transition-colors active:scale-95 before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-[''] ${
+                compact ? "w-9 justify-center" : "px-3"
+              } ${
+                active
+                  ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--background)]"
+                  : "border-[var(--border)] bg-transparent text-[var(--muted)]"
+              }`}
               title={REACTION_LABELS[r]}
               aria-label={REACTION_LABELS[r]}
               aria-pressed={active}
             >
-              <span className="leading-none">{REACTION_EMOJI[r]}</span>
-              {!compact && (
-                <span className="text-[11px]" style={{ fontWeight: 500 }}>
-                  {REACTION_LABELS[r]}
-                </span>
-              )}
+              <Icon name={REACTION_ICON[r]} size={15} strokeWidth={1.9} />
+              {!compact && <span>{REACTION_LABELS[r]}</span>}
             </button>
           );
         })}
       </div>
       {notePromptFor === "worse" && (
         <div
-          className="mt-2 flex gap-1.5 items-center"
+          className="mt-2 flex items-center gap-1.5"
           onClick={(e) => e.stopPropagation()}
         >
           <input
@@ -145,39 +139,30 @@ export default function ReactionRow({ itemId, compact = true }: Props) {
                 setNoteText("");
               }
             }}
+            aria-label="What got worse"
             placeholder="What's worse? (e.g. headache, nausea, mood)"
-            className="flex-1 text-[12px] px-3 py-1.5 rounded-lg"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              color: "var(--foreground)",
-            }}
+            className="input-field min-w-0 flex-1"
           />
-          <button
+          <Button
+            size="sm"
             onClick={(e) => {
               e.stopPropagation();
               void saveNote();
             }}
-            className="text-[12px] px-3 py-1.5 rounded-lg"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 500,
-            }}
           >
             Save
-          </button>
-          <button
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={(e) => {
               e.stopPropagation();
               setNotePromptFor(null);
               setNoteText("");
             }}
-            className="text-[12px] px-2"
-            style={{ color: "var(--muted)" }}
           >
             Skip
-          </button>
+          </Button>
         </div>
       )}
     </div>

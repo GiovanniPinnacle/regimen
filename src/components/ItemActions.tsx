@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Item } from "@/lib/types";
 import { localDateISO } from "@/lib/series";
+import Button from "@/components/ui/Button";
+import type { IconName } from "@/components/Icon";
 
 export default function ItemActions({ item }: { item: Item }) {
   const router = useRouter();
@@ -24,7 +26,7 @@ export default function ItemActions({ item }: { item: Item }) {
       .update(updates)
       .eq("id", item.id);
     if (error) {
-      setMsg(`Error: ${error.message}`);
+      setMsg(`Couldn't update this item. ${error.message}`);
     } else {
       // Also log to changelog
       await client.from("changelog").insert({
@@ -51,54 +53,46 @@ export default function ItemActions({ item }: { item: Item }) {
     label: string;
     status: Item["status"];
     variant?: "primary" | "secondary" | "danger";
+    icon?: IconName;
   }> = [];
 
   if (item.status === "queued") {
-    actions.push({ label: "Activate now", status: "active", variant: "primary" });
-    actions.push({ label: "Park", status: "backburner" });
+    actions.push({ label: "Activate now", status: "active", variant: "primary", icon: "play" });
+    actions.push({ label: "Park", status: "backburner", icon: "pause" });
   } else if (item.status === "active") {
-    actions.push({ label: "Retire", status: "retired", variant: "danger" });
-    actions.push({ label: "Park", status: "backburner" });
+    actions.push({ label: "Retire", status: "retired", variant: "danger", icon: "ban" });
+    actions.push({ label: "Park", status: "backburner", icon: "pause" });
   } else if (item.status === "backburner") {
-    actions.push({ label: "Queue", status: "queued", variant: "primary" });
-    actions.push({ label: "Activate now", status: "active" });
+    actions.push({ label: "Queue", status: "queued", variant: "primary", icon: "list-ordered" });
+    actions.push({ label: "Activate now", status: "active", icon: "play" });
   } else if (item.status === "retired") {
-    actions.push({ label: "Un-retire to queued", status: "queued" });
+    actions.push({ label: "Un-retire to queued", status: "queued", icon: "refresh" });
   }
 
   return (
-    <div className="flex gap-2 mb-8 flex-wrap">
+    <div className="mb-8 flex flex-wrap gap-2">
       {actions.map((a) => (
-        <button
+        <Button
           key={a.status}
           onClick={() => updateStatus(a.status)}
           disabled={busy}
-          className="px-3 py-2 rounded-lg text-[13px] border-hair"
-          style={{
-            background:
-              a.variant === "primary"
-                ? "var(--foreground)"
-                : "var(--background)",
-            color:
-              a.variant === "primary"
-                ? "var(--background)"
-                : a.variant === "danger"
-                  ? "#b00020"
-                  : "var(--muted)",
-            fontWeight: 500,
-            opacity: busy ? 0.5 : 1,
-          }}
+          loading={busy}
+          icon={a.icon}
+          variant={
+            a.variant === "primary"
+              ? "primary"
+              : a.variant === "danger"
+                ? "destructive"
+                : "secondary"
+          }
         >
-          {busy ? "…" : a.label}
-        </button>
+          {a.label}
+        </Button>
       ))}
       {msg && (
-        <div
-          className="text-[12px] w-full"
-          style={{ color: "var(--muted)" }}
-        >
+        <p role="alert" className="w-full text-footnote text-[var(--error)]">
           {msg}
-        </div>
+        </p>
       )}
     </div>
   );

@@ -3,8 +3,8 @@
 // DayStrip — horizontal scrolling slot navigator. Cleaned up: each
 // pill now shows a TIME RANGE in addition to the slot name + count,
 // so the user reads their day as a timeline at a glance. The current
-// slot's pill is larger and visually distinct (raised + accent
-// border) so "you are here" is unmissable. Past slots that still
+// slot's pill gets a raised surface + strong neutral border so "you are
+// here" is unmissable; the selected pill is inverted white. Past slots that still
 // have unchecked items show a subtle warn dot. Done slots show a
 // checkmark in place of the count.
 
@@ -89,12 +89,7 @@ export default function DayStrip({
     <div className="-mx-5 mb-3">
       <div
         ref={containerRef}
-        className="flex gap-2 overflow-x-auto px-5 pt-1 pb-2"
-        style={{
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
-          WebkitOverflowScrolling: "touch",
-        }}
+        className="flex gap-2 overflow-x-auto px-5 pt-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <Pill
           label="All"

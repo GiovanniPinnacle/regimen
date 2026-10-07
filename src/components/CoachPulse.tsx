@@ -8,7 +8,7 @@
 //
 // Default state: collapsed. One line shows total count + per-bucket
 // badges:
-//   ⚡ Coach has 4 — 1 check-in · 2 insights · 1 to drop
+//   Coach has 4 — 1 check-in · 2 insights · 1 to drop
 //
 // Tap to expand. Inside, each bucket renders its existing component
 // (we don't reinvent the cards — we just relocate them). Each card
@@ -38,6 +38,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Icon from "@/components/Icon";
+import { cardClass } from "@/components/ui/Card";
 
 // Buckets are display-ordered. Each child component announces its
 // bucket via the regimen:pulse-count event so the header stays in
@@ -161,69 +162,54 @@ export default function CoachPulse({
   return (
     <section className={total > 0 ? "mb-4" : ""}>
       {total > 0 && (
-      <button
-        onClick={toggle}
-        className="w-full rounded-2xl card-glass overflow-hidden text-left transition-all"
-        style={{
-          borderLeft: "3px solid var(--accent)",
-          minHeight: 56,
-        }}
-        aria-expanded={open}
-      >
-        <div className="flex items-center gap-3 px-3.5 py-3">
-          <span
-            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{
-              background:
-                "var(--primary)",
-              color: "var(--primary-fg)",
-            }}
-          >
-            <Icon name="sparkle" size={16} strokeWidth={2} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div
-              className="text-[10px] uppercase tracking-wider"
-              style={{
-                color: "var(--accent)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
+        <button
+          type="button"
+          onClick={toggle}
+          className={cardClass({
+            tone: "coach",
+            padding: "none",
+            interactive: true,
+            className: "block w-full min-h-[56px] overflow-hidden text-left",
+          })}
+          aria-expanded={open}
+        >
+          <div className="flex items-center gap-3 px-3.5 py-3">
+            <span
+              aria-hidden
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--pro-tint)] text-[var(--pro-soft)]"
             >
-              Coach&apos;s pulse
-            </div>
-            <div
-              className="text-[14px] leading-snug mt-0.5 truncate"
-              style={{ fontWeight: 600 }}
-            >
-              {total} thing{total === 1 ? "" : "s"} to look at
-            </div>
-            {!open && activeBuckets.length > 0 && (
-              <div
-                className="text-[11.5px] mt-1 leading-snug truncate"
-                style={{ color: "var(--muted)" }}
-              >
-                {activeBuckets
-                  .map((b) => {
-                    const meta = BUCKET_LABELS[b];
-                    const c = counts[b];
-                    const word = c === 1 ? meta.short : `${meta.short}s`;
-                    return `${c} ${word}`;
-                  })
-                  .join(" · ")}
+              <Icon name="sparkle" size={16} strokeWidth={2} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-eyebrow uppercase text-[var(--pro-soft)]">
+                Coach&apos;s pulse
               </div>
-            )}
+              <div className="mt-0.5 truncate text-callout font-semibold leading-snug">
+                {total} thing{total === 1 ? "" : "s"} to look at
+              </div>
+              {!open && activeBuckets.length > 0 && (
+                <div className="mt-1 truncate text-caption leading-snug text-[var(--muted)]">
+                  {activeBuckets
+                    .map((b) => {
+                      const meta = BUCKET_LABELS[b];
+                      const c = counts[b];
+                      const word = c === 1 ? meta.short : `${meta.short}s`;
+                      return `${c} ${word}`;
+                    })
+                    .join(" · ")}
+                </div>
+              )}
+            </div>
+            <Icon
+              name="chevron-down"
+              size={16}
+              strokeWidth={2}
+              className={`shrink-0 text-[var(--muted)] transition-transform ${
+                open ? "rotate-180" : ""
+              }`}
+            />
           </div>
-          <Icon
-            name="chevron-down"
-            size={16}
-            strokeWidth={2}
-            className={`shrink-0 transition-transform ${
-              open ? "rotate-180" : ""
-            }`}
-          />
-        </div>
-      </button>
+        </button>
       )}
 
       {/* Children stay mounted even when the Pulse header is hidden

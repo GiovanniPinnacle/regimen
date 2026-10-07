@@ -10,6 +10,13 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listProtocols } from "@/lib/protocols";
 import type { Item } from "@/lib/types";
+import Icon from "@/components/Icon";
+import EmptyGlyph from "@/components/EmptyGlyph";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { ButtonLink } from "@/components/ui/Button";
+import { ListGroup } from "@/components/ui/ListRow";
+import { SectionHeader } from "@/components/ui/Section";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +63,7 @@ export default async function ReviewsPage() {
       checkpoints.push({
         marker: item.review_trigger,
         title: item.name,
-        detail: `Review trigger: ${item.review_trigger}`,
+        detail: `Revisit: ${item.review_trigger}`,
         href: `/items/${item.id}`,
         source: "item",
       });
@@ -72,7 +79,7 @@ export default async function ReviewsPage() {
           date: item.ends_on,
           marker: daysUntil === 0 ? "Today" : `In ${daysUntil}d`,
           title: `${item.name} ends`,
-          detail: `${item.item_type} cycle wraps. Decide: continue, swap, or drop.`,
+          detail: "This cycle is wrapping up. Decide whether to keep going, swap, or stop.",
           href: `/items/${item.id}`,
           source: "expiring",
         });
@@ -138,105 +145,68 @@ export default async function ReviewsPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-7">
-        <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-        >
-          Reviews
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Scheduled checkpoints — protocol milestones, items expiring,
-          decisions to revisit. Pulled from your real stack + enrollments.
-        </p>
-      </header>
+      <PageHeader
+        title="Check-ins"
+        back="/you"
+        backLabel="You"
+        subtitle="Milestones, items wrapping up, and decisions to revisit, all pulled from your stack and programs."
+      />
 
       {checkpoints.length === 0 ? (
-        <div
-          className="rounded-2xl card-glass p-8 text-center max-w-md mx-auto"
-        >
-          <div
-            className="text-[15px] mb-1"
-            style={{ fontWeight: 500 }}
-          >
-            No reviews scheduled
-          </div>
-          <div
-            className="text-[13px] leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            Reviews surface automatically when items have a review trigger
-            (e.g., &quot;Day 30 reassess&quot;), when protocol milestones approach,
-            or when an item&apos;s end date is within 30 days.
-          </div>
-          <Link
+        <Card padding="xl" className="flex flex-col items-center text-center">
+          <EmptyGlyph icon="calendar" tone="muted" size={64} />
+          <div className="mt-4 text-title-3">Nothing scheduled</div>
+          <p className="mt-1 text-callout text-[var(--muted)]">
+            Check-ins show up when you set a revisit note on an item, when a
+            program milestone is coming up, or when an item ends within 30
+            days.
+          </p>
+          <ButtonLink
             href="/protocols"
-            className="inline-block mt-4 text-[13px] px-4 py-2 rounded-xl"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 500,
-            }}
+            className="mt-5"
+            iconRight="chevron-right"
           >
-            Enroll in a protocol →
-          </Link>
-        </div>
+            Browse protocols
+          </ButtonLink>
+        </Card>
       ) : (
         <>
           {dated.length > 0 && (
-            <section className="mb-7">
-              <h2
-                className="text-[11px] uppercase tracking-wider mb-3"
-                style={{
-                  color: "var(--muted)",
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                }}
-              >
-                Upcoming · {dated.length}
-              </h2>
-              <div className="rounded-2xl card-glass overflow-hidden">
+            <section>
+              <SectionHeader
+                className="mt-0"
+                title="Coming up"
+                action={
+                  <span className="shrink-0 text-footnote tabular-nums text-[var(--muted)]">
+                    {dated.length}
+                  </span>
+                }
+              />
+              <ListGroup>
                 {dated.map((c, i) => (
-                  <CheckpointRow
-                    key={`${c.title}-${i}`}
-                    cp={c}
-                    isLast={i === dated.length - 1}
-                  />
+                  <CheckpointRow key={`${c.title}-${i}`} cp={c} />
                 ))}
-              </div>
+              </ListGroup>
             </section>
           )}
 
           {undated.length > 0 && (
-            <section className="mb-7">
-              <h2
-                className="text-[11px] uppercase tracking-wider mb-3"
-                style={{
-                  color: "var(--muted)",
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                }}
-              >
-                Conditional triggers · {undated.length}
-              </h2>
-              <p
-                className="text-[12px] mb-3 leading-relaxed"
-                style={{ color: "var(--muted)" }}
-              >
-                Triggered by an event, not a date.
-              </p>
-              <div className="rounded-2xl card-glass overflow-hidden">
+            <section>
+              <SectionHeader
+                className={dated.length > 0 ? "" : "mt-0"}
+                eyebrow="When something happens, not on a date"
+                title="Revisit later"
+                action={
+                  <span className="shrink-0 text-footnote tabular-nums text-[var(--muted)]">
+                    {undated.length}
+                  </span>
+                }
+              />
+              <ListGroup>
                 {undated.map((c, i) => (
-                  <CheckpointRow
-                    key={`${c.title}-${i}`}
-                    cp={c}
-                    isLast={i === undated.length - 1}
-                  />
+                  <CheckpointRow key={`${c.title}-${i}`} cp={c} />
                 ))}
-              </div>
+              </ListGroup>
             </section>
           )}
         </>
@@ -245,38 +215,18 @@ export default async function ReviewsPage() {
   );
 }
 
-function CheckpointRow({
-  cp,
-  isLast,
-}: {
-  cp: Checkpoint;
-  isLast: boolean;
-}) {
+function CheckpointRow({ cp }: { cp: Checkpoint }) {
+  const urgent = cp.source === "expiring";
   const inner = (
-    <div
-      className="px-4 py-3.5 flex items-start gap-3"
-      style={{
-        borderBottom: isLast ? undefined : "1px solid var(--border)",
-      }}
-    >
-      <div className="shrink-0 w-16 text-right">
+    <>
+      <div className="w-16 shrink-0 pt-0.5">
         <div
-          className="text-[11px] tabular-nums"
-          style={{
-            color:
-              cp.source === "expiring"
-                ? "var(--warn)"
-                : "var(--accent)",
-            fontWeight: 600,
-          }}
+          className={`text-footnote font-semibold tabular-nums ${urgent ? "text-[var(--warn)]" : "text-[var(--foreground)]"}`}
         >
           {cp.marker}
         </div>
         {cp.date && (
-          <div
-            className="text-[10px] mt-0.5"
-            style={{ color: "var(--muted)" }}
-          >
+          <div className="mt-0.5 text-caption text-[var(--muted)]">
             {new Date(cp.date).toLocaleDateString(undefined, {
               month: "short",
               day: "numeric",
@@ -284,28 +234,32 @@ function CheckpointRow({
           </div>
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <div
-          className="text-[14px] leading-snug"
-          style={{ fontWeight: 500 }}
-        >
+      <div className="min-w-0 flex-1">
+        <div className="text-callout font-semibold leading-snug">
           {cp.title}
         </div>
-        <div
-          className="text-[12px] mt-0.5 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
+        <div className="mt-0.5 text-footnote leading-relaxed text-[var(--muted)]">
           {cp.detail}
         </div>
       </div>
-    </div>
+      {cp.href && (
+        <Icon
+          name="chevron-right"
+          size={16}
+          strokeWidth={2}
+          className="mt-0.5 shrink-0 self-center text-[var(--muted)]"
+        />
+      )}
+    </>
   );
+  const cls =
+    "flex min-h-[52px] items-start gap-3 px-4 py-3 transition-colors";
   if (cp.href) {
     return (
-      <Link href={cp.href} className="block">
+      <Link href={cp.href} className={`${cls} active:bg-[var(--surface-alt)]`}>
         {inner}
       </Link>
     );
   }
-  return inner;
+  return <div className={cls}>{inner}</div>;
 }

@@ -2,9 +2,13 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Item, PurchaseState } from "@/lib/types";
 import PurchaseStateControl from "@/components/PurchaseStateControl";
-import Icon from "@/components/Icon";
 import EmptyGlyph from "@/components/EmptyGlyph";
 import BuyButton from "@/components/BuyButton";
+import ItemTypeIcon from "@/components/ItemTypeIcon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { ButtonLink } from "@/components/ui/Button";
+import { SectionHeader, Stat } from "@/components/ui/Section";
 
 export const dynamic = "force-dynamic";
 
@@ -16,45 +20,40 @@ const STATE_ORDER: PurchaseState[] = [
   "depleted",
 ];
 
-const STATE_META: Record<
-  PurchaseState,
-  { label: string; accent: string; subtitle: string }
-> = {
+const STATE_META: Record<PurchaseState, { label: string; subtitle: string }> = {
   needed: {
     label: "To order",
-    accent: "var(--premium)",
-    subtitle: "Tap to order, link to vendor, or buy online",
+    subtitle: "Buy online or mark as ordered",
   },
   ordered: {
     label: "Ordered",
-    accent: "var(--pro)",
-    subtitle: "Waiting on shipping confirmation",
+    subtitle: "Waiting to ship",
   },
   shipped: {
     label: "Shipped",
-    accent: "var(--pro)",
     subtitle: "On the way",
   },
   arrived: {
     label: "Arrived",
-    accent: "var(--accent)",
     subtitle: "Tap to start using",
   },
   using: {
     label: "Using",
-    accent: "var(--accent)",
-    subtitle: "Stocked + active",
+    subtitle: "In stock and in use",
   },
   depleted: {
-    label: "Depleted",
-    accent: "var(--error)",
-    subtitle: "Reorder soon",
+    label: "Ran out",
+    subtitle: "Time to reorder",
   },
 };
 
 function fmtCents(cents?: number | null): string | null {
   if (cents == null) return null;
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+function plural(n: number) {
+  return `${n} ${n === 1 ? "item" : "items"}`;
 }
 
 export default async function PurchasesPage() {
@@ -94,120 +93,55 @@ export default async function PurchasesPage() {
 
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Shopping list
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          {total === 0
-            ? "Run the stack audit to mark what you have vs need."
-            : `${total} ${total === 1 ? "item" : "items"} in the purchase pipeline.`}
-        </p>
-      </header>
+      <PageHeader
+        title="Shopping list"
+        back="/you"
+        backLabel="You"
+        subtitle={
+          total === 0
+            ? "Track what you need to buy, from order to doorstep."
+            : `${plural(total)} on the way to your shelf.`
+        }
+      />
 
       {total === 0 ? (
-        <div className="rounded-2xl card-glass p-8 text-center">
-          <div className="flex justify-center mb-4">
-            <EmptyGlyph icon="shopping-bag" tone="accent" size={64} />
-          </div>
-          <div
-            className="text-[16px]"
-            style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
-          >
-            Nothing to order
-          </div>
-          <div
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--foreground-soft)" }}
-          >
-            Run the stack audit to mark what you have vs. need.
-          </div>
-          <Link
+        <Card padding="xl" className="flex flex-col items-center text-center">
+          <EmptyGlyph icon="shopping-bag" tone="muted" size={64} />
+          <div className="mt-4 text-title-3">Nothing to order</div>
+          <p className="mt-1 text-callout text-[var(--muted)]">
+            Run a quick stock check to see what you have and what you need.
+          </p>
+          <ButtonLink
             href="/audit"
-            className="inline-flex items-center gap-1.5 mt-4 px-4 py-2.5 rounded-xl text-[13px]"
-            style={{
-              background: "var(--foreground)",
-              color: "var(--background)",
-              fontWeight: 700,
-              minHeight: 40,
-            }}
+            className="mt-5"
+            iconRight="chevron-right"
           >
-            Open stack audit
-            <Icon name="chevron-right" size={12} strokeWidth={2.4} />
-          </Link>
-        </div>
+            Start stock check
+          </ButtonLink>
+        </Card>
       ) : (
         <>
-          {/* Cost summary */}
           {(neededCost > 0 || orderedCost > 0) && (
-            <section className="rounded-2xl card-glass p-4 mb-6">
+            <Card padding="md">
               <div className="grid grid-cols-2 gap-4">
                 {neededCost > 0 && (
-                  <div>
-                    <div
-                      className="text-[10px] uppercase tracking-wider"
-                      style={{
-                        color: "var(--premium)",
-                        fontWeight: 700,
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      To order
-                    </div>
-                    <div
-                      className="text-[22px] tabular-nums leading-tight mt-0.5"
-                      style={{
-                        fontWeight: 700,
-                        letterSpacing: "-0.02em",
-                      }}
-                    >
-                      {fmtCents(neededCost)}
-                    </div>
-                    <div
-                      className="text-[11px] mt-0.5"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {grouped.needed.length} {grouped.needed.length === 1 ? "item" : "items"}
-                    </div>
-                  </div>
+                  <Stat
+                    size="sm"
+                    label="To order"
+                    value={fmtCents(neededCost)}
+                    sub={plural(grouped.needed.length)}
+                  />
                 )}
                 {orderedCost > 0 && (
-                  <div>
-                    <div
-                      className="text-[10px] uppercase tracking-wider"
-                      style={{
-                        color: "var(--pro)",
-                        fontWeight: 700,
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      In transit
-                    </div>
-                    <div
-                      className="text-[22px] tabular-nums leading-tight mt-0.5"
-                      style={{
-                        fontWeight: 700,
-                        letterSpacing: "-0.02em",
-                      }}
-                    >
-                      {fmtCents(orderedCost)}
-                    </div>
-                    <div
-                      className="text-[11px] mt-0.5"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {grouped.ordered.length} {grouped.ordered.length === 1 ? "item" : "items"}
-                    </div>
-                  </div>
+                  <Stat
+                    size="sm"
+                    label="On the way"
+                    value={fmtCents(orderedCost)}
+                    sub={plural(grouped.ordered.length)}
+                  />
                 )}
               </div>
-            </section>
+            </Card>
           )}
 
           {STATE_ORDER.map((s) => {
@@ -215,74 +149,47 @@ export default async function PurchasesPage() {
             if (!list || list.length === 0) return null;
             const meta = STATE_META[s];
             return (
-              <section key={s} className="mb-6">
-                <div className="flex items-baseline justify-between mb-2.5">
-                  <div>
-                    <h2
-                      className="text-[11px] uppercase tracking-wider"
-                      style={{
-                        color: meta.accent,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                      }}
-                    >
-                      {meta.label}
-                    </h2>
-                    <p
-                      className="text-[11px] mt-0.5"
-                      style={{ color: "var(--muted)", opacity: 0.7 }}
-                    >
-                      {meta.subtitle}
-                    </p>
-                  </div>
-                  <span
-                    className="text-[12px] tabular-nums"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {list.length}
-                  </span>
-                </div>
+              <section key={s}>
+                <SectionHeader
+                  eyebrow={meta.subtitle}
+                  title={meta.label}
+                  action={
+                    <span className="shrink-0 text-footnote tabular-nums text-[var(--muted)]">
+                      {list.length}
+                    </span>
+                  }
+                />
                 <div className="flex flex-col gap-2">
                   {list.map((item) => (
-                    <div
-                      key={item.id}
-                      className="rounded-2xl card-glass p-3.5"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <Link
-                            href={`/items/${item.id}`}
-                            className="text-[14.5px] leading-snug block"
-                            style={{ fontWeight: 600 }}
-                          >
+                    <Card key={item.id} padding="md">
+                      <Link
+                        href={`/items/${item.id}`}
+                        className="-m-1 flex min-h-[44px] items-start gap-3 rounded-[14px] p-1 active:bg-[var(--surface-alt)]"
+                      >
+                        <ItemTypeIcon type={item.item_type} size={32} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-callout font-semibold leading-snug">
                             {item.name}
-                          </Link>
+                          </span>
                           {(item.brand || item.dose) && (
-                            <div
-                              className="text-[12px] mt-0.5"
-                              style={{ color: "var(--muted)" }}
-                            >
+                            <span className="mt-0.5 block truncate text-caption text-[var(--muted)]">
                               {[item.brand, item.dose]
                                 .filter(Boolean)
                                 .join(" · ")}
-                            </div>
+                            </span>
                           )}
-                          {item.list_price_cents != null && (
-                            <div
-                              className="text-[12px] mt-1 tabular-nums"
-                              style={{
-                                color: "var(--muted)",
-                                fontWeight: 500,
-                              }}
-                            >
-                              {fmtCents(item.list_price_cents)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-3 flex items-center gap-2 flex-wrap">
+                        </span>
+                        {item.list_price_cents != null && (
+                          <span className="shrink-0 text-footnote font-medium tabular-nums text-[var(--foreground-soft)]">
+                            {fmtCents(item.list_price_cents)}
+                          </span>
+                        )}
+                      </Link>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
                         <PurchaseStateControl item={item} compact />
-                        {(item.affiliate_url || item.purchase_url || s === "needed") && (
+                        {(item.affiliate_url ||
+                          item.purchase_url ||
+                          s === "needed") && (
                           <BuyButton
                             itemId={item.id}
                             itemName={item.name}
@@ -297,7 +204,7 @@ export default async function PurchasesPage() {
                           />
                         )}
                       </div>
-                    </div>
+                    </Card>
                   ))}
                 </div>
               </section>

@@ -42,6 +42,12 @@ export default function Sheet({
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef<number | null>(null);
+  // Latest onClose without re-running the open effect (which would
+  // steal focus back to the panel) when a caller passes an inline fn.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // Keep the panel mounted through its exit transition: `mounted`
   // follows `open` immediately on open (derived during render), and
@@ -68,7 +74,7 @@ export default function Sheet({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
       if (e.key === "Tab" && panelRef.current) {
         const f = panelRef.current.querySelectorAll<HTMLElement>(
           'button:not([disabled]), [href], input, textarea, select, [tabindex]:not([tabindex="-1"])',
@@ -93,7 +99,7 @@ export default function Sheet({
       clearTimeout(t);
       prevFocus?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!mounted || typeof document === "undefined") return null;
 
@@ -167,7 +173,7 @@ export default function Sheet({
                 </p>
               )}
             </div>
-            <IconButton icon="x" label="Close" size={32} iconSize={16} onClick={onClose} />
+            <IconButton icon="x" label="Close" size={36} iconSize={16} onClick={onClose} />
           </div>
         )}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">

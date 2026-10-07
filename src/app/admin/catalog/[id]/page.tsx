@@ -6,24 +6,16 @@
 //
 // Auth: ADMIN_EMAILS env match (same gate as /admin/catalog).
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import Icon from "@/components/Icon";
+import { isAdmin } from "@/lib/admin";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { Stat } from "@/components/ui/Section";
 import CatalogEditClient from "./CatalogEditClient";
 
 export const dynamic = "force-dynamic";
-
-function isOwner(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const env = process.env.ADMIN_EMAILS ?? "";
-  const list = env
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return list.includes(email.toLowerCase());
-}
 
 const SOURCE_LABEL: Record<string, string> = {
   off: "Open Food Facts",
@@ -44,20 +36,13 @@ export default async function CatalogItemEditPage({
   } = await supabase.auth.getUser();
   const { id } = await params;
 
-  if (!user || !isOwner(user.email)) {
+  if (!user || !isAdmin(user.email)) {
     return (
       <div className="pb-24">
-        <header className="mb-6">
-          <h1
-            className="text-[24px]"
-            style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-          >
-            Catalog admin
-          </h1>
-        </header>
-        <div className="rounded-2xl card-glass p-6 text-center text-[13px]">
-          Owner-only.
-        </div>
+        <PageHeader title="Catalog" back="/you" backLabel="You" />
+        <Card padding="lg" className="text-center text-callout text-[var(--muted)]">
+          This page is only available to the app owner.
+        </Card>
       </div>
     );
   }
@@ -125,78 +110,38 @@ export default async function CatalogItemEditPage({
 
   return (
     <div className="pb-24">
-      <header className="mb-5">
-        <div className="mb-2">
-          <Link
-            href="/admin/catalog"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            Catalog admin
-          </Link>
-        </div>
-        <h1
-          className="text-[24px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.02em" }}
-        >
-          {row.name}
-        </h1>
-        <div
-          className="text-[12px] mt-1 flex flex-wrap gap-2"
-          style={{ color: "var(--muted)" }}
-        >
-          {row.brand && <span>{row.brand}</span>}
-          <span>· {row.item_type}</span>
-          <span>· {SOURCE_LABEL[row.source] ?? row.source}</span>
-          {row.source_id && (
-            <span>· #{row.source_id.slice(0, 12)}</span>
-          )}
-        </div>
-      </header>
+      <PageHeader
+        title={row.name}
+        back="/admin/catalog"
+        backLabel="Catalog"
+        subtitle={[
+          row.brand,
+          row.item_type,
+          SOURCE_LABEL[row.source] ?? row.source,
+          row.source_id ? `#${row.source_id.slice(0, 12)}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      />
 
       {/* Stats */}
-      <section
-        className="rounded-2xl p-4 mb-5"
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-        }}
-      >
+      <Card padding="md" className="mb-2">
         <div className="grid grid-cols-3 gap-3">
-          <Stat label="User items" value={String(userItemCount ?? 0)} />
-          <Stat label="Clicks" value={String(clickCount ?? 0)} />
+          <Stat size="sm" label="In stacks" value={userItemCount ?? 0} />
+          <Stat size="sm" label="Clicks" value={clickCount ?? 0} />
           <Stat
+            size="sm"
             label="Status"
-            value={row.enriched_at ? "Enriched" : "Pending"}
+            value={
+              <span className="text-title-3">
+                {row.enriched_at ? "Enriched" : "Pending"}
+              </span>
+            }
           />
         </div>
-      </section>
+      </Card>
 
       <CatalogEditClient row={row} />
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div
-        className="text-[9.5px] uppercase tracking-wider"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        className="text-[18px] tabular-nums leading-tight mt-0.5"
-        style={{ fontWeight: 700 }}
-      >
-        {value}
-      </div>
     </div>
   );
 }

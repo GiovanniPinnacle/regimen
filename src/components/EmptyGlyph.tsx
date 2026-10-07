@@ -16,15 +16,12 @@ type Tone = "accent" | "pro" | "premium" | "muted" | "warn";
 
 // "accent" is kept as a prop value for existing callers but renders
 // neutral: green is reserved for success, and an empty state isn't one.
-const TONE_MAP: Record<Tone, { bg: string; color: string }> = {
-  accent: { bg: "var(--surface-alt)", color: "var(--foreground-soft)" },
-  pro: { bg: "var(--pro-tint)", color: "var(--pro)" },
-  premium: { bg: "var(--premium-tint)", color: "var(--premium)" },
-  muted: {
-    bg: "var(--surface-alt)",
-    color: "var(--foreground-soft)",
-  },
-  warn: { bg: "var(--warn-tint)", color: "var(--warn)" },
+const TONE_MAP: Record<Tone, string> = {
+  accent: "bg-[var(--surface-alt)] text-[var(--foreground-soft)]",
+  pro: "bg-[var(--pro-tint)] text-[var(--pro-soft)]",
+  premium: "bg-[var(--premium-tint)] text-[var(--premium)]",
+  muted: "bg-[var(--surface-alt)] text-[var(--foreground-soft)]",
+  warn: "bg-[var(--warn-tint)] text-[var(--warn)]",
 };
 
 type Props = {
@@ -41,21 +38,15 @@ export default function EmptyGlyph({
   tone = "accent",
   size = 64,
 }: Props) {
-  const { bg, color } = TONE_MAP[tone];
   const iconSize = Math.round(size * 0.45);
   return (
     <div
       aria-hidden
+      className={`inline-flex shrink-0 items-center justify-center border border-[var(--border)] ${TONE_MAP[tone]}`}
       style={{
         width: size,
         height: size,
         borderRadius: Math.round(size * 0.28),
-        background: bg,
-        color,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        border: "1px solid var(--border)",
       }}
     >
       <Icon name={icon} size={iconSize} strokeWidth={1.7} />

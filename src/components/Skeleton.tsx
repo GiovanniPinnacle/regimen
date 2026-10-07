@@ -3,6 +3,7 @@
 // compose realistic placeholders for whatever's loading.
 
 import type { CSSProperties } from "react";
+import { cardClass } from "@/components/ui/Card";
 
 type Size = number | string;
 
@@ -69,20 +70,15 @@ export function SkeletonCard({
 export function SkeletonItemCard() {
   return (
     <div
-      className="rounded-xl p-3 flex items-start gap-3"
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-      }}
+      className={cardClass({
+        padding: "sm",
+        className: "flex items-start gap-3 rounded-[14px]",
+      })}
     >
-      <span
-        className="skeleton skeleton-pill shrink-0 mt-0.5"
-        style={{ width: 24, height: 24 }}
-        aria-hidden
-      />
+      <SkeletonPill width={24} height={24} className="shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         <SkeletonLine width="60%" height={14} />
-        <SkeletonLine width="40%" height={11} />
+        <SkeletonLine width="40%" height={12} />
       </div>
     </div>
   );

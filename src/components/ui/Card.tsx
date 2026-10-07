@@ -29,15 +29,18 @@ export function cardClass({
   interactive?: boolean;
   className?: string;
 } = {}) {
-  const base =
-    variant === "inset"
+  // A tone replaces the surface fill + border outright — emitting both
+  // bg utilities would leave the winner up to stylesheet order.
+  const radius = variant === "inset" ? "rounded-[14px]" : "rounded-[20px]";
+  const base = tone
+    ? `${radius} border ${TONE[tone]}`
+    : variant === "inset"
       ? "bg-[var(--surface-alt)] rounded-[14px]"
       : variant === "raised"
         ? "bg-[var(--surface-alt)] border border-[var(--border)] rounded-[20px] shadow-[var(--shadow-lift)]"
         : "bg-[var(--surface)] border border-[var(--border)] rounded-[20px] shadow-[var(--shadow-card)]";
   return [
     base,
-    tone ? `border ${TONE[tone]}` : "",
     PAD[padding],
     interactive
       ? "transition-transform duration-150 active:scale-[0.99] cursor-pointer"

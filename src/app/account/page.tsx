@@ -9,8 +9,12 @@
 // by accident or by a UI bug.
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import Sheet from "@/components/ui/Sheet";
+import { SkeletonCard } from "@/components/Skeleton";
 import { createClient } from "@/lib/supabase/client";
 import { showToast } from "@/lib/toast";
 import { localDateISO } from "@/lib/series";
@@ -51,7 +55,7 @@ export default function AccountPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      showToast("Export downloaded", { tone: "success" });
+      showToast("Your data was downloaded", { tone: "success" });
     } catch (err) {
       showToast((err as Error).message, { tone: "error" });
     } finally {
@@ -61,7 +65,7 @@ export default function AccountPage() {
 
   async function handleDelete() {
     if (confirmEmail.trim().toLowerCase() !== (email ?? "").toLowerCase()) {
-      showToast("Email doesn't match — typo?", { tone: "error" });
+      showToast("That email doesn't match your account", { tone: "error" });
       return;
     }
     setDeleting(true);
@@ -82,216 +86,150 @@ export default function AccountPage() {
     }
   }
 
+  function closeConfirm() {
+    if (deleting) return;
+    setShowConfirm(false);
+    setConfirmEmail("");
+  }
+
+  const initial = (email ?? "?").charAt(0).toUpperCase();
+  const canDelete = !!confirmEmail.trim() && !deleting;
+
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            You
-          </Link>
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Account
-        </h1>
-        <p
-          className="text-[13px] mt-2 leading-relaxed"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          Your data, your call.
-        </p>
-      </header>
+      <PageHeader
+        title="Account"
+        back="/you"
+        backLabel="You"
+        subtitle="Your data, your call."
+      />
 
       {loading ? (
-        <div className="py-8 text-center" style={{ color: "var(--muted)" }}>
-          Loading…
+        <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading">
+          <SkeletonCard height={76} />
+          <SkeletonCard height={104} />
+          <SkeletonCard height={156} />
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {/* Identity */}
-          <section className="rounded-2xl card-glass p-4">
+        <>
+          <Card padding="md" className="flex items-center gap-4">
             <div
-              className="text-[10px] uppercase tracking-wider mb-1.5"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
+              aria-hidden
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--surface-alt)] text-title-3"
             >
-              Signed in as
+              {initial}
             </div>
-            <div
-              className="text-[15px] truncate"
-              style={{ fontWeight: 600 }}
-            >
-              {email ?? "—"}
+            <div className="min-w-0 flex-1">
+              <div className="text-caption text-[var(--muted)]">Signed in as</div>
+              <div className="truncate text-body font-semibold">{email ?? "—"}</div>
             </div>
-          </section>
+          </Card>
 
-          {/* Export */}
-          <section className="rounded-2xl card-glass p-4">
-            <div
-              className="text-[15px]"
-              style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
-            >
-              Export your data
-            </div>
-            <p
-              className="text-[12.5px] mt-1.5 leading-relaxed"
-              style={{ color: "var(--foreground-soft)" }}
-            >
-              Download a JSON file with every row of yours — supplements,
-              meals, mood, biomarkers, Coach conversations, the whole
-              stack. Use it for your records or to bring your data to
-              another tool.
-            </p>
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl no-truncate"
-              style={{
-                background: "var(--surface-alt)",
-                color: "var(--foreground)",
-                fontWeight: 700,
-                minHeight: 40,
-                padding: "10px 16px",
-                fontSize: 13,
-                border: "1px solid var(--border)",
-                opacity: exporting ? 0.5 : 1,
-              }}
-            >
-              {exporting ? "Preparing…" : "Download my data"}
-            </button>
-          </section>
+          <h2 className="mt-7 mb-2 px-4 text-eyebrow uppercase text-[var(--muted)]">
+            Your data
+          </h2>
+          <ListGroup>
+            <ListRow
+              icon="download"
+              title={exporting ? "Preparing your file…" : "Download my data"}
+              subtitle="Everything you've logged, in one file"
+              onClick={exporting ? undefined : handleExport}
+              chevron={false}
+              trailing={
+                exporting ? (
+                  <span
+                    aria-hidden
+                    className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  />
+                ) : undefined
+              }
+            />
+          </ListGroup>
+          <p className="mt-2 px-4 text-footnote text-[var(--muted)]">
+            Includes your stack, meals, mood, labs and Coach conversations —
+            keep it for your records or bring it to another app.
+          </p>
 
-          {/* Delete */}
-          <section
-            className="rounded-2xl p-4"
-            style={{
-              background: "rgba(255, 86, 112, 0.08)",
-              border: "1px solid rgba(255, 86, 112, 0.24)",
-            }}
-          >
-            <div
-              className="text-[15px]"
-              style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
-            >
-              Delete account
-            </div>
-            <p
-              className="text-[12.5px] mt-1.5 leading-relaxed"
-              style={{ color: "var(--foreground-soft)" }}
-            >
-              Permanently removes your account and every row of your data.
-              This is immediate — no soft delete, no recovery. Export first
-              if you want a copy.
-            </p>
+          <h2 className="mt-7 mb-2 px-4 text-eyebrow uppercase text-[var(--muted)]">
+            Danger zone
+          </h2>
+          <ListGroup>
+            <ListRow
+              icon="trash"
+              iconTone="danger"
+              title={<span className="text-[var(--error)]">Delete account</span>}
+              subtitle="Permanently erase your account and data"
+              onClick={() => setShowConfirm(true)}
+              chevron
+            />
+          </ListGroup>
 
-            {!showConfirm ? (
-              <button
-                onClick={() => setShowConfirm(true)}
-                className="mt-3 inline-flex items-center justify-center rounded-xl no-truncate"
-                style={{
-                  background: "transparent",
-                  color: "var(--error)",
-                  fontWeight: 700,
-                  minHeight: 40,
-                  padding: "10px 16px",
-                  fontSize: 13,
-                  border: "1px solid var(--error)",
-                }}
-              >
-                Delete my account
-              </button>
-            ) : (
-              <div className="mt-3">
-                <label
-                  className="text-[11px] uppercase tracking-wider mb-1.5 block"
-                  style={{
-                    color: "var(--muted)",
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                  }}
+          <h2 className="mt-7 mb-2 px-4 text-eyebrow uppercase text-[var(--muted)]">
+            Legal & support
+          </h2>
+          <ListGroup>
+            <ListRow href="/privacy" icon="lock" title="Privacy policy" />
+            <ListRow href="/terms" icon="file-text" title="Terms of service" />
+            <ListRow
+              href="mailto:hello@regimen.app"
+              icon="message"
+              title="Contact us"
+              subtitle="hello@regimen.app"
+            />
+          </ListGroup>
+
+          <Sheet
+            open={showConfirm}
+            onClose={closeConfirm}
+            title="Delete your account?"
+            description="This can't be undone."
+            footer={
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={closeConfirm}
+                  disabled={deleting}
                 >
-                  Type your email to confirm
-                </label>
-                <input
-                  type="email"
-                  value={confirmEmail}
-                  onChange={(e) => setConfirmEmail(e.target.value)}
-                  placeholder={email ?? ""}
-                  autoComplete="off"
-                  className="w-full rounded-lg px-3 py-2.5 text-[14px] focus:outline-none"
-                  style={{
-                    background: "var(--surface)",
-                    color: "var(--foreground)",
-                    border: "1px solid var(--border-strong)",
-                  }}
-                />
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => {
-                      setShowConfirm(false);
-                      setConfirmEmail("");
-                    }}
-                    disabled={deleting}
-                    className="rounded-xl no-truncate"
-                    style={{
-                      background: "var(--surface-alt)",
-                      color: "var(--foreground)",
-                      fontWeight: 600,
-                      minHeight: 40,
-                      padding: "10px 16px",
-                      fontSize: 13,
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting || !confirmEmail.trim()}
-                    className="flex-1 rounded-xl no-truncate"
-                    style={{
-                      background: "var(--error)",
-                      color: "#FFFFFF",
-                      fontWeight: 700,
-                      minHeight: 40,
-                      padding: "10px 16px",
-                      fontSize: 13,
-                      opacity: deleting || !confirmEmail.trim() ? 0.5 : 1,
-                    }}
-                  >
-                    {deleting ? "Deleting…" : "Permanently delete"}
-                  </button>
-                </div>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  icon="trash"
+                  onClick={handleDelete}
+                  disabled={!canDelete}
+                  loading={deleting}
+                  fullWidth
+                  className="flex-1 disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : "Permanently delete"}
+                </Button>
               </div>
-            )}
-          </section>
-
-          {/* Footer links */}
-          <div
-            className="flex flex-wrap gap-x-4 gap-y-2 mt-2 text-[12px]"
-            style={{ color: "var(--muted)" }}
+            }
           >
-            <Link href="/privacy" className="underline">
-              Privacy
-            </Link>
-            <Link href="/terms" className="underline">
-              Terms
-            </Link>
-            <a href="mailto:hello@regimen.app" className="underline">
-              Contact
-            </a>
-          </div>
-        </div>
+            <p className="text-callout text-[var(--foreground-soft)]">
+              Your account and everything in it — your stack, logs, labs and
+              Coach history — will be erased immediately. There&apos;s no
+              recovery period. Download your data first if you want a copy.
+            </p>
+            <label
+              htmlFor="confirm-email"
+              className="mt-5 mb-2 block text-footnote font-medium text-[var(--foreground-soft)]"
+            >
+              Type your email to confirm
+            </label>
+            <input
+              id="confirm-email"
+              type="email"
+              value={confirmEmail}
+              onChange={(e) => setConfirmEmail(e.target.value)}
+              placeholder={email ?? ""}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              className="input-field"
+            />
+          </Sheet>
+        </>
       )}
     </div>
   );

@@ -1,7 +1,12 @@
 "use client";
 
+// Runs (or re-runs) the long-form deep-research memo for one item.
+// Re-running replaces the existing memo, so it confirms in a Sheet.
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Button from "@/components/ui/Button";
+import Sheet from "@/components/ui/Sheet";
 
 export default function DeepResearchButton({
   itemId,
@@ -13,14 +18,10 @@ export default function DeepResearchButton({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   async function run() {
-    if (
-      hasDeepResearch &&
-      !confirm("Regenerate the deep-research memo? This takes 1–3 minutes.")
-    ) {
-      return;
-    }
+    setConfirmOpen(false);
     setBusy(true);
     setErr(null);
     try {
@@ -29,7 +30,8 @@ export default function DeepResearchButton({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.error ?? `Error ${res.status}`);
+        console.error("deep research failed", res.status, j.error);
+        throw new Error("Coach couldn’t finish the deep dive. Try again.");
       }
       router.refresh();
     } catch (e) {
@@ -40,30 +42,49 @@ export default function DeepResearchButton({
   }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <button
-        onClick={run}
-        disabled={busy}
-        className="px-3 py-2 rounded-lg text-[13px]"
-        style={{
-          background: hasDeepResearch ? "var(--background)" : "var(--foreground)",
-          color: hasDeepResearch ? "var(--muted)" : "var(--background)",
-          border: hasDeepResearch ? "1px solid var(--border)" : "none",
-          fontWeight: 500,
-          opacity: busy ? 0.5 : 1,
-        }}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <Button
+        variant={hasDeepResearch ? "secondary" : "coach"}
+        icon={hasDeepResearch ? "refresh" : "sparkle"}
+        onClick={() => (hasDeepResearch ? setConfirmOpen(true) : void run())}
+        loading={busy}
       >
         {busy
-          ? "🔬 Running deep research… (1–3 min)"
+          ? "Researching… (1–3 min)"
           : hasDeepResearch
-            ? "Regenerate deep research"
-            : "🔬 Run deep research (Opus)"}
-      </button>
+            ? "Redo deep dive"
+            : "Run a deep dive"}
+      </Button>
       {err && (
-        <span className="text-[11px]" style={{ color: "#b00020" }}>
+        <span role="alert" className="text-caption text-[var(--error)]">
           {err}
         </span>
       )}
+
+      <Sheet
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title="Redo the deep dive?"
+        description="Coach will replace the current write-up with a fresh one. It takes 1–3 minutes."
+        footer={
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={() => setConfirmOpen(false)}
+            >
+              Keep current
+            </Button>
+            <Button variant="coach" icon="sparkle" fullWidth onClick={() => void run()}>
+              Redo it
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-callout text-[var(--muted)]">
+          Keep this screen open while it runs.
+        </p>
+      </Sheet>
     </div>
   );
 }

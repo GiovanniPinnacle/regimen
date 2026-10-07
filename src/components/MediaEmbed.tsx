@@ -15,6 +15,8 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import { cardClass } from "@/components/ui/Card";
+import { Eyebrow } from "@/components/ui/Section";
 import { youtubeSearchUrl } from "@/lib/tutorials/curated";
 
 type Props = {
@@ -86,43 +88,25 @@ export default function MediaEmbed({
         href={searchTerm ? youtubeSearchUrl(searchTerm) : url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block rounded-2xl p-4"
-        style={{
-          background: "var(--surface)",
-          border: "1px dashed var(--border-strong)",
-          boxShadow: "var(--shadow-card)",
-        }}
+        className={cardClass({
+          padding: "md",
+          interactive: true,
+          className: "block border-dashed border-[var(--border-strong)]",
+        })}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div
-              className="text-[10px] uppercase tracking-wider"
-              style={{
-                color: "var(--warn)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
+            <div className="flex items-center gap-1 text-eyebrow uppercase text-[var(--warn)]">
+              <Icon name="alert" size={12} strokeWidth={2} />
               Video no longer available
             </div>
-            <div
-              className="text-[13.5px] mt-1"
-              style={{ color: "var(--foreground)", fontWeight: 600 }}
-            >
+            <div className="mt-1 text-callout font-semibold text-[var(--foreground)]">
               {searchTerm
                 ? `Search YouTube for "${searchTerm}"`
                 : "Open original link"}
             </div>
           </div>
-          <span
-            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{
-              background: "var(--accent-tint)",
-              color: "var(--accent)",
-            }}
-          >
-            <Icon name="search" size={14} strokeWidth={2.2} />
-          </span>
+          <TrailingTile icon="search" />
         </div>
       </a>
     );
@@ -133,18 +117,8 @@ export default function MediaEmbed({
     const embedSrc = `https://www.youtube-nocookie.com/embed/${ytId}?rel=0&modestbranding=1`;
     const thumb = `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`;
     return (
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        <div
-          className="relative w-full"
-          style={{ aspectRatio: "16 / 9", background: "#000" }}
-        >
+      <div className={cardClass({ padding: "none", className: "overflow-hidden" })}>
+        <div className="relative aspect-video w-full bg-[var(--background)]">
           {active ? (
             <iframe
               src={embedSrc}
@@ -152,98 +126,47 @@ export default function MediaEmbed({
               loading="lazy"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
-              className="absolute inset-0 w-full h-full"
-              style={{ border: 0 }}
+              className="absolute inset-0 h-full w-full border-0"
             />
           ) : (
             <button
+              type="button"
               onClick={() => setActive(true)}
-              className="absolute inset-0 w-full h-full flex items-center justify-center"
+              className="group absolute inset-0 flex h-full w-full items-center justify-center bg-[var(--surface-alt)] bg-cover bg-center"
               aria-label="Play tutorial"
-              style={{
-                backgroundImage: thumbBroken ? "none" : `url(${thumb})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                background: thumbBroken
-                  ? "linear-gradient(135deg, var(--accent-tint) 0%, rgba(139, 124, 252, 0.10) 100%)"
-                  : undefined,
-              }}
+              style={thumbBroken ? undefined : { backgroundImage: `url(${thumb})` }}
             >
               {/* Hidden img tag fires onError if YouTube serves a
-                  blank/missing thumb — flip to gradient fallback. */}
+                  blank/missing thumb — flip to the plain surface. */}
               <img
                 src={thumb}
                 alt=""
                 className="hidden"
                 onError={() => setThumbBroken(true)}
               />
-              <span
-                className="absolute inset-0"
-                style={{
-                  background: thumbBroken
-                    ? "transparent"
-                    : "linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.55) 100%)",
-                }}
-              />
-              <span
-                className="relative h-14 w-14 rounded-full flex items-center justify-center"
-                style={{
-                  background: "rgba(0, 0, 0, 0.78)",
-                  color: "#FFFFFF",
-                  boxShadow:
-                    "0 12px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
-                }}
-              >
-                {/* Inline play triangle — avoids depending on the
-                    shared Icon set since "play" isn't in it. */}
-                <svg
-                  viewBox="0 0 24 24"
-                  width="22"
-                  height="22"
-                  fill="currentColor"
-                  aria-hidden
-                  style={{ marginLeft: 2 }}
-                >
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+              {!thumbBroken && (
+                <span aria-hidden className="absolute inset-0 bg-black/30" />
+              )}
+              <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-fg)] shadow-[var(--shadow-lift)] transition-transform group-active:scale-95">
+                <Icon name="play" size={22} strokeWidth={2} className="ml-0.5" />
               </span>
             </button>
           )}
         </div>
         {source && (
-          <div
-            className="px-3.5 py-2.5 flex items-center justify-between text-[11.5px]"
-            style={{ color: "var(--muted)" }}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: 3,
-                  background: "#FF0000",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#FFFFFF",
-                  fontSize: 9,
-                  fontWeight: 700,
-                  lineHeight: 1,
-                }}
-              >
-                ▶
-              </span>
-              <span style={{ fontWeight: 600 }}>{source}</span>
+          <div className="flex min-h-[44px] items-center justify-between gap-3 px-4 text-caption text-[var(--muted)]">
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <Icon name="play" size={12} strokeWidth={2} />
+              <span className="truncate font-semibold text-[var(--foreground-soft)]">{source}</span>
             </span>
             <a
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1"
-              style={{ color: "var(--muted)" }}
+              className="inline-flex min-h-[44px] shrink-0 items-center gap-1 font-medium text-[var(--foreground-soft)]"
             >
               Open on YouTube
-              <Icon name="external" size={10} strokeWidth={2.2} />
+              <Icon name="external" size={12} strokeWidth={2} />
             </a>
           </div>
         )}
@@ -254,30 +177,19 @@ export default function MediaEmbed({
   // === Vimeo ===
   if (vimeoId) {
     return (
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        <div className="relative w-full" style={{ aspectRatio: "16 / 9" }}>
+      <div className={cardClass({ padding: "none", className: "overflow-hidden" })}>
+        <div className="relative aspect-video w-full bg-[var(--background)]">
           <iframe
             src={`https://player.vimeo.com/video/${vimeoId}?title=0&byline=0&portrait=0`}
             title="Tutorial"
             loading="lazy"
             allow="autoplay; fullscreen; picture-in-picture"
             allowFullScreen
-            className="absolute inset-0 w-full h-full"
-            style={{ border: 0 }}
+            className="absolute inset-0 h-full w-full border-0"
           />
         </div>
         {source && (
-          <div
-            className="px-3.5 py-2.5 text-[11.5px]"
-            style={{ color: "var(--muted)", fontWeight: 600 }}
-          >
+          <div className="px-4 py-3 text-caption font-semibold text-[var(--muted)]">
             {source} · Vimeo
           </div>
         )}
@@ -291,42 +203,25 @@ export default function MediaEmbed({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block rounded-2xl p-4"
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-card)",
-      }}
+      className={cardClass({ padding: "md", interactive: true, className: "block" })}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div
-            className="text-[10px] uppercase tracking-wider"
-            style={{
-              color: "var(--muted)",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            {source ? `Read on ${source}` : "External tutorial"}
-          </div>
-          <div
-            className="text-[13px] mt-1 truncate"
-            style={{ color: "var(--foreground)", fontWeight: 600 }}
-          >
+          <Eyebrow>{source ? `Read on ${source}` : "External tutorial"}</Eyebrow>
+          <div className="mt-1 truncate text-callout font-semibold text-[var(--foreground)]">
             {new URL(url).hostname.replace(/^www\./, "")}
           </div>
         </div>
-        <span
-          className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
-          style={{
-            background: "var(--accent-tint)",
-            color: "var(--accent)",
-          }}
-        >
-          <Icon name="external" size={14} strokeWidth={2.2} />
-        </span>
+        <TrailingTile icon="external" />
       </div>
     </a>
+  );
+}
+
+function TrailingTile({ icon }: { icon: "search" | "external" }) {
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+      <Icon name={icon} size={16} strokeWidth={2} />
+    </span>
   );
 }

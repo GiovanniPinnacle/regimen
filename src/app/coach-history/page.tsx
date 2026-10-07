@@ -8,6 +8,7 @@
 import { createClient } from "@/lib/supabase/server";
 import PageHeader from "@/components/ui/PageHeader";
 import Card from "@/components/ui/Card";
+import { ButtonLink } from "@/components/ui/Button";
 import { Eyebrow } from "@/components/ui/Section";
 import { AskAgainButton, ContinueButton } from "./HistoryActions";
 import EmptyGlyph from "@/components/EmptyGlyph";
@@ -44,8 +45,21 @@ export default async function CoachHistoryPage() {
   } = await supabase.auth.getUser();
   if (!user) {
     return (
-      <div className="py-12 text-center text-callout text-[var(--muted)]">
-        Sign in to see your Coach history.
+      <div className="pb-28">
+        <PageHeader
+          back="/coach"
+          backLabel="Coach"
+          title="Coach history"
+          showCoach={false}
+        />
+        <Card padding="lg" className="text-center">
+          <p className="text-callout text-[var(--muted)]">
+            Sign in to see your past conversations with Coach.
+          </p>
+          <ButtonLink href="/signin" variant="primary" className="mt-4">
+            Sign in
+          </ButtonLink>
+        </Card>
       </div>
     );
   }
@@ -79,8 +93,8 @@ export default async function CoachHistoryPage() {
       <PageHeader
         back="/coach"
         backLabel="Coach"
-        title="History"
-        subtitle="Every conversation with Coach, newest first."
+        title="Coach history"
+        subtitle="Your conversations with Coach, newest first."
         actions={<ContinueButton />}
         showCoach={false}
       />
@@ -92,8 +106,8 @@ export default async function CoachHistoryPage() {
           </div>
           <div className="text-title-3">No conversations yet</div>
           <p className="mx-auto mt-1 max-w-sm text-callout text-[var(--muted)]">
-            Tap the sparkle on any screen to ask Coach about your stack. Every
-            answer lands here.
+            Tap the sparkle on any screen to ask Coach about your routine.
+            Your conversations will show up here.
           </p>
         </Card>
       ) : (
@@ -119,7 +133,7 @@ export default async function CoachHistoryPage() {
                       className="scroll-mt-6 rounded-[20px] border border-[var(--border)] bg-[var(--surface)] p-4 target:border-[var(--pro)]"
                     >
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <span className="text-eyebrow uppercase text-[var(--muted)]">
+                        <span className="text-caption tabular-nums text-[var(--muted)]">
                           {time}
                         </span>
                         {userText && <AskAgainButton text={userText} />}

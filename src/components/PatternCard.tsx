@@ -11,6 +11,9 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import { Eyebrow } from "@/components/ui/Section";
 import { usePulseCount } from "@/components/CoachPulse";
 import StepIndicator from "@/components/StepIndicator";
 import CoachCardStack from "@/components/CoachCardStack";
@@ -31,18 +34,43 @@ type Pattern = {
   detail: string;
 };
 
+// Severity → semantic tone. Green ("low" = it's working) is a true
+// success signal; everything else is warn/error/neutral.
 const SEVERITY_STYLES: Record<
   Pattern["severity"],
   {
-    accent: string;
+    /** Eyebrow text color. */
+    text: string;
+    /** Icon tile (tint bg + ink). */
+    tile: string;
     icon: "alert" | "trend-down" | "graph" | "award";
     label: string;
   }
 > = {
-  urgent: { accent: "var(--error)", icon: "alert", label: "Urgent" },
-  high: { accent: "var(--warn)", icon: "trend-down", label: "Drop signal" },
-  medium: { accent: "var(--muted)", icon: "graph", label: "Pattern" },
-  low: { accent: "var(--accent)", icon: "award", label: "Working" },
+  urgent: {
+    text: "text-[var(--error)]",
+    tile: "bg-[var(--error-tint)] text-[var(--error)]",
+    icon: "alert",
+    label: "Urgent",
+  },
+  high: {
+    text: "text-[var(--warn)]",
+    tile: "bg-[var(--warn-tint)] text-[var(--warn)]",
+    icon: "trend-down",
+    label: "Drop signal",
+  },
+  medium: {
+    text: "text-[var(--muted)]",
+    tile: "bg-[var(--surface-alt)] text-[var(--foreground-soft)]",
+    icon: "graph",
+    label: "Pattern",
+  },
+  low: {
+    text: "text-[var(--success)]",
+    tile: "bg-[var(--success-tint)] text-[var(--success)]",
+    icon: "award",
+    label: "Working",
+  },
 };
 
 // Per-kind action: what the primary button does + how it labels itself.
@@ -233,7 +261,7 @@ export default function PatternCard() {
   const topId = patternId(top);
   const topState = executed[topId];
 
-  function renderActionButtons(p: Pattern, action: Action, compact = false) {
+  function renderActionButtons(p: Pattern, action: Action) {
     const id = patternId(p);
     const state = executed[id];
     const onPrimary = () => {
@@ -241,55 +269,36 @@ export default function PatternCard() {
       else if (action.kind === "coach") applyCoach(p, action);
       else applyCelebrate(p);
     };
-    const buttonAccent =
-      action.kind === "celebrate"
-        ? "var(--accent)"
-        : p.severity === "urgent"
-          ? "var(--error)"
-          : p.severity === "high"
-            ? "var(--warn)"
-            : "var(--pro)";
+    // Coach hand-offs are violet; a direct drop is destructive; a
+    // celebrate is the plain primary CTA.
+    const variant =
+      action.kind === "coach"
+        ? "coach"
+        : action.kind === "direct"
+          ? "destructive"
+          : "primary";
     return (
-      <div className={`flex gap-2 ${compact ? "" : "mt-3"}`}>
-        <button
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={variant}
+          icon={action.kind === "coach" ? "sparkle" : "check-circle"}
+          loading={state === "pending"}
           onClick={(e) => {
             e.stopPropagation();
             onPrimary();
           }}
-          disabled={state === "pending"}
-          className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
-          style={{
-            background: buttonAccent,
-            color: "#FFFFFF",
-            fontWeight: 700,
-            opacity: state === "pending" ? 0.6 : 1,
-            minHeight: 36,
-          }}
         >
-          {state === "pending" ? (
-            "Applying…"
-          ) : (
-            <>
-              <Icon name="check-circle" size={12} strokeWidth={2.2} />
-              {action.verb}
-            </>
-          )}
-        </button>
-        <button
+          {state === "pending" ? "Applying…" : action.verb}
+        </Button>
+        <Button
+          variant="secondary"
           onClick={(e) => {
             e.stopPropagation();
             discuss(p);
           }}
-          className="text-[13px] px-3.5 py-2 rounded-lg"
-          style={{
-            background: "var(--surface-alt)",
-            color: "var(--foreground)",
-            fontWeight: 600,
-            minHeight: 36,
-          }}
         >
           Tell me more
-        </button>
+        </Button>
       </div>
     );
   }
@@ -297,28 +306,16 @@ export default function PatternCard() {
   return (
     <section className="mb-6">
       {visible.length > 1 && (
-        <div className="flex items-baseline justify-between mb-2 px-0.5">
-          <span
-            className="text-[10px] uppercase tracking-wider"
-            style={{
-              color: topStyle.accent,
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            Patterns
-          </span>
+        <div className="mb-2 flex items-center justify-between px-0.5">
+          <Eyebrow>Patterns</Eyebrow>
           <div className="flex items-center gap-2">
-            <StepIndicator
-              current={cursor}
-              total={visible.length}
-              color={topStyle.accent}
-            />
+            <StepIndicator current={cursor} total={visible.length} />
             <span
-              className="text-[10px]"
-              style={{ color: "var(--muted)", opacity: 0.7 }}
+              className="flex items-center gap-1 text-caption text-[var(--muted)]"
+              aria-hidden
             >
-              swipe ↤
+              <Icon name="arrow-left" size={12} strokeWidth={2} />
+              swipe
             </span>
           </div>
         </div>
@@ -327,60 +324,40 @@ export default function PatternCard() {
         current={cursor}
         total={visible.length}
         onAdvance={() => setCursor((c) => c + 1)}
-        accent={topStyle.accent}
         swipeDisabled={topState === "done" || topState === "pending"}
       >
-        <div className="rounded-2xl card-glass overflow-hidden">
-          <div className="flex items-baseline justify-between px-4 pt-3.5 pb-1">
+        <Card padding="none" className="overflow-hidden">
+          <div className="flex items-start gap-3 px-4 pt-4 pb-3">
             <span
-              className="text-[10px] uppercase tracking-wider"
-              style={{
-                color: topStyle.accent,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
+              aria-hidden
+              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${topStyle.tile}`}
             >
-              {topStyle.label}
+              <Icon name={topStyle.icon} size={16} strokeWidth={1.8} />
             </span>
-          </div>
-          <div className="px-4 pt-1 pb-3 flex items-start gap-3">
-            <span
-              className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
-              style={{
-                background: `${topStyle.accent}1F`,
-                color: topStyle.accent,
-              }}
-            >
-              <Icon name={topStyle.icon} size={14} strokeWidth={1.8} />
-            </span>
-            <div className="flex-1 min-w-0">
-              <div
-                className="text-[14px] leading-snug"
-                style={{ fontWeight: 600 }}
-              >
+            <div className="min-w-0 flex-1">
+              <div className={`text-eyebrow uppercase ${topStyle.text}`}>
+                {topStyle.label}
+              </div>
+              <div className="mt-0.5 text-callout font-semibold leading-snug">
                 {top.headline}
               </div>
-              <div
-                className="text-[12.5px] mt-1 leading-relaxed"
-                style={{ color: "var(--muted)" }}
-              >
+              <div className="mt-1 text-footnote leading-relaxed text-[var(--muted)]">
                 {top.detail}
               </div>
             </div>
           </div>
-          <div className="px-4 pb-3 ml-10 flex items-center gap-3 flex-wrap">
-            {topState !== "done" && renderActionButtons(top, topAction, true)}
+          <div className="flex flex-wrap items-center gap-2 px-4 pb-4 pl-[60px]">
+            {topState !== "done" && renderActionButtons(top, topAction)}
             {visible.length > 1 && cursor < visible.length - 1 && (
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => setCursor((c) => c + 1)}
-                className="text-[12px] underline"
-                style={{ color: "var(--muted)" }}
               >
                 Skip
-              </button>
+              </Button>
             )}
           </div>
-        </div>
+        </Card>
       </CoachCardStack>
     </section>
   );

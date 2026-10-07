@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Icon from "@/components/Icon";
+import Chip, { type ChipTone } from "@/components/ui/Chip";
 import type { NormalizedCatalogRecord } from "@/lib/catalog/types";
 
 type SearchHit = NormalizedCatalogRecord & {
@@ -45,12 +46,12 @@ export type PickedHit = {
   micros: Record<string, number> | null;
 };
 
-const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
-  off: { label: "Open Food Facts", color: "var(--foreground-soft)" },
-  usda: { label: "USDA", color: "var(--foreground-soft)" },
-  dsld: { label: "NIH DSLD", color: "var(--foreground-soft)" },
-  manual: { label: "Curated", color: "var(--foreground-soft)" },
-  coach: { label: "Coach", color: "var(--pro)" },
+const SOURCE_LABELS: Record<string, { label: string; tone: ChipTone }> = {
+  off: { label: "Open Food Facts", tone: "neutral" },
+  usda: { label: "USDA", tone: "neutral" },
+  dsld: { label: "NIH DSLD", tone: "neutral" },
+  manual: { label: "Curated", tone: "neutral" },
+  coach: { label: "Coach", tone: "coach" },
 };
 
 export default function CatalogAutocomplete({
@@ -161,113 +162,79 @@ export default function CatalogAutocomplete({
   }
 
   return (
-    <div
-      className="rounded-2xl mt-2 overflow-hidden"
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-      }}
-    >
-      <div
-        className="px-3 py-1.5 text-caption uppercase tracking-wider flex items-center justify-between"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-          background: "var(--surface-alt)",
-        }}
-      >
-        <span className="inline-flex items-center gap-1.5">
-          <Icon name="search" size={11} strokeWidth={2} />
+    <div className="mt-2 overflow-hidden rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-card)]">
+      <div className="flex min-h-[36px] items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface-alt)] px-3 py-1.5 text-caption text-[var(--muted)]">
+        <span className="inline-flex items-center gap-1.5" aria-live="polite">
+          <Icon name="search" size={13} strokeWidth={2} />
           {hits.length === 0
             ? "No matches yet"
-            : `${hits.length} match${hits.length === 1 ? "" : "es"} from our catalog`}
+            : `${hits.length} match${hits.length === 1 ? "" : "es"} in our catalog`}
         </span>
-        {loading && <span>…</span>}
+        {loading && (
+          <span
+            aria-label="Searching"
+            className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+          />
+        )}
       </div>
       {hits.length === 0 && !loading && (
         <button
           type="button"
           onClick={generateWithCoach}
           disabled={generating}
-          className="w-full px-3 py-3 text-left flex items-start gap-2.5 active:scale-[0.99] transition-transform"
+          className="flex min-h-[56px] w-full items-start gap-3 px-3 py-3 text-left transition-colors active:bg-[var(--surface-alt)]"
         >
-          <span
-            className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
-            style={{
-              background: "var(--pro-tint)",
-              color: "var(--pro)",
-            }}
-          >
-            <Icon name="sparkle" size={13} strokeWidth={2} />
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--pro-tint)] text-[var(--pro-soft)]">
+            <Icon name="sparkle" size={16} strokeWidth={1.9} />
           </span>
-          <div className="flex-1 min-w-0">
-            <div
-              className="text-[13px] leading-snug"
-              style={{ fontWeight: 600 }}
-            >
+          <span className="min-w-0 flex-1">
+            <span className="block text-callout font-semibold">
               {generating
-                ? "Coach is researching this…"
-                : `Have Coach research "${query.trim()}"`}
-            </div>
-            <div
-              className="text-caption mt-0.5 leading-snug"
-              style={{ color: "var(--muted)" }}
-            >
-              Coach generates a structured catalog entry with mechanism,
-              cautions, brand picks
-            </div>
-          </div>
+                ? "Coach is looking this up…"
+                : `Ask Coach to look up “${query.trim()}”`}
+            </span>
+            <span className="mt-0.5 block text-caption text-[var(--muted)]">
+              Coach writes a profile with how it works, cautions and
+              brand picks.
+            </span>
+          </span>
         </button>
       )}
-      {hits.slice(0, 8).map((hit, i) => {
-        const meta = SOURCE_LABELS[hit.source] ?? SOURCE_LABELS.manual;
-        return (
-          <button
-            key={`${hit.source}-${hit.id ?? hit.source_id ?? i}`}
-            type="button"
-            onClick={() => handlePick(hit)}
-            className="w-full text-left px-3 py-2.5"
-            style={{
-              borderTop: i > 0 ? "1px solid var(--border)" : undefined,
-            }}
-          >
-            <div className="flex items-baseline justify-between gap-2 mb-0.5">
-              <div
-                className="text-[13.5px] truncate"
-                style={{ fontWeight: 600 }}
+      <ul className="divide-y divide-[var(--border)]">
+        {hits.slice(0, 8).map((hit, i) => {
+          const meta = SOURCE_LABELS[hit.source] ?? SOURCE_LABELS.manual;
+          const details = [
+            hit.brand,
+            hit.serving_size,
+            hit.calories != null ? `${Math.round(hit.calories)} kcal` : null,
+            hit.protein_g != null ? `${Math.round(hit.protein_g)}g protein` : null,
+            hit.evidence_grade ? `Grade ${hit.evidence_grade}` : null,
+          ].filter(Boolean);
+          return (
+            <li key={`${hit.source}-${hit.id ?? hit.source_id ?? i}`}>
+              <button
+                type="button"
+                onClick={() => handlePick(hit)}
+                className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2.5 text-left transition-colors active:bg-[var(--surface-alt)]"
               >
-                {hit.name}
-              </div>
-              <span
-                className="text-caption uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0"
-                style={{
-                  background: `${meta.color}1F`,
-                  color: meta.color,
-                  fontWeight: 700,
-                  letterSpacing: "0.06em",
-                }}
-              >
-                {meta.label}
-              </span>
-            </div>
-            <div
-              className="text-caption flex flex-wrap gap-x-2 gap-y-0.5"
-              style={{ color: "var(--muted)" }}
-            >
-              {hit.brand && <span>{hit.brand}</span>}
-              {hit.serving_size && <span>· {hit.serving_size}</span>}
-              {hit.calories != null && (
-                <span>· {Math.round(hit.calories)} kcal</span>
-              )}
-              {hit.protein_g != null && (
-                <span>· {Math.round(hit.protein_g)}g P</span>
-              )}
-              {hit.evidence_grade && <span>· Grade {hit.evidence_grade}</span>}
-            </div>
-          </button>
-        );
-      })}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-callout font-semibold">
+                    {hit.name}
+                  </span>
+                  {details.length > 0 && (
+                    <span className="mt-0.5 block truncate text-caption text-[var(--muted)]">
+                      {details.join(" · ")}
+                    </span>
+                  )}
+                </span>
+                <Chip tone={meta.tone} className="shrink-0">
+                  {meta.label}
+                </Chip>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

@@ -4,7 +4,12 @@
 // so it travels with the codebase and the user can read it on any device.
 // Not linked from main nav — accessed at /strategy directly.
 
-import Link from "next/link";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import { ButtonLink } from "@/components/ui/Button";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { Eyebrow, SectionHeader } from "@/components/ui/Section";
 
 const PACKS: {
   key: string;
@@ -34,7 +39,7 @@ const PACKS: {
     status: "next",
     blurb:
       "Post-surgery, PT, injury rehab. Day-counter math + stage-gated milestones.",
-    example: "Day 14 post-op: stop the antibiotic, start the topical minox.",
+    example: "Day 14 post-op: finish the antibiotic, start the next-stage topical.",
   },
   {
     key: "skin",
@@ -232,618 +237,403 @@ const ROADMAP: { phase: string; window: string; items: string[] }[] = [
   },
 ];
 
+const STATUS_CHIP: Record<
+  (typeof PACKS)[number]["status"],
+  { label: string; tone: "success" | "neutral" }
+> = {
+  live: { label: "Live", tone: "success" },
+  next: { label: "Next", tone: "neutral" },
+  later: { label: "Later", tone: "neutral" },
+};
+
+function Bullets({ items }: { items: React.ReactNode[] }) {
+  return (
+    <ul className="flex flex-col gap-2 text-callout leading-relaxed text-[var(--foreground-soft)]">
+      {items.map((it, i) => (
+        <li key={i} className="flex gap-2.5">
+          <span
+            aria-hidden
+            className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-[var(--muted)]"
+          />
+          <span className="min-w-0">{it}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function B({ children }: { children: React.ReactNode }) {
+  return (
+    <strong className="font-semibold text-[var(--foreground)]">{children}</strong>
+  );
+}
+
 export default function StrategyPage() {
   return (
-    <div className="pb-24 max-w-3xl mx-auto">
-      <header className="mb-8">
-        <div
-          className="text-[11px] uppercase tracking-wider mb-2"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          Strategy doc
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 500 }}
-        >
-          One app. Many regimens.
-        </h1>
-        <p
-          className="text-[15px] mt-3 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          The execution layer for any goal-driven protocol — refined by an AI
-          that actually reads your data. Not a tracker, not a store, not
-          another habit app.
-        </p>
-      </header>
+    <div className="mx-auto max-w-3xl pb-24">
+      <PageHeader
+        eyebrow="Strategy doc"
+        title="One app. Many regimens."
+        back="/you"
+        backLabel="You"
+        subtitle="The execution layer for any goal-driven protocol, refined by an AI that actually reads your data. Not a tracker, not a store, not another habit app."
+        actions={
+          <ButtonLink href="/strategy/revenue" variant="secondary" size="sm" icon="dollar" className="min-h-[40px]">
+            Revenue
+          </ButtonLink>
+        }
+      />
 
       {/* The wedge */}
-      <section className="mb-10">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          The category
-        </h2>
-        <div
-          className="rounded-2xl p-5 card-glass"
-          style={{ background: "var(--olive-tint)" }}
-        >
-          <div
-            className="text-[20px] leading-snug"
-            style={{ color: "var(--olive)", fontWeight: 500 }}
-          >
-            Your regimen, refined.
-          </div>
-          <p
-            className="text-[14px] mt-3 leading-relaxed"
-            style={{ color: "var(--foreground)", opacity: 0.85 }}
-          >
-            Every other app's loop is{" "}
-            <span style={{ fontWeight: 600 }}>add → log → keep adding</span>.
-            Ours is{" "}
-            <span style={{ fontWeight: 600, color: "var(--olive)" }}>
-              add → challenge → drop
-            </span>
-            . Permission to take less is the biggest feature.
-          </p>
-          <div
-            className="text-[12px] mt-4 grid gap-1.5"
-            style={{ color: "var(--muted)" }}
-          >
-            <div>
-              · <strong>Refinement-first.</strong> Coach challenges every item.
-            </div>
-            <div>
-              · <strong>Full context.</strong> Reads logs, skips, photos,
-              bloodwork, biomarkers, post-op day, about-me.
-            </div>
-            <div>
-              · <strong>Cycle-aware.</strong> Day counters, deload weeks,
-              stage-gated milestones.
-            </div>
-            <div>
-              · <strong>Skip-as-data.</strong> Misses are signal, not failure.
-            </div>
-            <div>
-              · <strong>Bundles.</strong> Coffee ritual = one card. Sleep stack
-              = one card.
-            </div>
-          </div>
+      <SectionHeader title="The category" className="mt-0" />
+      <Card variant="raised" padding="lg">
+        <div className="text-title-2">Your regimen, refined.</div>
+        <p className="mt-3 text-body leading-relaxed text-[var(--foreground-soft)]">
+          Every other app&apos;s loop is{" "}
+          <B>add → log → keep adding</B>. Ours is <B>add → challenge → drop</B>.
+          Permission to take less is the biggest feature.
+        </p>
+        <div className="mt-4">
+          <Bullets
+            items={[
+              <>
+                <B>Refinement-first.</B> Coach challenges every item.
+              </>,
+              <>
+                <B>Full context.</B> Reads logs, skips, photos, bloodwork,
+                biomarkers, recovery day counters, about-me.
+              </>,
+              <>
+                <B>Cycle-aware.</B> Day counters, deload weeks, stage-gated
+                milestones.
+              </>,
+              <>
+                <B>Skip-as-data.</B> Misses are signal, not failure.
+              </>,
+              <>
+                <B>Bundles.</B> Coffee ritual = one card. Sleep stack = one
+                card.
+              </>,
+            ]}
+          />
         </div>
-      </section>
+      </Card>
 
       {/* Packs */}
-      <section className="mb-10">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          One app. Many packs.
-        </h2>
-        <p
-          className="text-[13px] mb-4 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Six domains. Same primitives — items, companions, timing slots,
-          cycles, skip-with-reason. One app, switchable packs. Everything
-          stays in one place.
-        </p>
-        <div className="grid gap-2">
-          {PACKS.map((p) => (
-            <div
-              key={p.key}
-              className="rounded-2xl p-4 card-glass flex flex-col gap-1.5"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div
-                  className="text-[15px]"
-                  style={{ fontWeight: 500 }}
-                >
-                  {p.name}
-                </div>
-                <span
-                  className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider"
-                  style={{
-                    background:
-                      p.status === "live"
-                        ? "var(--olive)"
-                        : p.status === "next"
-                          ? "var(--olive-tint)"
-                          : "var(--surface-alt)",
-                    color:
-                      p.status === "live"
-                        ? "#FFFFFF"
-                        : p.status === "next"
-                          ? "var(--olive)"
-                          : "var(--muted)",
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  {p.status}
-                </span>
-              </div>
-              <div
-                className="text-[13px]"
-                style={{ color: "var(--muted)" }}
-              >
-                {p.blurb}
-              </div>
-              <div
-                className="text-[12px] italic mt-1"
-                style={{ color: "var(--olive)" }}
-              >
-                e.g., "{p.example}"
-              </div>
+      <SectionHeader eyebrow="One app. Many packs." title="Packs" />
+      <p className="mb-4 text-callout leading-relaxed text-[var(--muted)]">
+        Six domains. Same primitives: items, companions, timing slots, cycles,
+        skip-with-reason. One app, switchable packs. Everything stays in one
+        place.
+      </p>
+      <div className="grid gap-2">
+        {PACKS.map((p) => (
+          <Card key={p.key} padding="md">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-body font-semibold">{p.name}</div>
+              <Chip size="sm" tone={STATUS_CHIP[p.status].tone}>
+                {STATUS_CHIP[p.status].label}
+              </Chip>
             </div>
-          ))}
-        </div>
-      </section>
+            <p className="mt-1 text-footnote text-[var(--muted)]">{p.blurb}</p>
+            <p className="mt-2 text-footnote italic text-[var(--foreground-soft)]">
+              e.g., &ldquo;{p.example}&rdquo;
+            </p>
+          </Card>
+        ))}
+      </div>
 
       {/* Architecture */}
-      <section className="mb-10">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          Architecture (one app, switchable)
-        </h2>
-        <div className="rounded-2xl p-5 card-glass">
-          <ul
-            className="text-[13px] flex flex-col gap-2 leading-relaxed"
-            style={{ color: "var(--foreground)", opacity: 0.9 }}
-          >
-            <li>
-              <code className="text-[12px]">items.pack</code> column —{" "}
-              <code className="text-[12px]">
-                'health' | 'fit' | 'recovery' | 'skin' | 'mind' | 'pregnancy'
+      <SectionHeader title="Architecture" eyebrow="One app, switchable" />
+      <Card padding="lg">
+        <Bullets
+          items={[
+            <>
+              <code className="text-footnote">items.pack</code> column:{" "}
+              <code className="text-footnote">
+                &apos;health&apos; | &apos;fit&apos; | &apos;recovery&apos; |
+                &apos;skin&apos; | &apos;mind&apos; | &apos;pregnancy&apos;
               </code>
-            </li>
-            <li>
-              <code className="text-[12px]">profiles.active_packs</code> array
-              — user picks which packs are visible. Default: all.
-            </li>
-            <li>
-              <code className="text-[12px]">/today</code> filters by active
+            </>,
+            <>
+              <code className="text-footnote">profiles.active_packs</code> array.
+              User picks which packs are visible. Default: all.
+            </>,
+            <>
+              <code className="text-footnote">/today</code> filters by active
               packs. Pack badge on each card.
-            </li>
-            <li>
+            </>,
+            <>
               Each pack defines its own DayStrip phases. Health = time-of-day
               (Pre-AM, Breakfast…). Fit = workout phases (Warmup, Main,
               Accessory, Finisher). Recovery = stage (Acute, Sub-acute,
               Return-to-activity).
-            </li>
-            <li>
+            </>,
+            <>
               Companions, cycles, skip-as-data, photo scan, Coach context all
-              work universally — zero rebuild per pack.
-            </li>
-            <li>
+              work universally. Zero rebuild per pack.
+            </>,
+            <>
               Adding a pack = a seed migration + a phase config. Maybe a week
               of work each.
-            </li>
-          </ul>
-        </div>
-      </section>
+            </>,
+          ]}
+        />
+      </Card>
 
       {/* Monetization */}
-      <section className="mb-10">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          Monetization
-        </h2>
-
-        <h3 className="text-[14px] mb-3" style={{ fontWeight: 500 }}>
-          Affiliate revenue (passive, scales with users)
-        </h3>
-        <div className="grid gap-2 mb-6">
-          {AFFILIATE_PARTNERS.map((a) => (
-            <div
-              key={a.category}
-              className="rounded-2xl p-4 card-glass"
-            >
-              <div className="flex items-baseline justify-between gap-2 mb-1">
-                <div className="text-[14px]" style={{ fontWeight: 500 }}>
-                  {a.category}
-                </div>
-                <div
-                  className="text-[11px]"
-                  style={{ color: "var(--olive)", fontWeight: 600 }}
-                >
-                  AOV {a.aov}
-                </div>
-              </div>
-              <div
-                className="text-[12px] mb-2"
-                style={{ color: "var(--muted)" }}
-              >
-                {a.partners.join(" · ")}
-              </div>
-              <div
-                className="text-[12px] leading-relaxed italic"
-                style={{ color: "var(--foreground)", opacity: 0.75 }}
-              >
-                {a.notes}
+      <SectionHeader eyebrow="Monetization" title="Affiliate revenue" />
+      <p className="mb-4 text-callout text-[var(--muted)]">
+        Passive, scales with users.
+      </p>
+      <div className="grid gap-2">
+        {AFFILIATE_PARTNERS.map((a) => (
+          <Card key={a.category} padding="md">
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="text-body font-semibold">{a.category}</div>
+              <div className="shrink-0 text-caption font-medium tabular-nums text-[var(--foreground-soft)]">
+                AOV {a.aov}
               </div>
             </div>
-          ))}
-        </div>
+            <p className="mt-1 text-footnote text-[var(--muted)]">
+              {a.partners.join(" · ")}
+            </p>
+            <p className="mt-2 text-footnote leading-relaxed text-[var(--foreground-soft)]">
+              {a.notes}
+            </p>
+          </Card>
+        ))}
+      </div>
 
-        <div
-          className="rounded-2xl p-4 mb-8"
-          style={{
-            background: "var(--olive-tint)",
-            border: "1px solid var(--accent-glow)",
-          }}
-        >
-          <div
-            className="text-[12px] uppercase tracking-wider mb-2"
-            style={{ color: "var(--olive)", fontWeight: 600 }}
-          >
-            Affiliate model
-          </div>
-          <ul
-            className="text-[13px] flex flex-col gap-1.5 leading-relaxed"
-            style={{ color: "var(--foreground)", opacity: 0.85 }}
-          >
-            <li>
-              · <strong>"Get this" button</strong> on every item with affiliate
-              URL set — Coach recommends, user clicks, we earn.
-            </li>
-            <li>
-              · <strong>Bloodwork referrals</strong> are highest-margin. After
-              Coach reviews patterns: "consider InsideTracker" with our link.
-            </li>
-            <li>
-              · <strong>Onboarding bundles</strong> — "First-time stack:
-              starter kit at iHerb, $89, free shipping."
-            </li>
-            <li>
-              · <strong>5% rebate to Pro users</strong> on items they ordered
-              through us. Strong activation — Pro pays for itself if they buy
-              ~$200/mo of supps.
-            </li>
-            <li>
-              · <strong>Disclosed clearly</strong> — affiliate badge on every
-              link. Trust is the moat.
-            </li>
-          </ul>
-        </div>
+      <Card variant="inset" padding="lg" className="mt-4">
+        <Eyebrow className="mb-3">Affiliate model</Eyebrow>
+        <Bullets
+          items={[
+            <>
+              <B>&ldquo;Get this&rdquo; button</B> on every item with an
+              affiliate URL. Coach recommends, user clicks, we earn.
+            </>,
+            <>
+              <B>Bloodwork referrals</B> are highest-margin. After Coach
+              reviews patterns: &ldquo;consider InsideTracker&rdquo; with our
+              link.
+            </>,
+            <>
+              <B>Onboarding bundles</B>: &ldquo;First-time stack: starter kit
+              at iHerb, $89, free shipping.&rdquo;
+            </>,
+            <>
+              <B>5% rebate to Pro users</B> on items they ordered through us.
+              Strong activation. Pro pays for itself if they buy ~$200/mo of
+              supplements.
+            </>,
+            <>
+              <B>Disclosed clearly</B>: affiliate badge on every link. Trust is
+              the moat.
+            </>,
+          ]}
+        />
+      </Card>
 
-        <h3 className="text-[14px] mb-3" style={{ fontWeight: 500 }}>
-          Subscription tiers
-        </h3>
-        <div className="grid gap-2 mb-4">
-          {PRICING_TIERS.map((t) => (
-            <div
-              key={t.name}
-              className="rounded-2xl p-4 card-glass"
-              style={{
-                border: t.highlight
-                  ? "1.5px solid var(--olive)"
-                  : undefined,
-                background: t.highlight ? "var(--olive-tint)" : undefined,
-              }}
-            >
-              <div className="flex items-baseline justify-between gap-2 mb-1">
-                <div className="text-[15px]" style={{ fontWeight: 500 }}>
-                  {t.name}
-                </div>
-                <div
-                  className="text-[14px]"
-                  style={{
-                    color: t.highlight ? "var(--olive)" : "var(--foreground)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {t.price}
-                </div>
+      <SectionHeader title="Subscription tiers" />
+      <div className="grid gap-2">
+        {PRICING_TIERS.map((t) => (
+          <Card
+            key={t.name}
+            variant={t.highlight ? "raised" : "default"}
+            padding="md"
+            className={t.highlight ? "!border-[var(--border-strong)]" : ""}
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-body font-semibold">{t.name}</span>
+                {t.highlight && <Chip size="sm">Recommended</Chip>}
               </div>
-              <div
-                className="text-[11px] uppercase tracking-wider mb-2"
-                style={{ color: "var(--muted)", fontWeight: 500 }}
-              >
-                {t.cta}
+              <div className="shrink-0 text-callout font-semibold tabular-nums">
+                {t.price}
               </div>
-              <ul
-                className="text-[12px] flex flex-col gap-1 leading-relaxed"
-                style={{ color: "var(--foreground)", opacity: 0.8 }}
-              >
-                {t.features.map((f) => (
-                  <li key={f}>· {f}</li>
-                ))}
-              </ul>
             </div>
-          ))}
-        </div>
+            <Eyebrow className="mt-1 mb-2">{t.cta}</Eyebrow>
+            <ul className="flex flex-col gap-1 text-footnote leading-relaxed text-[var(--foreground-soft)]">
+              {t.features.map((f) => (
+                <li key={f} className="flex gap-2">
+                  <span aria-hidden className="text-[var(--muted)]">
+                    ·
+                  </span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ))}
+      </div>
 
-        <div
-          className="text-[12px] leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          <strong>Math:</strong> 100 Pro users × $9 = $900 MRR. Plus ~$30-80
-          avg affiliate per active user/mo at scale = $3K-8K MRR more. The
-          affiliate revenue likely outpaces subscription at scale because
-          users buying $200-500/mo of supps + a $499 Function Health test once
-          stacks fast.
-        </div>
-      </section>
+      <p className="mt-4 text-footnote leading-relaxed text-[var(--muted)]">
+        <B>Math:</B> 100 Pro users × $9 = $900 MRR. Plus ~$30–80 average
+        affiliate per active user per month at scale = $3K–8K MRR more.
+        Affiliate revenue likely outpaces subscription at scale, because users
+        buying $200–500/mo of supplements plus a one-off $499 lab test stacks
+        up fast.
+      </p>
 
       {/* Roadmap */}
-      <section className="mb-10">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          Roadmap
-        </h2>
-        <div className="grid gap-3">
-          {ROADMAP.map((r) => (
-            <div key={r.phase} className="rounded-2xl p-4 card-glass">
-              <div className="flex items-baseline justify-between gap-2 mb-2">
-                <div className="text-[14px]" style={{ fontWeight: 500 }}>
-                  {r.phase}
-                </div>
-                <div
-                  className="text-[11px]"
-                  style={{ color: "var(--olive)", fontWeight: 600 }}
-                >
-                  {r.window}
-                </div>
+      <SectionHeader title="Roadmap" />
+      <div className="grid gap-2">
+        {ROADMAP.map((r) => (
+          <Card key={r.phase} padding="md">
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <div className="text-body font-semibold">{r.phase}</div>
+              <div className="shrink-0 text-caption font-medium text-[var(--foreground-soft)]">
+                {r.window}
               </div>
-              <ul
-                className="text-[12px] flex flex-col gap-1 leading-relaxed"
-                style={{ color: "var(--foreground)", opacity: 0.85 }}
-              >
-                {r.items.map((i) => (
-                  <li key={i}>· {i}</li>
-                ))}
-              </ul>
             </div>
-          ))}
-        </div>
-      </section>
+            <ul className="flex flex-col gap-1 text-footnote leading-relaxed text-[var(--foreground-soft)]">
+              {r.items.map((i) => (
+                <li key={i} className="flex gap-2">
+                  <span aria-hidden className="text-[var(--muted)]">
+                    ·
+                  </span>
+                  {i}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ))}
+      </div>
 
       {/* Competitive landscape (from deep research) */}
-      <section className="mb-10">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          Competitive landscape — April 2026
-        </h2>
-        <div
-          className="rounded-2xl p-5 mb-4"
-          style={{
-            background: "var(--olive-tint)",
-            border: "1px solid var(--accent-glow)",
-          }}
-        >
-          <div
-            className="text-[12px] uppercase tracking-wider mb-2"
-            style={{ color: "var(--olive)", fontWeight: 600 }}
-          >
-            Tailwinds
-          </div>
-          <ul
-            className="text-[13px] flex flex-col gap-2 leading-relaxed"
-            style={{ color: "var(--foreground)", opacity: 0.9 }}
-          >
-            <li>
-              <strong>Apple scaled back its multi-domain AI Health
-              coach (Feb 2026)</strong> — Bloomberg confirmed. Big incumbent
-              retreat. The cross-domain platform play is unowned right now.
-            </li>
-            <li>
-              <strong>Apostrophe shut down March 2025</strong> (acquired/killed
-              by Hims/Hers). Skin-Rx commerce trackers are weakening.
-            </li>
-            <li>
-              <strong>Almost everyone is single-domain.</strong> FitBod = lifts.
-              Hinge = MSK. Curology = derm. Levels = glucose. Bearable is the
-              rare cross-domain exception, but rules-based, not LLM.
-            </li>
-          </ul>
-        </div>
+      <SectionHeader eyebrow="April 2026" title="Competitive landscape" />
+      <Card padding="lg">
+        <Eyebrow className="mb-3">Tailwinds</Eyebrow>
+        <Bullets
+          items={[
+            <>
+              <B>Apple scaled back its multi-domain AI Health coach (Feb
+              2026)</B>, per Bloomberg. Big incumbent retreat. The cross-domain
+              platform play is unowned right now.
+            </>,
+            <>
+              <B>Apostrophe shut down March 2025</B> (acquired/killed by
+              Hims/Hers). Skin-Rx commerce trackers are weakening.
+            </>,
+            <>
+              <B>Almost everyone is single-domain.</B> FitBod = lifts. Hinge =
+              MSK. Curology = derm. Levels = glucose. Bearable is the rare
+              cross-domain exception, but rules-based, not LLM.
+            </>,
+          ]}
+        />
+      </Card>
 
-        <div
-          className="rounded-2xl p-5 mb-4"
-          style={{
-            background: "rgba(194, 145, 66, 0.08)",
-            border: "1px solid rgba(194, 145, 66, 0.25)",
-          }}
-        >
-          <div
-            className="text-[12px] uppercase tracking-wider mb-2"
-            style={{ color: "#C29142", fontWeight: 600 }}
-          >
-            Real threats
-          </div>
-          <ul
-            className="text-[13px] flex flex-col gap-2 leading-relaxed"
-            style={{ color: "var(--foreground)", opacity: 0.9 }}
-          >
-            <li>
-              <strong>Google/Fitbit Personal Health Coach (Gemini)</strong> —
-              announced 2026, fitness/sleep first. Long-term threat. But
-              wearable-first + SKU-blind — won't ingest supplement bottles,
-              skin photos, post-op day count, FUE-specific context.
-            </li>
-            <li>
-              <strong>RP Hypertrophy</strong> — the one app actually doing
-              refinement (drops sets when stimulus-to-fatigue is bad). But
+      <Card tone="warn" padding="lg" className="mt-3">
+        <Eyebrow className="mb-3 !text-[var(--warn)]">Real threats</Eyebrow>
+        <Bullets
+          items={[
+            <>
+              <B>Google/Fitbit Personal Health Coach (Gemini)</B>: announced
+              2026, fitness/sleep first. Long-term threat, but wearable-first
+              and SKU-blind. Won&apos;t ingest supplement bottles, skin photos,
+              recovery day counts, or procedure-specific context.
+            </>,
+            <>
+              <B>RP Hypertrophy</B>: the one app actually doing refinement
+              (drops sets when stimulus-to-fatigue is bad). But
               powerlifting-only and locked inside a single mesocycle.
-            </li>
-            <li>
-              <strong>Bearable</strong> — multi-pronged + skip-as-data, but
+            </>,
+            <>
+              <B>Bearable</B>: multi-pronged + skip-as-data, but
               correlation-based, no LLM reasoning. We outclass them on
               reasoning; they outclass us on cross-condition data depth today.
-            </li>
-            <li>
-              <strong>Hinge Health</strong> — owns B2B/employer post-op. No
-              consumer SKU. Consumer post-op recovery is wide open.
-            </li>
-          </ul>
-        </div>
+            </>,
+            <>
+              <B>Hinge Health</B>: owns B2B/employer post-op. No consumer SKU.
+              Consumer post-op recovery is wide open.
+            </>,
+          ]}
+        />
+      </Card>
 
-        <div
-          className="rounded-2xl p-5 card-glass"
-        >
-          <div
-            className="text-[12px] uppercase tracking-wider mb-2"
-            style={{ color: "var(--olive)", fontWeight: 600 }}
-          >
-            5 primitives to steal (from research)
-          </div>
-          <ul
-            className="text-[13px] flex flex-col gap-2 leading-relaxed"
-            style={{ color: "var(--foreground)", opacity: 0.85 }}
-          >
-            <li>
-              <strong>1. RP's per-set stimulus/fatigue tag.</strong> Every
-              dose/skip gets a "helped / no change / worse / forgot" tag —
-              richer signal than yes/no.
-            </li>
-            <li>
-              <strong>2. Staqc's timeline overlay.</strong> Graph hairline
-              density, sleep, mood vs. supplement intake on one timeline.
+      <Card padding="lg" className="mt-3">
+        <Eyebrow className="mb-3">5 primitives to steal</Eyebrow>
+        <Bullets
+          items={[
+            <>
+              <B>RP&apos;s per-set stimulus/fatigue tag.</B> Every dose/skip
+              gets a &ldquo;helped / no change / worse / forgot&rdquo; tag.
+              Richer signal than yes/no.
+            </>,
+            <>
+              <B>Staqc&apos;s timeline overlay.</B> Graph a progress metric,
+              sleep and mood against supplement intake on one timeline.
               Visualizes the refinement story.
-            </li>
-            <li>
-              <strong>3. Hinge's stage-anchored protocol</strong> +{" "}
-              <strong>Perelel's auto-rotate.</strong> Day counter triggers
-              stack changes automatically; user approves in one tap. We
-              already have the day counter.
-            </li>
-            <li>
-              <strong>4. Bearable's factor correlation tile.</strong>{" "}
-              "Skipping minoxidil correlated with -12% itch this week."
-              Surfaced as a card, not a buried graph.
-            </li>
-            <li>
-              <strong>5. JuggernautAI's pre-session readiness check.</strong>{" "}
-              15-second check-in (sleep/stress/skin/scalp) feeds today's
-              protocol adjustments. We have QuickCheckin — make it more
-              consequential.
-            </li>
-          </ul>
-        </div>
+            </>,
+            <>
+              <B>Hinge&apos;s stage-anchored protocol</B> +{" "}
+              <B>Perelel&apos;s auto-rotate.</B> A day counter triggers stack
+              changes automatically; user approves in one tap. We already have
+              the day counter.
+            </>,
+            <>
+              <B>Bearable&apos;s factor correlation tile.</B> &ldquo;Skipping
+              magnesium correlated with worse sleep this week.&rdquo; Surfaced
+              as a card, not a buried graph.
+            </>,
+            <>
+              <B>JuggernautAI&apos;s pre-session readiness check.</B> A
+              15-second check-in (sleep, stress, energy, mood) feeds
+              today&apos;s protocol adjustments. We have QuickCheckin; make it
+              more consequential.
+            </>,
+          ]}
+        />
+      </Card>
 
-        <div
-          className="text-[12px] mt-4 leading-relaxed italic"
-          style={{ color: "var(--muted)" }}
-        >
-          The moat: refinement is anti-commerce and anti-engagement-metrics.
-          95% of the field won't build this — the only people who will are
-          willing to take revenue per outcome, not revenue per pill.
-        </div>
-      </section>
+      <p className="mt-4 text-footnote italic leading-relaxed text-[var(--muted)]">
+        The moat: refinement is anti-commerce and anti-engagement-metrics. 95%
+        of the field won&apos;t build this. The only people who will are
+        willing to take revenue per outcome, not revenue per pill.
+      </p>
 
       {/* Worries */}
-      <section className="mb-10">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          What worries me
-        </h2>
-        <div
-          className="rounded-2xl p-5"
-          style={{
-            background: "rgba(194, 145, 66, 0.08)",
-            border: "1px solid rgba(194, 145, 66, 0.25)",
-          }}
-        >
-          <ul
-            className="text-[13px] flex flex-col gap-2 leading-relaxed"
-            style={{ color: "var(--foreground)", opacity: 0.9 }}
-          >
-            <li>
-              <strong>1. Affiliate vs. trust.</strong> If Coach recommends
-              what makes us money, we die. Recommendations must be picked first;
-              affiliates only if available. Disclose every link.
-            </li>
-            <li>
-              <strong>2. Coach API cost per Pro user.</strong> Need a hard
-              cap or smart caching. Maybe Sonnet for chat + Opus only for deep
-              research.
-            </li>
-            <li>
-              <strong>3. The first-week magic moment.</strong> If Day 3 doesn't
-              produce a real refinement, churn. The whole funnel hinges on it.
-            </li>
-            <li>
-              <strong>4. Multi-pack UI complexity.</strong> Easy to make this
-              feel "one app crammed with 6 modes." Pack switching has to feel
-              like switching contexts in iOS, not switching apps.
-            </li>
-            <li>
-              <strong>5. Second-domain proof.</strong> Until we ship Fit or
-              Recovery, anyone we pitch this to says "supplement tracker." Two
+      <SectionHeader title="What worries me" />
+      <Card tone="warn" padding="lg">
+        <Bullets
+          items={[
+            <>
+              <B>Affiliate vs. trust.</B> If Coach recommends what makes us
+              money, we die. Recommendations must be picked first; affiliates
+              only if available. Disclose every link.
+            </>,
+            <>
+              <B>Coach cost per Pro user.</B> Need a hard cap or smart caching.
+              Maybe Sonnet for chat + Opus only for deep research.
+            </>,
+            <>
+              <B>The first-week magic moment.</B> If Day 3 doesn&apos;t produce
+              a real refinement, churn. The whole funnel hinges on it.
+            </>,
+            <>
+              <B>Multi-pack UI complexity.</B> Easy to make this feel &ldquo;one
+              app crammed with 6 modes.&rdquo; Pack switching has to feel like
+              switching contexts in iOS, not switching apps.
+            </>,
+            <>
+              <B>Second-domain proof.</B> Until we ship Fit or Recovery, anyone
+              we pitch this to says &ldquo;supplement tracker.&rdquo; Two
               domains shipped = a platform; one = a feature.
-            </li>
-          </ul>
-        </div>
-      </section>
+            </>,
+          ]}
+        />
+      </Card>
 
-      {/* CTA */}
-      <section className="mb-10">
-        <div
-          className="rounded-2xl p-5"
-          style={{
-            background: "var(--primary)",
-            color: "var(--primary-fg)",
-          }}
-        >
-          <div
-            className="text-[11px] uppercase tracking-wider mb-2"
-            style={{ opacity: 0.7, fontWeight: 600 }}
-          >
-            Test what's already built
-          </div>
-          <div className="text-[16px] mb-3" style={{ fontWeight: 500 }}>
-            See it in action
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/fit"
-              className="text-[13px] px-3.5 py-2 rounded-xl"
-              style={{
-                background: "rgba(255, 255, 255, 0.18)",
-                color: "#FFFFFF",
-                fontWeight: 500,
-              }}
-            >
-              Regimen Fit demo →
-            </Link>
-            <Link
-              href="/welcome"
-              className="text-[13px] px-3.5 py-2 rounded-xl"
-              style={{
-                background: "rgba(255, 255, 255, 0.18)",
-                color: "#FFFFFF",
-                fontWeight: 500,
-              }}
-            >
-              Magic moment →
-            </Link>
-            <Link
-              href="/today"
-              className="text-[13px] px-3.5 py-2 rounded-xl"
-              style={{
-                background: "rgba(255, 255, 255, 0.18)",
-                color: "#FFFFFF",
-                fontWeight: 500,
-              }}
-            >
-              Today (current product) →
-            </Link>
-          </div>
-        </div>
-      </section>
+      {/* Try it */}
+      <SectionHeader eyebrow="Test what's already built" title="See it in action" />
+      <ListGroup>
+        <ListRow href="/fit" icon="dumbbell" title="Regimen Fit demo" />
+        <ListRow href="/welcome" icon="sparkle" title="Magic moment" />
+        <ListRow href="/today" icon="sun" title="Today" subtitle="The current product" />
+        <ListRow href="/strategy/revenue" icon="dollar" title="Revenue dashboard" />
+      </ListGroup>
     </div>
   );
 }

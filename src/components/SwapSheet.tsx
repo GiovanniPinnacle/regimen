@@ -4,6 +4,11 @@ import { useRef, useState } from "react";
 import { logSwap } from "@/lib/storage";
 import { uploadPhoto } from "@/lib/photo";
 import type { Item } from "@/lib/types";
+import Sheet from "@/components/ui/Sheet";
+import Button from "@/components/ui/Button";
+import { ChipButton } from "@/components/ui/Chip";
+import Icon, { type IconName } from "@/components/Icon";
+import { Eyebrow } from "@/components/ui/Section";
 
 const QUICK_SWAPS = [
   "Skipped meal",
@@ -36,7 +41,7 @@ export default function SwapSheet({
   const [err, setErr] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  if (!open || !item) return null;
+  if (!item) return null;
 
   async function save(value: string) {
     if (!item || !value.trim()) return;
@@ -122,157 +127,115 @@ export default function SwapSheet({
     }
   }
 
+  const photoLabel: Record<typeof stage, { icon: IconName; text: string }> = {
+    idle: { icon: "camera", text: "Photo of what you ate" },
+    uploading: { icon: "upload", text: "Uploading…" },
+    analyzing: { icon: "search", text: "Coach is looking…" },
+    saving: { icon: "check", text: "Saving…" },
+  };
+  const pl = photoLabel[stage];
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{
-        background: "rgba(0, 0, 0, 0.6)",
-        backdropFilter: "blur(4px)",
-        WebkitBackdropFilter: "blur(4px)",
-      }}
-      onClick={onClose}
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Ate something else?"
+      description={`Instead of ${item.name}`}
+      footer={
+        <Button
+          type="submit"
+          form="swap-form"
+          fullWidth
+          size="lg"
+          disabled={busy || !text.trim()}
+          loading={stage === "saving"}
+        >
+          Log swap
+        </Button>
+      }
     >
-      <div
-        className="w-full max-w-md rounded-t-3xl p-5 pb-8 glass-strong"
-        style={{
-          paddingBottom: "calc(env(safe-area-inset-bottom, 0) + 1.5rem)",
+      <form
+        id="swap-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save(text);
         }}
-        onClick={(e) => e.stopPropagation()}
+        className="flex flex-col gap-3"
       >
-        <div className="flex items-baseline justify-between gap-2 mb-4">
-          <div>
-            <div
-              className="text-[11px] uppercase tracking-wider"
-              style={{ color: "var(--muted)", fontWeight: 500 }}
-            >
-              Ate something else?
-            </div>
-            <div className="text-[16px] mt-1" style={{ fontWeight: 500 }}>
-              Instead of: {item.name}
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-[20px] leading-none px-2"
-            style={{ color: "var(--muted)" }}
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="What did you actually eat? (e.g., '6oz salmon + avocado + arugula')"
+          aria-label="What you ate instead"
+          rows={3}
+          autoFocus
+          disabled={busy && stage !== "saving"}
+          className="input-field resize-none"
+        />
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            save(text);
-          }}
-          className="flex flex-col gap-3"
-        >
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="What did you actually eat? (e.g., '6oz salmon + avocado + arugula')"
-            rows={3}
-            autoFocus
-            disabled={busy && stage !== "saving"}
-            className="w-full border-hair rounded-lg p-3 text-[14px] resize-none focus:outline-none focus:border-hair-strong"
-            style={{
-              background: "var(--background)",
-              color: "var(--foreground)",
-            }}
+        {/* Photo upload row */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhoto}
+            className="hidden"
+            id="swap-photo"
           />
-
-          {/* Photo upload row */}
-          <div className="flex gap-2 items-center">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handlePhoto}
-              className="hidden"
-              id="swap-photo"
-            />
-            <label
-              htmlFor="swap-photo"
-              className="text-[12px] px-3 py-2 rounded-lg border-hair cursor-pointer flex items-center gap-1.5"
-              style={{
-                color: "var(--olive)",
-                opacity: busy ? 0.5 : 1,
-                pointerEvents: busy ? "none" : "auto",
-              }}
-            >
-              {stage === "uploading" && "📤 Uploading…"}
-              {stage === "analyzing" && "🔍 Coach analyzing…"}
-              {stage === "idle" && "📷 Photo of what you ate"}
-              {stage === "saving" && "💾 Saving…"}
-            </label>
-            {analyzed && (
-              <div
-                className="text-[11px]"
-                style={{ color: "var(--muted)" }}
-              >
-                ↑ extracted from photo, edit before saving
-              </div>
+          <label
+            htmlFor="swap-photo"
+            aria-disabled={busy || undefined}
+            className={`inline-flex h-11 cursor-pointer items-center gap-2 rounded-[14px] border border-[var(--border)] bg-[var(--surface-alt)] px-4 text-callout font-medium text-[var(--foreground)] active:scale-[0.97] ${
+              busy ? "pointer-events-none opacity-50" : ""
+            }`}
+          >
+            {stage === "uploading" || stage === "analyzing" ? (
+              <span
+                aria-hidden
+                className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+              />
+            ) : (
+              <Icon name={pl.icon} size={16} strokeWidth={1.9} />
             )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={busy || !text.trim()}
-            className="px-4 py-2.5 rounded-lg text-[14px]"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 500,
-              opacity: busy || !text.trim() ? 0.5 : 1,
-            }}
-          >
-            {stage === "saving" ? "Saving…" : "Log swap"}
-          </button>
-        </form>
-
-        {err && (
-          <div
-            className="mt-3 text-[12px] p-2 rounded-lg"
-            style={{ color: "#b00020" }}
-          >
-            {err}
-          </div>
-        )}
-
-        <div className="mt-4">
-          <div
-            className="text-[11px] mb-2"
-            style={{ color: "var(--muted)" }}
-          >
-            Quick options
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {QUICK_SWAPS.map((q) => (
-              <button
-                key={q}
-                onClick={() => save(q)}
-                disabled={busy}
-                className="text-[12px] px-3 py-1.5 rounded-full border-hair"
-                style={{
-                  color: "var(--muted)",
-                  opacity: busy ? 0.5 : 1,
-                }}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
+            {pl.text}
+          </label>
+          {analyzed && (
+            <span className="text-caption text-[var(--muted)]">
+              Filled in from your photo. Edit before saving.
+            </span>
+          )}
         </div>
+      </form>
 
-        <div
-          className="text-[11px] mt-4 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Photo → Coach vision extracts ingredients + flags any triggers (insulin/histamine/hard NOs) and pre-fills the textarea. Edit before saving.
+      {err && (
+        <p role="alert" className="mt-3 text-footnote text-[var(--error)]">
+          {err}
+        </p>
+      )}
+
+      <div className="mt-5">
+        <Eyebrow className="mb-2">Quick options</Eyebrow>
+        <div className="flex flex-wrap gap-2">
+          {QUICK_SWAPS.map((q) => (
+            <ChipButton
+              key={q}
+              onClick={() => save(q)}
+              disabled={busy}
+              className={busy ? "opacity-50" : ""}
+            >
+              {q}
+            </ChipButton>
+          ))}
         </div>
       </div>
-    </div>
+
+      <p className="mt-4 text-caption leading-relaxed text-[var(--muted)]">
+        Snap a photo and Coach lists what&apos;s on the plate, flags anything
+        that conflicts with your plan, and fills in the box above. Edit before
+        saving.
+      </p>
+    </Sheet>
   );
 }

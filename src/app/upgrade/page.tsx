@@ -4,8 +4,12 @@
 // CTAs. Stripe wiring happens here once keys are configured; today the
 // CTA opens an email/contact placeholder.
 
-import Link from "next/link";
 import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import { SectionHeader } from "@/components/ui/Section";
 import { showToast } from "@/lib/toast";
 
 // Pricing copy is honest — we only promise what's actually shipped.
@@ -18,29 +22,29 @@ const TIERS = [
     name: "Free",
     price: "$0",
     period: "forever",
-    cta: "You're here",
+    cta: "Current plan",
     features: [
       "Track up to 30 items",
       "1 active protocol pack",
-      "Coach: 30 messages/day",
-      "5 deep-research memos/month",
-      "10 photo + bloodwork scans/month",
-      "Basic patterns + skip-with-reason",
+      "Coach: 30 messages a day",
+      "5 deep-research memos a month",
+      "10 photo and bloodwork scans a month",
+      "Basic patterns and skip reasons",
     ],
   },
   {
     key: "pro",
     name: "Pro",
     price: "$9",
-    period: "/mo · or $79/yr",
-    cta: "Start Pro",
+    period: "a month · or $79 a year",
+    cta: "For people who use Coach daily",
     highlight: true,
     badge: "Best value",
     features: [
-      "Unlimited items + protocols",
-      "Coach: 200 messages/day",
+      "Unlimited items and protocols",
+      "Coach: 200 messages a day",
       "Unlimited deep-research memos",
-      "50 photo + bloodwork scans/month",
+      "50 photo and bloodwork scans a month",
       "Oura sync (Apple Health coming soon)",
       "Weekly refinement digest",
       "Priority new-protocol access",
@@ -50,8 +54,8 @@ const TIERS = [
     key: "lifetime",
     name: "Lifetime",
     price: "$199",
-    period: "once · cap 1,000 users",
-    cta: "Founder tier",
+    period: "once",
+    cta: "Founder tier · limited to 1,000 people",
     features: [
       "All Pro features — no recurring charge",
       "Locked-in pricing — never goes up",
@@ -64,27 +68,27 @@ const TIERS = [
 const VALUE_BREAKDOWN = [
   {
     icon: "sparkle" as const,
-    title: "Coach with your stack in context",
+    title: "Coach that knows your routine",
     detail:
-      "Ask anything about your regimen, get refinement memos that reference your actual items + logs + bloodwork. Pro raises the daily cap to 200 messages.",
+      "Ask anything and get answers grounded in your own stack, logs and bloodwork. Pro raises the daily limit to 200 messages.",
   },
   {
     icon: "camera" as const,
-    title: "Photo + bloodwork parsing",
+    title: "Photo and bloodwork reading",
     detail:
-      "Snap a meal, a supplement label, a lab report. Coach extracts macros, ingredients, biomarker values. Pro: 50 scans/month vs 10 on Free.",
+      "Snap a meal, a supplement label or a lab report and Coach pulls out the macros, ingredients and marker values. 50 scans a month on Pro, 10 on Free.",
   },
   {
-    icon: "trend-down" as const,
+    icon: "book" as const,
     title: "Deep research on any item",
     detail:
-      "1500-word memos with mechanism, dose-response, stack interactions, citations — generated on demand. Free is capped at 5/month; Pro is unlimited.",
+      "In-depth write-ups on how something works, how much to take, what it interacts with, and the studies behind it. 5 a month on Free, unlimited on Pro.",
   },
   {
     icon: "graph" as const,
-    title: "Weekly refinement digest",
+    title: "Weekly digest",
     detail:
-      "Auto-generated rundown of last week — adherence, reactions, patterns, drop candidates. Surfaces what changed without you asking.",
+      "A rundown of your week — consistency, how you responded, patterns, and what might be worth dropping — without having to ask.",
   },
 ];
 
@@ -107,232 +111,104 @@ export default function UpgradePage() {
   }
 
   return (
-    <div className="pb-24 max-w-2xl mx-auto">
-      <div className="mb-4">
-        <Link
-          href="/today"
-          className="text-[12px]"
-          style={{ color: "var(--muted)" }}
-        >
-          ← Back
-        </Link>
+    <div className="mx-auto max-w-2xl pb-24">
+      <PageHeader
+        title="Regimen Pro"
+        back="/you"
+        backLabel="You"
+        subtitle="More room to use Coach, scans and research. Same app, same data."
+      />
+
+      {/* What Pro adds */}
+      <div className="overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)] divide-y divide-[var(--border)]">
+        {VALUE_BREAKDOWN.map((v) => (
+          <div key={v.title} className="flex items-start gap-3 px-4 py-4">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+              <Icon name={v.icon} size={17} strokeWidth={1.8} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-body font-medium">{v.title}</div>
+              <p className="mt-0.5 text-footnote text-[var(--muted)]">
+                {v.detail}
+              </p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Hero */}
-      <header className="text-center mb-10 pt-2">
-        <div
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{
-            color: "var(--pro)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          Pro
-        </div>
-        <h1
-          className="text-[36px] sm:text-[44px] leading-tight mb-3"
-          style={{ fontWeight: 700, letterSpacing: "-0.025em" }}
-        >
-          Coach without
-          <br />
-          <span
-            style={{
-              background:
-                "linear-gradient(135deg, var(--pro) 0%, var(--pro-soft) 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
+      {/* Plans */}
+      <SectionHeader title="Plans" />
+      <div className="flex flex-col gap-3">
+        {TIERS.map((t) => (
+          <Card
+            key={t.key}
+            variant={t.highlight ? "raised" : "default"}
+            padding="lg"
+            className={t.highlight ? "!border-[var(--border-strong)]" : ""}
           >
-            the limits
-          </span>
-          .
-        </h1>
-        <p
-          className="text-[15px] leading-relaxed max-w-md mx-auto"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          Pro raises every cap that matters — Coach messages, deep-research
-          memos, photo + bloodwork scans. Same data, same Coach, more room
-          to use them.
+            <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-title-3">{t.name}</h3>
+                {t.badge && <Chip size="sm">{t.badge}</Chip>}
+                {t.key === "free" && (
+                  <Chip size="sm" icon="check">
+                    Current
+                  </Chip>
+                )}
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-title-1 tabular-nums">{t.price}</span>
+                <span className="text-footnote text-[var(--muted)]">
+                  {t.period}
+                </span>
+              </div>
+            </div>
+            <p className="mt-1 text-footnote text-[var(--muted)]">{t.cta}</p>
+            <ul className="mt-4 flex flex-col gap-2">
+              {t.features.map((f) => (
+                <li
+                  key={f}
+                  className="flex items-start gap-2.5 text-callout text-[var(--foreground-soft)]"
+                >
+                  <Icon
+                    name="check"
+                    size={16}
+                    strokeWidth={2.2}
+                    className="mt-0.5 shrink-0 text-[var(--foreground)]"
+                  />
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+            {t.key !== "free" && (
+              <Button
+                onClick={() => handleUpgrade(t.key)}
+                variant={t.highlight ? "primary" : "secondary"}
+                icon="bell"
+                fullWidth
+                className="mt-5"
+              >
+                {t.key === "lifetime"
+                  ? "Notify me about Lifetime"
+                  : "Notify me when Pro opens"}
+              </Button>
+            )}
+          </Card>
+        ))}
+      </div>
+
+      <p className="mt-3 px-1 text-footnote text-[var(--muted)]">
+        Checkout isn&apos;t open yet. Tap a plan and we&apos;ll email you the
+        moment it is — nothing is charged today.
+      </p>
+
+      <Card variant="inset" padding="lg" className="mt-8 text-center">
+        <div className="text-body font-medium">Cancel anytime.</div>
+        <p className="mt-1 text-footnote text-[var(--muted)]">
+          Pro bills monthly or yearly. Lifetime is a single payment — you keep
+          Pro features even if pricing changes later.
         </p>
-      </header>
-
-      {/* Value breakdown */}
-      <section className="mb-8">
-        <div className="rounded-2xl card-glass overflow-hidden">
-          {VALUE_BREAKDOWN.map((v, i) => (
-            <div
-              key={v.title}
-              className="px-4 py-4 flex items-start gap-3"
-              style={{
-                borderBottom:
-                  i < VALUE_BREAKDOWN.length - 1
-                    ? "1px solid var(--border)"
-                    : undefined,
-              }}
-            >
-              <span
-                className="shrink-0 mt-0.5 h-9 w-9 rounded-lg flex items-center justify-center"
-                style={{
-                  background: "var(--pro-tint)",
-                  color: "var(--pro)",
-                }}
-              >
-                <Icon name={v.icon} size={18} strokeWidth={1.7} />
-              </span>
-              <div className="flex-1 min-w-0">
-                <div
-                  className="text-[14px] leading-snug"
-                  style={{ fontWeight: 600 }}
-                >
-                  {v.title}
-                </div>
-                <div
-                  className="text-[12px] mt-1 leading-relaxed"
-                  style={{ color: "var(--muted)" }}
-                >
-                  {v.detail}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Pricing tiers */}
-      <section className="mb-10">
-        <div className="flex flex-col gap-3">
-          {TIERS.map((t) => (
-            <div
-              key={t.key}
-              className="rounded-2xl p-5"
-              style={{
-                background: t.highlight
-                  ? "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)"
-                  : "var(--surface)",
-                color: t.highlight ? "#FFFFFF" : "var(--foreground)",
-                border: t.highlight
-                  ? "1px solid var(--pro)"
-                  : "1px solid var(--border)",
-                boxShadow: t.highlight
-                  ? "0 14px 38px rgba(139, 124, 252, 0.30)"
-                  : "var(--shadow-card)",
-              }}
-            >
-              <div className="flex items-baseline justify-between gap-2 mb-2 flex-wrap">
-                <div className="flex items-baseline gap-2">
-                  <div className="text-[18px]" style={{ fontWeight: 600 }}>
-                    {t.name}
-                  </div>
-                  {t.badge && (
-                    <span
-                      className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                      style={{
-                        background: "rgba(255, 255, 255, 0.22)",
-                        color: "#FFFFFF",
-                        fontWeight: 700,
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      {t.badge}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span
-                    className="text-[28px] tabular-nums leading-none"
-                    style={{
-                      fontWeight: 700,
-                      letterSpacing: "-0.02em",
-                    }}
-                  >
-                    {t.price}
-                  </span>
-                  <span
-                    className="text-[12px]"
-                    style={{
-                      opacity: t.highlight ? 0.85 : 0.6,
-                    }}
-                  >
-                    {t.period}
-                  </span>
-                </div>
-              </div>
-              <div
-                className="text-[11px] uppercase tracking-wider mb-3"
-                style={{
-                  opacity: t.highlight ? 0.78 : 0.6,
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                }}
-              >
-                {t.cta}
-              </div>
-              <ul className="flex flex-col gap-1.5 mb-4">
-                {t.features.map((f) => (
-                  <li
-                    key={f}
-                    className="flex items-start gap-2 text-[13px] leading-relaxed"
-                    style={{
-                      opacity: t.highlight ? 0.95 : 0.9,
-                    }}
-                  >
-                    <Icon
-                      name="check-circle"
-                      size={13}
-                      strokeWidth={1.8}
-                      className="shrink-0 mt-0.5"
-                    />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-              {t.key !== "free" && (
-                <button
-                  onClick={() => handleUpgrade(t.key)}
-                  className="w-full rounded-xl px-4 py-3 text-[14px]"
-                  style={{
-                    background: t.highlight
-                      ? "rgba(255, 255, 255, 0.95)"
-                      : "var(--pro)",
-                    color: t.highlight ? "var(--pro-deep)" : "#FFFFFF",
-                    fontWeight: 700,
-                  }}
-                >
-                  {t.key === "lifetime"
-                    ? "Claim Lifetime →"
-                    : "Upgrade to Pro →"}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* FAQ teaser */}
-      <section
-        className="rounded-2xl p-5 text-center"
-        style={{
-          background: "var(--surface-alt)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <div
-          className="text-[14px] mb-1"
-          style={{ fontWeight: 500 }}
-        >
-          Cancel anytime. No questions asked.
-        </div>
-        <div
-          className="text-[12px]"
-          style={{ color: "var(--muted)" }}
-        >
-          Pro charges monthly or yearly. Lifetime is a one-time payment;
-          you keep Pro features forever even if pricing changes.
-        </div>
-      </section>
+      </Card>
     </div>
   );
 }
