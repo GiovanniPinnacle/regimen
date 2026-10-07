@@ -114,14 +114,8 @@ export const DAILY_LOGGABLE_TYPES: ItemType[] = [
   "practice",
 ];
 
-// Post-op day zero = 2026-04-17 (FUE surgery date)
-export const POSTOP_DATE_ZERO = "2026-04-17";
-
-export function daysSincePostOp(today: Date = new Date()): number {
-  const zero = new Date(POSTOP_DATE_ZERO);
-  const diff = today.getTime() - zero.getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
-}
+// Post-op day: there is deliberately no global surgery date. Use the
+// user's profiles.postop_date via postOpDayFor() in @/lib/personalization.
 
 export function todayISO(date: Date = new Date()): string {
   const y = date.getFullYear();

@@ -18,6 +18,7 @@ import {
   contextToCachedSystem,
 } from "@/lib/context";
 import { getUserToday } from "@/lib/user-date";
+import { scalpPhotoPrompt } from "@/lib/personalization";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,13 +26,14 @@ export const maxDuration = 60;
 type AnalyzeType = "food" | "supplement" | "scalp";
 
 const PROMPTS: Record<AnalyzeType, string> = {
-  food: `Analyze this food photo. Based on the user's trigger profile (insulin switch + histamine switch) and hard NOs:
+  food: `Analyze this food photo against the user's hard NOs and any food triggers in their profile:
 
 1. List every ingredient you can identify
-2. For each, flag whether it hits:
-   - INSULIN switch (sugar, dates, dried fruit, honey, juice, high-GI foods)
-   - HISTAMINE switch (aged cheese, cured meats, dark chocolate, coconut water, fermented foods with biogenic amines)
-   - HARD NO list (see system prompt)
+2. For each, flag whether it is:
+   - "insulin": high-glycemic (sugar, dates, dried fruit, honey, juice, refined starch)
+   - "histamine": high-histamine (aged cheese, cured meats, dark chocolate, fermented foods with biogenic amines)
+   - "hard_no": on the HARD NO list (see system prompt)
+   The insulin/histamine flags are informational. Only let them push the verdict toward "caution"/"avoid" when the user's profile names them as triggers (or for clear goal conflicts, e.g. blood-sugar goals).
 3. Estimate the macros (calories, protein, fat, carbs in grams) for the WHOLE plate as visible. Be honest about uncertainty — these are visual estimates.
 4. Estimate serving description ("approx 1 large plate", "1 bowl", "small snack", etc.)
 5. Overall verdict: "safe" | "caution" | "avoid"
@@ -53,17 +55,8 @@ Return ONLY valid JSON in this exact shape:
 Return ONLY valid JSON:
 {"name": "...", "brand": "...", "ingredients": [{"name": "...", "dose": "..."}], "hard_no_hits": [], "duplicates": [], "proposal": {"timing_slot": "...", "category": "...", "goals": [], "frequency": "..."}, "verdict": "add"|"skip"|"caution", "reasoning": "..."}`,
 
-  scalp: `Analyze this scalp photo at the user's current post-op day. Comment on:
-
-1. Crusting state (expected for the day)
-2. Redness / inflammation trajectory
-3. Any anomalies to flag (signs of infection, pus, unusual swelling, spreading redness, ingrown hairs, etc.)
-4. Positive signs (fading redness, crusts loosening, even healing)
-5. Verdict: "on_track" | "watch" | "concerning"
-6. 2-3 sentence narrative
-
-Return ONLY valid JSON:
-{"day_post_op": <number>, "crusting": "...", "redness": "...", "anomalies": [], "positive": [], "verdict": "on_track"|"watch"|"concerning", "narrative": "..."}`,
+  // Built per request from the user's profile — see scalpPhotoPrompt().
+  scalp: "",
 };
 
 type FoodResult = {
@@ -96,7 +89,7 @@ export async function POST(request: NextRequest) {
   if (!parsedBody.ok) return parsedBody.response;
   const body = parsedBody.data;
 
-  if (!body.type || !body.imageUrl || !PROMPTS[body.type]) {
+  if (!body.type || !body.imageUrl || !(body.type in PROMPTS)) {
     return NextResponse.json(
       { error: "Missing type or imageUrl" },
       { status: 400 },
@@ -131,7 +124,12 @@ export async function POST(request: NextRequest) {
 
   const anthropic = getAnthropic();
   try {
-    const system = contextToCachedSystem(await buildContextForUser(user.id));
+    const ctx = await buildContextForUser(user.id);
+    const system = contextToCachedSystem(ctx);
+    const prompt =
+      body.type === "scalp"
+        ? scalpPhotoPrompt(ctx.daysSincePostOp)
+        : PROMPTS[body.type];
     const res = await anthropic.messages.create({
       ...MODEL_OPTS.vision,
       max_tokens: 4096,
@@ -152,7 +150,7 @@ export async function POST(request: NextRequest) {
             {
               type: "text",
               text:
-                PROMPTS[body.type] +
+                prompt +
                 (body.note ? `\n\nUser's note: ${body.note}` : ""),
             },
           ],

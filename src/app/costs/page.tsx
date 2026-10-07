@@ -2,6 +2,7 @@
 // Monthly run-rate = unit cost ÷ days of supply × 30. "Unused" =
 // monthly cost × (1 − 30-day adherence against scheduled doses).
 
+import { fetchAllRowsResult } from "@/lib/supabase/paginate";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -57,12 +58,18 @@ export default async function CostsPage() {
     const { from, to } = wasteWindow(
       (profile?.timezone as string | null) ?? undefined,
     );
-    const { data: logRows, error: logErr } = await supabase
-      .from("stack_log")
-      .select("item_id, taken, date")
-      .eq("user_id", user.id)
-      .gte("date", from)
-      .lte("date", to);
+    const { data: logRows, error: logErr } = await fetchAllRowsResult<StackLogRow>(
+      (lo, hi) =>
+        supabase
+          .from("stack_log")
+          .select("item_id, taken, date")
+          .eq("user_id", user.id)
+          .gte("date", from)
+          .lte("date", to)
+          .order("date")
+          .order("item_id")
+          .range(lo, hi),
+    );
     if (logErr) console.error("costs: stack_log", logErr);
     waste = findWasteCandidates(items, (logRows ?? []) as StackLogRow[], {
       from,

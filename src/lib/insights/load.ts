@@ -3,6 +3,7 @@
 // this file is the only one that touches Supabase.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { addDaysISO, localDateISO, type DoseLog, type SchedulableItem } from "@/lib/series";
 import type { CheckinRow, OuraRow } from "./metrics";
 import type { SkipLogRow } from "./patterns";
@@ -38,30 +39,9 @@ function logErr(where: string, err: unknown) {
   if (err) console.error(`insights load: ${where}`, err);
 }
 
-const PAGE = 1000; // PostgREST max_rows
-
-type PageResult = { data: unknown[] | null; error: unknown };
-
-/** Page through a query past the 1000-row cap. `page(from, to)` must
- *  return a stably ordered `.range(from, to)` query. */
-export async function fetchAllRows<T>(
-  page: (from: number, to: number) => PromiseLike<PageResult>,
-  where: string,
-  maxPages = 20,
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let p = 0; p < maxPages; p++) {
-    const { data, error } = await page(p * PAGE, p * PAGE + PAGE - 1);
-    if (error) {
-      logErr(where, error);
-      break;
-    }
-    const rows = (data ?? []) as T[];
-    out.push(...rows);
-    if (rows.length < PAGE) break;
-  }
-  return out;
-}
+// Pagination helper lives in src/lib/supabase/paginate.ts; re-exported
+// here because pages import it from this module.
+export { fetchAllRows };
 
 /** Everything the /insights hub needs for the last `days` days. */
 export async function loadInsightsData(

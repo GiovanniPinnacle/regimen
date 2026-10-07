@@ -3,7 +3,16 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { daysSincePostOp } from "@/lib/constants";
+import { fetchAllRowsResult } from "@/lib/supabase/paginate";
+import {
+  conditionRuleLines,
+  detectUserTraits,
+  goalsFor,
+  possessive,
+  postOpDayFor,
+  userTagOf,
+  type UserTraits,
+} from "@/lib/personalization";
 import type { Item, SymptomLog } from "@/lib/types";
 import { calcMacros, type MacroTargets } from "@/lib/macros";
 import { cache } from "react";
@@ -40,7 +49,6 @@ export type ProtocolContext = {
   userId: string;
   /** User's local calendar day (YYYY-MM-DD, from profiles.timezone). */
   today: string;
-  dayPostOp: number;
   goals: string[];
   activeItems: Item[];
   queuedItems: Item[];
@@ -80,8 +88,12 @@ export type ProtocolContext = {
   }[];
   /** User's display name (from profiles.display_name) — null when unset. */
   displayName: string | null;
-  /** Days since user's optional postop_date — null when not configured. */
+  /** Days since user's optional postop_date (user-local) — null when not
+   *  configured. There is no global fallback date. */
   daysSincePostOp: number | null;
+  /** Condition flags derived from the user's own profile + items. Gate
+   *  condition-specific prompt rules (seb derm, hair, biotin, post-op). */
+  traits: UserTraits;
   /** Today's intake totals (meals + water) for the day-of-week trend. */
   todayIntake: {
     calories: number;
@@ -325,7 +337,7 @@ async function buildContextForUserUncached(
     admin
       .from("profiles")
       .select(
-        "display_name, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, about_me, hard_nos, timezone",
+        "display_name, goals, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, about_me, hard_nos, timezone",
       )
       .eq("id", userId)
       .maybeSingle(),
@@ -383,6 +395,8 @@ async function buildContextForUserUncached(
     .map((i) => i.catalog_item_id)
     .filter((id): id is string => Boolean(id));
 
+  type StackLogFullRow = StackLogRow & { skipped_reason: string | null };
+
   // ---- Phase B: local-day windows + catalog rows for the active stack.
   const [
     stackLog30Res,
@@ -396,22 +410,32 @@ async function buildContextForUserUncached(
     catalogRowsRes,
   ] = await Promise.all([
     // ONE 30-day stack_log read feeds 7-day adherence, 7-day skips and
-    // 30-day waste detection (was three separate queries). Newest first
-    // so the PostgREST row cap, if ever hit, drops the oldest days.
-    admin
-      .from("stack_log")
-      .select("item_id, date, taken, skipped_reason")
-      .eq("user_id", userId)
-      .gte("date", since(30))
-      .order("date", { ascending: false }),
-    // 60-day taken dates — streak (not capped at 14) + 14d unique log days
-    admin
-      .from("stack_log")
-      .select("date")
-      .eq("user_id", userId)
-      .eq("taken", true)
-      .gte("date", since(60))
-      .order("date", { ascending: false }),
+    // 30-day waste detection (was three separate queries). A 50-item
+    // stack logs ~1500 rows in 30 days — past PostgREST's 1000-row cap —
+    // so page through it.
+    fetchAllRowsResult<StackLogFullRow>((a, b) =>
+      admin
+        .from("stack_log")
+        .select("item_id, date, taken, skipped_reason")
+        .eq("user_id", userId)
+        .gte("date", since(30))
+        .order("date", { ascending: false })
+        .order("id", { ascending: true })
+        .range(a, b),
+    ),
+    // 60-day taken dates — streak (not capped at 14) + 14d unique log days.
+    // Up to (items × 60) rows, so paged too.
+    fetchAllRowsResult<{ date: string }>((a, b) =>
+      admin
+        .from("stack_log")
+        .select("date")
+        .eq("user_id", userId)
+        .eq("taken", true)
+        .gte("date", since(60))
+        .order("date", { ascending: false })
+        .order("id", { ascending: true })
+        .range(a, b),
+    ),
     // 21 days of check-ins: the last 3 days render verbatim; the scales
     // feed the correlation detector (symptom_log has no writer today).
     admin
@@ -496,8 +520,7 @@ async function buildContextForUserUncached(
     if (res.error) console.error(`buildContextForUser: ${name}`, res.error);
   }
 
-  type StackLogFullRow = StackLogRow & { skipped_reason: string | null };
-  const stackLog30 = (stackLog30Res.data ?? []) as StackLogFullRow[];
+  const stackLog30 = stackLog30Res.data;
   const stackLog7 = stackLog30.filter((r) => r.date >= since(7));
 
   type ChangelogFullRow = ChangelogRow & { triggered_by: string | null };
@@ -604,6 +627,10 @@ async function buildContextForUserUncached(
     });
   }
 
+  const hardNos = ((profile?.hard_nos as
+    | { name: string; reason?: string }[]
+    | null) ?? []).map((h) => `${h.name}${h.reason ? ` (${h.reason})` : ""}`);
+
   const recentSkips = stackLog7
     .filter((r) => !r.taken && r.skipped_reason)
     .slice(0, 40)
@@ -683,9 +710,7 @@ async function buildContextForUserUncached(
   const worsenedItemCount = recentReactions.filter((r) => r.worse >= 2).length;
 
   // Streak + unique log days (14d window)
-  const takenDates = ((stackLog60Res.data ?? []) as { date: string }[]).map(
-    (r) => r.date,
-  );
+  const takenDates = stackLog60Res.data.map((r) => r.date);
   const uniqueLogDays14d = new Set(takenDates.filter((d) => d >= since(14)))
     .size;
 
@@ -743,15 +768,11 @@ async function buildContextForUserUncached(
   return {
     userId,
     today,
-    dayPostOp: daysSincePostOp(),
-    goals:
-      profile && (profile.about_me as Record<string, string> | null)?.top_goals
-        ? ((profile.about_me as Record<string, string>).top_goals
-            .split(/\n|;/)
-            .map((g) => g.trim())
-            .filter(Boolean)
-            .slice(0, 8) as string[])
-        : DEFAULT_GOALS,
+    goals: goalsFor(
+      (profile?.about_me as Record<string, unknown> | null) ?? null,
+      (profile?.goals as string[] | null) ?? null,
+      DEFAULT_GOALS,
+    ),
     activeItems,
     queuedItems,
     recentSymptoms: (symptomsRes.data ?? []) as SymptomLog[],
@@ -808,21 +829,19 @@ async function buildContextForUserUncached(
         protein_g: r.protein_g != null ? Number(r.protein_g) : null,
       }))
       .slice(0, 20),
-    hardNos: ((profile?.hard_nos as
-      | { name: string; reason?: string }[]
-      | null) ?? []).map(
-      (h) => `${h.name}${h.reason ? ` (${h.reason})` : ""}`,
-    ),
+    hardNos,
     displayName: (profile?.display_name as string | null) ?? null,
-    daysSincePostOp: profile?.postop_date
-      ? Math.max(
-          0,
-          Math.floor(
-            (Date.now() - new Date(profile.postop_date).getTime()) /
-              86400000,
-          ),
-        )
-      : null,
+    daysSincePostOp: postOpDayFor(
+      (profile?.postop_date as string | null) ?? null,
+      today,
+    ),
+    traits: detectUserTraits({
+      postopDate: (profile?.postop_date as string | null) ?? null,
+      profileGoals: (profile?.goals as string[] | null) ?? null,
+      aboutMe: (profile?.about_me as Record<string, unknown> | null) ?? null,
+      hardNos: hardNos,
+      activeItems,
+    }),
     macros,
     profile: profile
       ? {
@@ -958,17 +977,19 @@ export function contextToSystemBlocks(ctx: ProtocolContext): SystemPromptBlocks 
     activeByType[item.item_type].push(item);
   }
 
-  const userTag = ctx.displayName ?? "the user";
+  const userTag = userTagOf(ctx.displayName);
 
   // ── STABLE: persona + behavior rules. Depends only on the display
   // name, so it's byte-identical across every request for a user and
   // forms the first prompt-cache prefix.
   const stable: string[] = [];
   stable.push(
-    `You are Coach, the AI partner inside ${ctx.displayName ? `${ctx.displayName}'s` : "the user's"} personal health app "Regimen". Address the user as Coach — warm, direct, action-first. Sign off with concrete next steps, not encouragement clichés.`,
+    `You are Coach, the AI partner inside ${possessive(ctx.displayName)} personal health app "Regimen". Speak as Coach — warm, direct, action-first. Sign off with concrete next steps, not encouragement clichés.`,
   );
   stable.push(
-    `Refer to the user as "${userTag}" — and never as "Giovanni" or any other hardcoded identity.`,
+    ctx.displayName
+      ? `The user's name is ${userTag}. Address them by name sparingly and never call them by any other name.`
+      : `You don't know the user's name — address them as "you", never by a guessed name.`,
   );
   stable.push(``);
 
@@ -977,15 +998,15 @@ export function contextToSystemBlocks(ctx: ProtocolContext): SystemPromptBlocks 
   stable.push(`## CORE PHILOSOPHY (overrides everything below)`);
   stable.push(`A. REFINEMENT > ADDITION. Default move is to subtract, swap, simplify, or tighten dosing — NOT add new items. The stack is already comprehensive. New additions need exceptional evidence + a specific gap they fill.`);
   stable.push(`B. CONTEXT BEFORE SUGGESTIONS. Do NOT propose changes to dose, portions, supplements, or protocol without sufficient context. If you're missing info on: how long the user has been on something, recent side effects, sleep/energy/mood trend, adherence rate, or actual symptoms — ASK FIRST. End every advice response with at least one specific question that would sharpen your next answer.`);
-  stable.push(`C. DATA-HUNGRY BY DEFAULT. Constantly seek info: what he ate, did he train, why he skipped, energy/mood/sleep, stool, libido, scalp condition, photo updates. Surface gaps in the log. If he asks something and you don't have a recent meal/symptom log to reference, name the gap and ask for it.`);
+  stable.push(`C. DATA-HUNGRY BY DEFAULT. Constantly seek info: what they ate, did they train, why they skipped, energy/mood/sleep, digestion, symptoms tied to their goals, photo updates. Surface gaps in the log. If they ask something and you don't have a recent meal/symptom log to reference, name the gap and ask for it.`);
   stable.push(`D. TRACK CONSISTENCY + PROGRESS. Reference adherence percentages, streaks, and trend deltas in your responses ("you've been at 86% adherence the last 14 days vs 71% the 14 before — what changed?"). Use the recent symptom + adherence data above before answering.`);
   stable.push(`E. FOOD-FIRST. Always. Suggest food before supplement. Suggest practice before product. Suggest dropping > suggest adding.`);
   stable.push(``);
   stable.push(`## HARD CONSTRAINTS`);
-  stable.push(`1. POST-OP SAFETY: if a recovery context is set above and the user is in Day 0-14, flag anything antiplatelet (high-dose omega-3, curcumin, vitamin E >400 IU, NSAIDs, garlic, ginkgo) as "wait Day 14+".`);
-  stable.push(`2. TRIGGER AWARENESS: seb derm flares on (a) insulin spikes (sugar/dates/dried fruit/honey/juice) and (b) histamine (aged cheese/cured meats/dark chocolate/coconut water). Dairy hits BOTH. Flag any food/recipe that hits these.`);
-  stable.push(`3. NEVER recommend HARD NOs listed above. Never re-suggest items the user has explicitly retired unless they ask again.`);
-  stable.push(`4. BLOODWORK INTERFERENCE: biotin >5000 mcg pauses 72h before any draw; Tongkat Ali pauses 7-14d before to avoid T-result confounding.`);
+  stable.push(`1. SAFETY FIRST: respect the user's diagnoses, medications, allergies and any procedure/recovery context in their profile. Flag interactions plainly; defer to their clinician for anything prescription- or surgery-specific.`);
+  stable.push(`2. TRIGGER AWARENESS: if the profile or HARD NOs name food triggers, flag any food/recipe that hits them.`);
+  stable.push(`3. NEVER recommend HARD NOs listed in the profile. Never re-suggest items the user has explicitly retired unless they ask again.`);
+  stable.push(`4. Follow any PERSONAL RULES in the profile block — they're specific to this user.`);
   stable.push(``);
   stable.push(`## STYLE — read this carefully, the chat UI is small and dense`);
   stable.push(
@@ -1020,7 +1041,7 @@ export function contextToSystemBlocks(ctx: ProtocolContext): SystemPromptBlocks 
   stable.push(`- A queued item's review_trigger has fired but it's still queued`);
   stable.push(`- An item with days_supply hasn't been re-stocked and is past depletion`);
   stable.push(`- An item has 0% adherence over 14+ days (suggest retiring or repositioning)`);
-  stable.push(`- A symptom score (sleep/seb_derm/energy) trended down for 7+ days without a stack adjustment to address it`);
+  stable.push(`- A symptom score (sleep/energy/mood/skin) trended down for 7+ days without a stack adjustment to address it`);
   stable.push(``);
   stable.push(`## VENDOR / BRAND GUIDANCE`);
   stable.push(`When proposing a NEW item (action: add or queue), include a brand suggestion in the proposal extra fields whenever you have a confident pick. Prefer in this order:`);
@@ -1052,6 +1073,14 @@ export function contextToSystemBlocks(ctx: ProtocolContext): SystemPromptBlocks 
   // when they edit the stack/profile or upload bloodwork, so it's the
   // second cache prefix.
   const profile: string[] = [];
+  // Condition-specific rules — only for users whose own data calls for
+  // them (procedure date, seb derm, hair loss, biotin in the stack, …).
+  const personalRules = conditionRuleLines(ctx.traits);
+  if (personalRules.length > 0) {
+    profile.push(`# PERSONAL RULES (from ${possessive(ctx.displayName)} profile + stack)`);
+    for (const r of personalRules) profile.push(r);
+    profile.push(``);
+  }
   profile.push(`# GOALS (priority order)`);
   ctx.goals.forEach((g, i) => profile.push(`${i + 1}. ${g}`));
   profile.push(``);
@@ -1440,8 +1469,10 @@ export function contextToSystemBlocks(ctx: ProtocolContext): SystemPromptBlocks 
     // We fetch 21 days for the correlation detector but only render the
     // most recent 7 in the prompt to keep token count sane.
     for (const s of ctx.recentSymptoms.slice(0, 7)) {
+      // seb_derm is a legacy column — render it only when the user
+      // actually scored it.
       volatile.push(
-        `- ${s.date}: feel=${s.feel_score ?? "—"}, sleep=${s.sleep_quality ?? "—"}, seb_derm=${s.seb_derm_score ?? "—"}, stress=${s.stress ?? "—"}, energy_pm=${s.energy_pm ?? "—"}${s.notes ? ` · ${s.notes}` : ""}`,
+        `- ${s.date}: feel=${s.feel_score ?? "—"}, sleep=${s.sleep_quality ?? "—"}${s.seb_derm_score != null ? `, seb_derm=${s.seb_derm_score}` : ""}, stress=${s.stress ?? "—"}, energy_pm=${s.energy_pm ?? "—"}${s.notes ? ` · ${s.notes}` : ""}`,
       );
     }
     volatile.push(``);

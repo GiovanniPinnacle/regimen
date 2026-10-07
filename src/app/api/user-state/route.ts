@@ -10,6 +10,7 @@ import type { UserStage, UserSignals } from "@/lib/context";
 import { getProtocol } from "@/lib/protocols";
 import { addDaysISO, computeStreak, protocolProgress } from "@/lib/series";
 import { getUserToday } from "@/lib/user-date";
+import { fetchAllRowsResult } from "@/lib/supabase/paginate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,12 +48,18 @@ export async function GET() {
         "id, status, item_type, owned, purchase_state",
       ).eq("user_id", userId),
       // 60d so the streak isn't capped at the 14d unique-days window.
-      supabase
-        .from("stack_log")
-        .select("date")
-        .eq("user_id", userId)
-        .eq("taken", true)
-        .gte("date", since60),
+      // Up to items × 60 rows — page past PostgREST's 1000-row cap.
+      fetchAllRowsResult<{ date: string }>((a, b) =>
+        supabase
+          .from("stack_log")
+          .select("date")
+          .eq("user_id", userId)
+          .eq("taken", true)
+          .gte("date", since60)
+          .order("date", { ascending: false })
+          .order("id")
+          .range(a, b),
+      ),
       supabase
         .from("item_reactions")
         .select("item_id, reaction")

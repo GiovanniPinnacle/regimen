@@ -89,7 +89,7 @@ Rules:
 Required JSON shape:
 {
   "name": "string",
-  "description": "1-2 sentence why this works for him right now",
+  "description": "1-2 sentence why this works for the user right now",
   "servings": 1,
   "calories_per_serving": number,
   "protein_g": number,

@@ -16,6 +16,7 @@ import {
 } from "@/lib/anthropic";
 import { jsonError, readJson, internalError } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
+import { aboutMeChatSystem } from "@/lib/personalization";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -78,7 +79,8 @@ export async function POST(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("about_me")
+    .select("about_me, display_name")
+    .eq("id", user.id)
     .maybeSingle();
   const existing = (profile?.about_me as Record<string, string> | null) ?? {};
 
@@ -87,35 +89,12 @@ export async function POST(request: NextRequest) {
   );
   const empty = FIELDS.filter((f) => !filled.includes(f));
 
-  const system = `You're filling out Giovanni's "About me" profile through a friendly back-and-forth chat. He doesn't want forms — he wants conversation.
-
-Your job per turn:
-1. Acknowledge what he just said briefly (1 sentence).
-2. Extract any structured info into a profile patch.
-3. Ask 1-3 SHARP follow-up questions for the most-important EMPTY fields.
-
-Output VALID JSON ONLY:
-{
-  "reply": "your conversational response — friendly but tight; ends with the questions",
-  "patch": { "field_name": "extracted value", ... },  // only fields with NEW/UPDATED info from his last message
-  "done": false  // set true when the profile feels reasonably full or he says he's done
-}
-
-Allowed field names:
-${FIELDS.join(", ")}
-
-Filled already (don't re-ask):
-${filled.join(", ") || "(nothing yet)"}
-
-Still empty (prioritize the most-load-bearing first — top_goals, why_doing_this, current_stressors, family_history, current_medications):
-${empty.join(", ")}
-
-Style:
-- Tight, plain English. No therapist-speak. No "amazing!" or "I love that!"
-- 1-3 questions max per turn. ONE if you're going deep on something.
-- If he says "I'm done" or similar, set done=true and reply with a quick recap.
-- If his answer is vague, ask a sharper version of the same question — don't pile on more.
-- Speak in his voice: terse, evidence-loving, refinement-first.`;
+  const system = aboutMeChatSystem({
+    displayName: (profile?.display_name as string | null) ?? null,
+    fields: FIELDS,
+    filled,
+    empty,
+  });
 
   const anthropic = getAnthropic();
   let raw = "";

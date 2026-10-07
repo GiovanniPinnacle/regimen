@@ -110,14 +110,27 @@ const STORY = {
 const inRough = (i) => i >= STORY.roughPatch[0] && i <= STORY.roughPatch[1];
 
 // Items that start mid-window so before/after comparisons work.
+//
+// Spaced so each before/after read is clean: magnesium is the ONLY start
+// within ±21 days of STORY.magStart (its HRV ramp runs magStart → +21, so
+// nothing else may start in [9, 51]). Early starts sit before that window;
+// later ones start after the HRV plateau and ≥4 days from each other and
+// from the protocol's start days (62, 69).
 const MID_WINDOW_START = {
-  "collagen": 10,
-  "l-theanine": 20,
+  "collagen": 1,
+  "l-theanine": 8, // tried first for 3am wakeups; magnesium is what worked
   "umzu-daily-mag": STORY.magStart,
-  "kimchi": 40,
-  "creatine": 45,
-  "mouth-tape": 55,
+  "kimchi": 52,
+  "creatine": 57,
+  // Sleep Restoration 21 enrolls at 62 (and starts more items at 69)
+  "mouth-tape": 66,
 };
+// Guard the story: fail loudly if a future edit crowds magnesium's window.
+for (const [sid, idx] of Object.entries(MID_WINDOW_START)) {
+  if (sid !== "umzu-daily-mag" && Math.abs(idx - STORY.magStart) <= 21) {
+    throw new Error(`${sid} starts at ${idx}, inside magnesium's ±21-day window`);
+  }
+}
 
 // Unit cost + supply for the costs / purchases pages.
 const COSTS = {
@@ -780,7 +793,10 @@ for (const [sid, plan] of Object.entries(REACTION_PLAN)) {
   const it = bySid[sid];
   if (!it) continue;
   const startIdx = Math.max(0, idxOf(it.started_on));
-  const firstIdx = Math.max(startIdx + 7, sid === "glycine" || sid === "hp-saw-palmetto" ? TODAY_IDX - 28 : 0);
+  // First reaction a week in — sooner for late starts so they still get
+  // a few distinct reaction days before today.
+  const lag = Math.min(7, Math.max(2, Math.floor((TODAY_IDX - startIdx) / 3)));
+  const firstIdx = Math.max(startIdx + lag, sid === "glycine" || sid === "hp-saw-palmetto" ? TODAY_IDX - 28 : 0);
   const span = TODAY_IDX - firstIdx;
   plan.forEach(([reaction, notes], k) => {
     const i = Math.min(TODAY_IDX - 1, firstIdx + Math.round((span * k) / Math.max(1, plan.length - 1)));
@@ -805,14 +821,14 @@ const addCl = (i, change_type, sid, reasoning, triggered_by = "coach") => {
     reasoning, triggered_by, approved_by_user: true, created_at: ts(dateOf(i), 20, 0),
   });
 };
-addCl(10, "add", "collagen", "Adding collagen peptides for graft-site healing and joint support during the lifting block.", "user");
-addCl(20, "add", "l-theanine", "Racing thoughts at bedtime 4 of the last 7 nights. L-theanine 200mg is a low-risk first lever before anything sedating.");
+addCl(MID_WINDOW_START["collagen"], "add", "collagen", "Adding collagen peptides for graft-site healing and joint support during the lifting block.", "user");
+addCl(MID_WINDOW_START["l-theanine"], "add", "l-theanine", "Racing thoughts at bedtime 4 of the last 7 nights. L-theanine 200mg is a low-risk first lever before anything sedating.");
 addCl(STORY.magStart, "add", "umzu-daily-mag", "RBC magnesium came back 4.0 (below range) and HRV has been flat at ~38ms. Magnesium with dinner should move both.");
-addCl(40, "add", "kimchi", "Gut protocol: add one fermented food daily for microbial diversity alongside DS-01.", "user");
-addCl(41, "adjust", "l-theanine", "Moved l-theanine from 100mg to 200mg — no clear effect at the lower dose after 3 weeks.");
-addCl(45, "add", "creatine", "Lifting 3x/week now. Creatine 5g is the best-evidenced performance add and has cognitive upside.");
+addCl(MID_WINDOW_START["kimchi"], "add", "kimchi", "Gut protocol: add one fermented food daily for microbial diversity alongside DS-01.", "user");
+addCl(MID_WINDOW_START["l-theanine"] + 14, "adjust", "l-theanine", "Moved l-theanine from 100mg to 200mg — no clear effect at the lower dose after 2 weeks.");
+addCl(MID_WINDOW_START["creatine"], "add", "creatine", "Lifting 3x/week now. Creatine 5g is the best-evidenced performance add and has cognitive upside.");
 addCl(50, "demote", "bb-tongkat", "Parking tongkat ali on the backburner — testosterone is mid-range and labs are what to move first.", "user");
-addCl(55, "add", "mouth-tape", "Dry mouth on waking + Oura shows elevated breathing disturbance. Trialing mouth tape.");
+addCl(MID_WINDOW_START["mouth-tape"], "add", "mouth-tape", "Dry mouth on waking + Oura shows elevated breathing disturbance. Trialing mouth tape.");
 changelog.push({
   user_id: UID, date: PROTO_START, change_type: "add", item_id: null, item_name: PROTO.name,
   reasoning: "Enrolled in Sleep Restoration 21 to lock in the HRV gains — earlier dinners, cooler room, screens off, consistent bedtime.",
@@ -878,7 +894,7 @@ await insertChunked("recipes", [
 
 // ---------------------------------------------------------------- coach conversations
 await insertChunked("claude_conversations", [
-  [20, "I keep waking at 3am with racing thoughts. What should I try first?", "Start with **L-theanine 200mg** 30 min before bed — low risk, no grogginess. Your Oura shows the wakeups cluster on high-stress days, so pair it with screens off by 10pm. Re-check in 2 weeks."],
+  [MID_WINDOW_START["l-theanine"], "I keep waking at 3am with racing thoughts. What should I try first?", "Start with **L-theanine 200mg** 30 min before bed — low risk, no grogginess. Your Oura shows the wakeups cluster on high-stress days, so pair it with screens off by 10pm. Re-check in 2 weeks."],
   [STORY.panel1 + 4, "Can you read my bloodwork and tell me the top 2 things?", "Two things stand out:\n\n1. **Vitamin D 24 ng/mL** (low). Your 5000 IU is right; take it with your fattiest meal and recheck in 8 weeks.\n2. **RBC magnesium 4.0** (below range) — plausible link to your flat HRV. I'd add magnesium with dinner.\n\nApoB 104 is worth watching but diet first."],
   [52, "Is the magnesium actually doing anything or am I imagining it?", "It's showing up in the data: 14-day HRV average is **44ms vs 38ms** in the month before you started, and RHR is down ~2 bpm. Sleep latency improved too. Keep it."],
   [TODAY_IDX - 2, "How am I doing on the sleep protocol?", "Day 10 of 21 and it's working: sleep score averaging **84** vs 78 before enrollment, bedtime variance down to ±20 min. Biggest remaining lever: last meal 3h before bed — you hit that only 4 of 10 nights."],

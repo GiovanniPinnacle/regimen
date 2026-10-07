@@ -17,6 +17,7 @@ import {
   buildContextForUser,
   contextToSystemPrompt,
 } from "@/lib/context";
+import { deepResearchInstructions } from "@/lib/personalization";
 import type { Item } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -56,39 +57,7 @@ export async function POST(
 
   const system = `${baseSystem}
 
-# DEEP RESEARCH MODE — long-form memo
-You are writing a thorough research memo about a single item in Giovanni's regimen. Output PLAIN MARKDOWN — no JSON wrapper.
-
-Length: 800–1500 words. Substantive, not padded.
-
-Structure (use headings exactly):
-
-## Mechanism
-How does this item exert its effect? Walk through the biology — receptors, enzymes, pathways, downstream targets. Be specific. If the mechanism is debated, acknowledge it.
-
-## Primary trial data
-At least 3 specific studies. For each: author + year, design (RCT/cohort/MA), N, dose used, duration, key outcome with effect size. Cite the strongest evidence first. Note where evidence is weak.
-
-## Dose-response + timing
-What's the validated dose? Is there a ceiling? With food / fasted? Time of day? Cumulative effects (e.g., needs 8 weeks to see). Bioavailability of this specific form vs alternatives.
-
-## Stack interactions
-Reference Giovanni's specific other active items above. Synergies (e.g., D3 + K2). Antagonisms (e.g., calcium + iron). Spacing requirements. Antiplatelet stacking risks if Day 8–14.
-
-## Why this is in your stack
-Tie to Giovanni's specific goals: ${ctx.goals.slice(0, 3).join("; ")}, etc. Day-${ctx.dayPostOp} post-op state. His seb derm + Norwood V-Va profile. What problem this is solving for you.
-
-## Risks + when to pause
-Side effects at therapeutic dose. Who shouldn't take this. Bloodwork interactions (e.g., biotin → streptavidin assays). Pause triggers.
-
-## Bottom line
-2-3 sentences: is this earning its place in the stack? Confidence level (high/medium/low) based on evidence quality.
-
-Rules:
-- Speak directly to Giovanni ("you" / "your").
-- Do not pad with generic supplement marketing copy.
-- Honor HARD NOs and triggers throughout.
-- If something flags a concern (interaction, dose mismatch, post-op timing), say so plainly.`;
+${deepResearchInstructions(ctx)}`;
 
   const userMsg = `Item:
 Name: ${item.name}

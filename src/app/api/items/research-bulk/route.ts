@@ -17,6 +17,7 @@ import {
   buildContextForUser,
   contextToCachedSystem,
 } from "@/lib/context";
+import { bulkResearchInstructions } from "@/lib/personalization";
 import type { Item } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -63,17 +64,9 @@ export async function POST() {
   // Every item in the loop shares this exact system prompt, so the
   // tail gets a cache breakpoint too: items 2..N read the whole system
   // prompt from cache.
-  const system = contextToCachedSystem(
-    ctx,
-    `# RESEARCH GENERATION MODE
-Generate two fields for the item below.
-
-- usage_notes: 1–3 sentences OR 2–5 numbered steps if procedural. Concrete + actionable. Speak to Giovanni directly ('you').
-- research_summary: 2–3 paragraphs. (a) Mechanism (b) Trial data with author+year (c) Why it's in HIS stack at Day-${ctx.dayPostOp} post-op. Note interactions with other active items.
-
-Honor HARD NOs and triggers. Flag antiplatelet/Day 8–14 issues if relevant.`,
-    { cacheTail: true },
-  );
+  const system = contextToCachedSystem(ctx, bulkResearchInstructions(ctx), {
+    cacheTail: true,
+  });
 
   const results: { id: string; ok: boolean; error?: string }[] = [];
   let succeeded = 0;

@@ -6,6 +6,7 @@
 // 14/30-day protein and calorie bars against target, protein hit-rate
 // and streak, eating window, one-tap re-logs, and recipes.
 
+import { fetchAllRowsResult } from "@/lib/supabase/paginate";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import IntakeTracker, { DEFAULT_WATER_TARGET_OZ } from "@/components/IntakeTracker";
@@ -14,7 +15,7 @@ import { SectionHeader, Stat } from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
 import Button, { ButtonLink } from "@/components/ui/Button";
 import { ListGroup } from "@/components/ui/ListRow";
-import Segmented from "@/components/Segmented";
+import Segmented from "@/components/ui/Segmented";
 import Icon from "@/components/Icon";
 import { BarChart } from "@/components/charts";
 import { createClient } from "@/lib/supabase/client";
@@ -88,12 +89,15 @@ export default function FuelPage() {
   const loadHistory = useCallback(async () => {
     const client = createClient();
     const from = addDaysISO(localDateISO(), -(HISTORY_DAYS - 1));
-    const { data, error } = await client
-      .from("intake_log")
-      .select("date, kind, logged_at, calories, protein_g, water_oz")
-      .gte("date", from)
-      .order("logged_at", { ascending: true })
-      .limit(3000);
+    const { data, error } = await fetchAllRowsResult<IntakeRow>((lo, hi) =>
+      client
+        .from("intake_log")
+        .select("date, kind, logged_at, calories, protein_g, water_oz")
+        .gte("date", from)
+        .order("logged_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(lo, hi),
+    );
     if (error) console.error("fuel: intake_log history", error);
     setRows((data ?? []) as IntakeRow[]);
   }, []);

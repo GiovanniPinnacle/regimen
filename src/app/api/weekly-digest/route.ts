@@ -23,6 +23,7 @@ import {
   type SchedulableItem,
 } from "@/lib/series";
 import { getUserToday } from "@/lib/user-date";
+import { fetchAllRowsResult } from "@/lib/supabase/paginate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,12 +66,18 @@ export async function GET() {
       )
       .eq("user_id", user.id)
       .in("status", ["active", "retired"]),
-    supabase
-      .from("stack_log")
-      .select("item_id, date, taken")
-      .eq("user_id", user.id)
-      .gte("date", prevWeekStart)
-      .lte("date", today),
+    // 14 days × a large stack can pass PostgREST's 1000-row cap.
+    fetchAllRowsResult<LogRow>((a, b) =>
+      supabase
+        .from("stack_log")
+        .select("item_id, date, taken")
+        .eq("user_id", user.id)
+        .gte("date", prevWeekStart)
+        .lte("date", today)
+        .order("date")
+        .order("id")
+        .range(a, b),
+    ),
     supabase
       .from("item_reactions")
       .select("item_id, reaction, reacted_on, items(name)")
@@ -86,7 +93,7 @@ export async function GET() {
   const allItems = (itemsRes.data ?? []) as ItemRow[];
   const items = allItems.filter((i) => i.status === "active");
   const itemNameById = new Map(allItems.map((i) => [i.id, i.name]));
-  const logs = (logRes.data ?? []) as LogRow[];
+  const logs = logRes.data;
   const reactions = (reactRes.data ?? []) as ReactionRow[];
 
   // Adherence by week — taken vs SCHEDULED doses (src/lib/series.ts),

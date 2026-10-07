@@ -18,6 +18,7 @@ import {
   type SchedulableItem,
 } from "@/lib/series";
 import { getUserToday } from "@/lib/user-date";
+import { fetchAllRowsResult } from "@/lib/supabase/paginate";
 
 export const runtime = "nodejs";
 
@@ -56,12 +57,19 @@ export async function GET() {
       .eq("taken", false)
       .not("skipped_reason", "is", null)
       .gte("date", since14),
-    supabase
-      .from("stack_log")
-      .select("item_id, taken, date")
-      .eq("user_id", user.id)
-      .gte("date", since14)
-      .lte("date", today),
+    // 14 days × a large stack can pass PostgREST's 1000-row cap.
+    fetchAllRowsResult<{ item_id: string; taken: boolean; date: string }>(
+      (a, b) =>
+        supabase
+          .from("stack_log")
+          .select("item_id, taken, date")
+          .eq("user_id", user.id)
+          .gte("date", since14)
+          .lte("date", today)
+          .order("date")
+          .order("id")
+          .range(a, b),
+    ),
     // Schedule fields — "perfect adherence" means every SCHEDULED dose
     // taken, not every logged row.
     supabase

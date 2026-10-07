@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllRowsResult } from "@/lib/supabase/paginate";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -58,12 +59,24 @@ export async function GET() {
   const tables: Record<string, unknown[]> = {};
 
   for (const table of USER_OWNED_TABLES) {
+    // profiles is keyed by id (= auth user id); every other table by
+    // user_id. upgrade_interest has no id column (PK is user_id + tier).
+    const ownerCol = table === "profiles" ? "id" : "user_id";
+    const orderCol = table === "upgrade_interest" ? "tier" : "id";
     try {
-      const { data, error } = await admin
-        .from(table)
-        .select("*")
-        .eq("user_id", user.id);
-      tables[table] = error ? [] : (data ?? []);
+      // Page past PostgREST's 1000-row cap — stack_log alone passes it
+      // within a month for a typical stack.
+      const { data, error } = await fetchAllRowsResult<unknown>(
+        (a, b) =>
+          admin
+            .from(table)
+            .select("*")
+            .eq(ownerCol, user.id)
+            .order(orderCol)
+            .range(a, b),
+        100,
+      );
+      tables[table] = error ? [] : data;
     } catch {
       tables[table] = [];
     }

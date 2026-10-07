@@ -207,8 +207,10 @@ export const ACHIEVEMENTS_BY_KEY: Record<AchievementKey, Achievement> =
     ACHIEVEMENTS.map((a) => [a.key, a]),
   ) as Record<AchievementKey, Achievement>;
 
+/** Metallic-neutral tier inks — steel, silver, platinum. Deliberately
+ *  off the semantic palette: green = success, gold = buy, violet = Coach. */
 export const TIER_COLORS = {
-  starter: "var(--accent)",
-  milestone: "var(--premium)",
-  legendary: "var(--pro)",
+  starter: "#9AA0AA",
+  milestone: "#C9CDD4",
+  legendary: "#F1F2F5",
 };

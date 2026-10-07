@@ -18,6 +18,7 @@ import {
   buildContextForUser,
   contextToCachedSystem,
 } from "@/lib/context";
+import { researchInstructions } from "@/lib/personalization";
 import type { Item } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -50,22 +51,7 @@ export async function POST(
 
   const ctx = await buildContextForUser(user.id);
 
-  const system = contextToCachedSystem(
-    ctx,
-    `# RESEARCH GENERATION MODE
-You're generating two structured fields for the regimen item below.
-
-Fields:
-- usage_notes: 1–3 sentences max OR 2–5 numbered steps if procedural (like a topical wash routine). Concrete + actionable. No fluff. Examples:\\n- 'Take with breakfast fat (eggs/EVOO) for 4–8× absorption. Pair with K2 to direct calcium correctly.'\\n- '1. Wet scalp. 2. Apply ZPT shampoo, leave 2 min. 3. Rinse. 4. Pat dry — don't rub. 5. Apply serum to damp scalp.'
-- research_summary: 2–3 paragraphs. (a) Mechanism — how does it work biologically? (b) Trial data — at least one cited RCT/study with author + year + key result. (c) Why it's in HIS stack specifically — tie to his goals (hair, gut, sleep, etc.) and current Day-${ctx.dayPostOp} post-op state. Note any interactions with other items in his active stack.
-
-Rules:
-- Speak directly to Giovanni ("you" / "your"). Don't say "the user."
-- usage_notes is what he'll see inline on Today — keep it tight. If the item is procedural (shampoo, serum, mouth tape, microneedling, etc.), use numbered steps.
-- research_summary appears on the item detail page — denser is OK but no academic filler.
-- Honor HARD NOs and trigger lists. Flag if dose/timing crosses any.
-- Day 8–14 antiplatelet caution still active; mention if relevant.`,
-  );
+  const system = contextToCachedSystem(ctx, researchInstructions(ctx));
 
   const userMsg = `Item to research:
 Name: ${item.name}

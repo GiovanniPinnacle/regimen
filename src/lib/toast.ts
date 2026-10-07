@@ -7,6 +7,8 @@
 // ToastHost (rendered in app/layout.tsx) listens for these events and
 // renders the visible UI.
 
+import type { IconName } from "@/components/Icon";
+
 export type ToastDetail = {
   id: string;
   message: string;
@@ -16,6 +18,8 @@ export type ToastDetail = {
   action?: { label: string; onClick: () => void | Promise<void> };
   /** ms before auto-dismiss (default 4500). 0 = sticky. */
   duration?: number;
+  /** Leading vector icon (defaults per tone). Never an emoji. */
+  icon?: IconName;
   /** Visual variant. */
   tone?: "default" | "success" | "warn" | "error";
 };

@@ -6,6 +6,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllRowsResult } from "@/lib/supabase/paginate";
 import { todayISO } from "@/lib/constants";
 import {
   addDaysISO,
@@ -427,20 +428,24 @@ export async function getItemAdherence(
   const dayKeys = lastNDays(days, todayISO());
   const from = dayKeys[0];
   const to = dayKeys[dayKeys.length - 1];
-  const { data, error } = await supa()
-    .from("stack_log")
-    .select("item_id, taken, date")
-    .in(
-      "item_id",
-      items.map((i) => i.id),
-    )
-    .gte("date", from)
-    .lte("date", to);
+  // days × items can pass PostgREST's 1000-row cap — page through it.
+  const ids = items.map((i) => i.id);
+  const { data, error } = await fetchAllRowsResult<DoseLog>((a, b) =>
+    supa()
+      .from("stack_log")
+      .select("item_id, taken, date")
+      .in("item_id", ids)
+      .gte("date", from)
+      .lte("date", to)
+      .order("date")
+      .order("id")
+      .range(a, b),
+  );
   if (error) {
     console.error("getItemAdherence", error);
     return { rates: {}, series: {} };
   }
-  const per = perItemAdherence(items, (data ?? []) as DoseLog[], from, to);
+  const per = perItemAdherence(items, data, from, to);
   const rates: Record<string, number> = {};
   const series: Record<string, (number | null)[]> = {};
   for (const [id, a] of per) {

@@ -17,6 +17,7 @@ import {
   type SchedulableItem,
 } from "@/lib/series";
 import { getUserToday } from "@/lib/user-date";
+import { fetchAllRowsResult } from "@/lib/supabase/paginate";
 
 export const runtime = "nodejs";
 
@@ -57,11 +58,17 @@ export async function GET() {
     todayLogRes,
     itemsRes,
   ] = await Promise.all([
-    supabase
-      .from("stack_log")
-      .select("date, taken")
-      .eq("user_id", user.id)
-      .gte("date", since),
+    // 200 days of stack_log is thousands of rows — page past the cap.
+    fetchAllRowsResult<{ date: string; taken: boolean | null }>((a, b) =>
+      supabase
+        .from("stack_log")
+        .select("date, taken")
+        .eq("user_id", user.id)
+        .gte("date", since)
+        .order("date")
+        .order("id")
+        .range(a, b),
+    ),
     supabase
       .from("stack_log")
       .select("id")

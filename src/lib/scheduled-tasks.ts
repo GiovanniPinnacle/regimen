@@ -2,8 +2,7 @@
 // Each function returns an array of InsightRow to insert.
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { daysSincePostOp, POSTOP_DATE_ZERO } from "@/lib/constants";
-import { getAnthropic, MODEL_OPTS } from "@/lib/anthropic";
+import { assertCompleted, getAnthropic, MODEL_OPTS, textOf } from "@/lib/anthropic";
 import {
   buildContextForUser,
   contextToSystemPrompt,
@@ -11,6 +10,8 @@ import {
 import type { Item } from "@/lib/types";
 import { addDaysISO } from "@/lib/series";
 import { getUserToday } from "@/lib/user-date";
+import { dailySuggestionPrompt, postOpDayFor } from "@/lib/personalization";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type InsightRow = {
   user_id: string;
@@ -21,7 +22,27 @@ export type InsightRow = {
   status: "new";
 };
 
-// Day-milestone triggers: postOpDay → items that should activate
+/** The user's post-op day (user-local), or null when profiles.postop_date
+ *  is unset. Every post-op feature keys off this — there is NO global
+ *  fallback date, so users without a procedure never get post-op alerts. */
+export async function getPostOpDay(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<{ day: number | null; today: string }> {
+  const [{ today }, { data, error }] = await Promise.all([
+    getUserToday(admin, userId),
+    admin.from("profiles").select("postop_date").eq("id", userId).maybeSingle(),
+  ]);
+  if (error) console.error("getPostOpDay: profiles", error);
+  return {
+    day: postOpDayFor((data?.postop_date as string | null) ?? null, today),
+    today,
+  };
+}
+
+// Day-milestone triggers: post-op day → items that should activate.
+// Keyed to the original owner's seed_ids, so they only ever match a user
+// who has those queued seed items AND a postop_date.
 const DAY_MILESTONES: Record<number, { seed_ids: string[]; note: string }> = {
   14: {
     seed_ids: ["q-omega3", "q-curcumin"],
@@ -48,11 +69,12 @@ const DAY_MILESTONES: Record<number, { seed_ids: string[]; note: string }> = {
 export async function generateDayMilestoneInsights(
   userId: string,
 ): Promise<InsightRow[]> {
-  const today = daysSincePostOp();
+  const admin = createAdminClient();
+  const { day: today } = await getPostOpDay(admin, userId);
+  if (today == null) return [];
   const milestone = DAY_MILESTONES[today];
   if (!milestone) return [];
 
-  const admin = createAdminClient();
   const { data: queuedHits } = await admin
     .from("items")
     .select("id, name, seed_id")
@@ -87,13 +109,14 @@ export async function generateCycleInsights(
     .eq("status", "active");
 
   const insights: InsightRow[] = [];
-  const zero = new Date(POSTOP_DATE_ZERO);
   const msPerDay = 1000 * 60 * 60 * 24;
 
   for (const item of (items ?? []) as Item[]) {
     if (item.schedule_rule?.frequency !== "cycle_8_2") continue;
-    // Use started_on if present, otherwise post-op zero as anchor
-    const anchor = item.started_on ? new Date(item.started_on) : zero;
+    // Anchor on started_on, else when the item was added.
+    const anchorISO = item.started_on ?? item.created_at;
+    if (!anchorISO) continue;
+    const anchor = new Date(anchorISO);
     const daysIn = Math.floor((Date.now() - anchor.getTime()) / msPerDay);
     const on = item.schedule_rule.cycle_on_days ?? 56;
     const off = item.schedule_rule.cycle_off_days ?? 14;
@@ -124,11 +147,22 @@ export async function generateCycleInsights(
   return insights;
 }
 
-// Biotin pause: 72h before any upcoming bloodwork review
+// Biotin pause: 72h before any upcoming bloodwork review. Only for users
+// with an ACTIVE item containing biotin — named in the alert.
 export async function generateBiotinAlert(
   userId: string,
 ): Promise<InsightRow[]> {
   const admin = createAdminClient();
+  const { data: itemRows, error: itemsErr } = await admin
+    .from("items")
+    .select("name")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .ilike("name", "%biotin%");
+  if (itemsErr) console.error("generateBiotinAlert: items", itemsErr);
+  const biotinNames = ((itemRows ?? []) as { name: string }[]).map((i) => i.name);
+  if (biotinNames.length === 0) return [];
+
   // Cron runs in UTC — anchor on the user's local day.
   const { today } = await getUserToday(admin, userId);
   const target = addDaysISO(today, 3);
@@ -150,14 +184,14 @@ export async function generateBiotinAlert(
       user_id: userId,
       type: "biotin_pause",
       title: "⚠️ Pause biotin starting today",
-      body: `You have bloodwork scheduled in 3 days (${target}). Stop Hairpower Biotin now — it skews lab assays. Resume after the blood draw.`,
+      body: `You have bloodwork scheduled in 3 days (${target}). Pause ${biotinNames.join(", ")} now — biotin skews lab assays. Resume after the blood draw.`,
       confidence: "high",
       status: "new",
     },
   ];
 }
 
-// Generate ONE daily suggestion — an item Claude thinks Giovanni should consider adding or changing
+// Generate ONE daily suggestion — an item Claude thinks the user should consider adding or changing
 export async function generateDailySuggestion(
   userId: string,
 ): Promise<InsightRow[]> {
@@ -172,30 +206,13 @@ export async function generateDailySuggestion(
       messages: [
         {
           role: "user",
-          content: `Pick exactly ONE actionable suggestion for Giovanni today. Pick from:
-- Promoting a queued item whose trigger has fired
-- Considering a back-burner item given current data
-- Tweaking an existing active item's dose/timing
-- Adding a new item not yet tracked but high-ROI
-
-CRITERIA:
-- Must meaningfully earn its spot (resist stack inflation)
-- Must respect post-op day + hard NOs
-- Prefer food/practice adds over new supplements when possible
-
-Format (STRICT):
-Title: <under 70 chars, imperative>
-Body: <2-3 sentences including reasoning>
-
-Do NOT include a proposal block. This is just a suggestion — the user can bring it into chat if they want to act on it.`,
+          content: dailySuggestionPrompt(ctx),
         },
       ],
     });
-    const text = res.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b as { text: string }).text)
-      .join("\n")
-      .trim();
+    // Truncated / refused output would become a garbage insight — drop it.
+    assertCompleted(res);
+    const text = textOf(res).trim();
     if (!text) return [];
 
     // Parse Title: / Body: format — fall back gracefully
@@ -235,13 +252,15 @@ Do NOT include a proposal block. This is just a suggestion — the user can brin
 
 // ----- Day-milestone auto-promote -----
 // Scans queued items whose review_trigger matches "Day N+" or "Day N "
-// and promotes them to active when current dayPostOp >= N. Logs to changelog
-// and surfaces an insight notification.
+// and promotes them to active when the user's post-op day >= N. Logs to
+// changelog and surfaces an insight notification. No-op for users without
+// a profiles.postop_date ("Day N" has nothing to count from).
 export async function promoteDayMilestoneItems(
   userId: string,
 ): Promise<InsightRow[]> {
   const admin = createAdminClient();
-  const today = daysSincePostOp();
+  const { day: today, today: todayISO } = await getPostOpDay(admin, userId);
+  if (today == null) return [];
 
   const { data: queued } = await admin
     .from("items")
@@ -270,9 +289,6 @@ export async function promoteDayMilestoneItems(
     }
   }
   if (ready.length === 0) return [];
-
-  // Local day for started_on / changelog.date (cron runs in UTC).
-  const { today: todayISO } = await getUserToday(admin, userId);
 
   // Promote
   for (const r of ready) {
