@@ -14,6 +14,9 @@ const PUBLIC_PATHS = [
   "/terms",
 ];
 
+// Dev-only sign-in shortcut; the route itself 404s outside local dev.
+if (process.env.NODE_ENV === "development") PUBLIC_PATHS.push("/auth/dev-login");
+
 // 90 days — beyond iOS Safari ITP's 7-day storage cap for inactive sites,
 // and matches Supabase's refresh-token lifetime so the PWA stays signed in.
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 90;
@@ -28,7 +31,7 @@ function extendCookie(options: CookieOptions = {}): CookieOptions {
   };
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
