@@ -33,3 +33,20 @@ for (const { name, size } of SIZES) {
 // We'll keep favicon.ico as PNG-32 for simplicity; use the .png variants in <link>.
 
 console.log("\n✅ Icons regenerated from /public/icon.svg");
+
+// Maskable: full-bleed square background, glyph inside the 80% safe zone
+// so Android's circle/squircle masks never crop it.
+const maskSvg = Buffer.from(
+  svg
+    .toString()
+    .replace(/<rect width="512" height="512" rx="115"/, '<rect width="512" height="512"')
+    .replace('<g fill="#F5F5F7">', '<g fill="#F5F5F7" transform="translate(51.2 51.2) scale(0.8)">'),
+);
+for (const size of [192, 512]) {
+  const name = `icon-maskable-${size}.png`;
+  await sharp(maskSvg, { density: 600 })
+    .resize(size, size)
+    .png({ quality: 100, compressionLevel: 9 })
+    .toFile(join(root, "public", name));
+  console.log(`✓ ${name} (${size}×${size})`);
+}
