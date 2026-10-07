@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
@@ -72,7 +72,7 @@ If nothing high-leverage is missing right now, return: {"kind":"none","title":""
   try {
     const anthropic = getAnthropic();
     const res = await anthropic.messages.create({
-      model: MODELS.chat,
+      ...MODEL_OPTS.chat,
       max_tokens: 512,
       system,
       messages: [{ role: "user", content: userPrompt }],

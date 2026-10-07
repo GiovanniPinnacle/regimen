@@ -4,7 +4,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
@@ -93,8 +93,8 @@ Write the deep research memo. Markdown only.`;
   let memo = "";
   try {
     const res = await anthropic.messages.create({
-      model: MODELS.deep,
-      max_tokens: 4000,
+      ...MODEL_OPTS.deep,
+      max_tokens: 16000,
       system,
       messages: [{ role: "user", content: userMsg }],
     });

@@ -19,7 +19,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   AFFILIATE_CONFIGS,
@@ -266,7 +266,7 @@ Return ONLY a single JSON object on one line, no prose:
 If you can't determine a good URL, return: {"network":"amazon","vendor":"Amazon","url":"https://www.amazon.com/s?k=<URL-encoded item name>"}`;
 
     const res = await anthropic.messages.create({
-      model: MODELS.chat,
+      ...MODEL_OPTS.chat,
       max_tokens: 256,
       messages: [{ role: "user", content: prompt }],
     });

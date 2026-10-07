@@ -9,7 +9,7 @@
 // commits to your regimen.
 //
 // Renamed from AskClaude across the app — user-facing copy never says
-// "Claude". The model behind it is still claude-sonnet-4-5, but the
+// "Claude". The model behind it is claude-sonnet-5-5, but the
 // persona is "Coach" — your accountability + refinement partner.
 
 import { useEffect, useMemo, useRef, useState } from "react";

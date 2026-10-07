@@ -3,7 +3,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { daysSincePostOp, POSTOP_DATE_ZERO } from "@/lib/constants";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
 import {
   buildContextForUser,
   contextToSystemPrompt,
@@ -164,7 +164,7 @@ export async function generateDailySuggestion(
     const system = contextToSystemPrompt(ctx);
     const anthropic = getAnthropic();
     const res = await anthropic.messages.create({
-      model: MODELS.chat,
+      ...MODEL_OPTS.chat,
       max_tokens: 400,
       system,
       messages: [

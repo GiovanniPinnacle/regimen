@@ -24,7 +24,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import { userSubmission } from "@/lib/catalog/moderation";
 import { findCurated } from "@/lib/tutorials/curated";
@@ -84,7 +84,7 @@ async function generateTutorial(
   try {
     const anthropic = getAnthropic();
     const res = await anthropic.messages.create({
-      model: MODELS.chat,
+      ...MODEL_OPTS.chat,
       max_tokens: 400,
       messages: [
         { role: "user", content: TUTORIAL_PROMPT(name, itemType) },
@@ -96,9 +96,9 @@ async function generateTutorial(
       tokens_in: res.usage?.input_tokens,
       tokens_out: res.usage?.output_tokens,
     });
-    const block = res.content[0];
-    if (!block || block.type !== "text") return { media_url: null, how_to: null };
-    const raw = block.text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+    const text = textOf(res);
+    if (!text) return { media_url: null, how_to: null };
+    const raw = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
     const parsed = JSON.parse(raw) as TutorialResponse;
 
     // STEP C — gate the URL through 3 layers before saving:
@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
         const GEN_PROMPT = `Catalog entry for "${item.name}"${item.brand ? ` (${item.brand})` : ""} (${item.item_type}). Honesty over completeness — if uncertain, return null. Output JSON only:
 {"name":"<canonical>","brand":"<or null>","item_type":"${item.item_type}","category":"<short category or null>","serving_size":"<or null>","calories":<num or null>,"protein_g":<num or null>,"fat_g":<num or null>,"carbs_g":<num or null>,"fiber_g":<num or null>,"sugar_g":<num or null>,"coach_summary":"<2-3 sentences>","mechanism":"<1-2 sentences or null>","best_timing":"<short or null>","evidence_grade":"<A|B|C|D>"}`;
         const r = await anthropic.messages.create({
-          model: MODELS.chat,
+          ...MODEL_OPTS.chat,
           max_tokens: 800,
           messages: [{ role: "user", content: GEN_PROMPT }],
         });
@@ -223,9 +223,9 @@ export async function POST(request: NextRequest) {
           tokens_in: r.usage?.input_tokens,
           tokens_out: r.usage?.output_tokens,
         });
-        const b = r.content[0];
-        if (b?.type === "text") {
-          const raw = b.text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+        const t = textOf(r);
+        if (t) {
+          const raw = t.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
           type GenResult = {
             name: string;
             brand: string | null;

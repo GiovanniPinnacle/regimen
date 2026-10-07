@@ -22,7 +22,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import { todayISO } from "@/lib/constants";
 
@@ -102,7 +102,7 @@ async function classify(
     ? `User context hint: they were on the "${hint}" tab.\n\nWhat the user said/wrote: ${text}`
     : `What the user said/wrote: ${text}`;
   const res = await anthropic.messages.create({
-    model: MODELS.chat,
+    ...MODEL_OPTS.chat,
     max_tokens: 256,
     system: CLASSIFY_SYSTEM,
     messages: [{ role: "user", content: userMsg }],
@@ -113,8 +113,8 @@ async function classify(
     tokens_in: res.usage?.input_tokens,
     tokens_out: res.usage?.output_tokens,
   });
-  const block = res.content[0];
-  if (!block || block.type !== "text") {
+  const text0 = textOf(res);
+  if (!text0) {
     return {
       intent: "chat",
       subject: text,
@@ -122,7 +122,7 @@ async function classify(
     };
   }
   // Trim possible code-fence wrapping
-  const raw = block.text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+  const raw = text0.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
   try {
     return JSON.parse(raw) as ClassifyResult;
   } catch {
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
     } | null = null;
     try {
       const r = await anthropic.messages.create({
-        model: MODELS.chat,
+        ...MODEL_OPTS.chat,
         max_tokens: 200,
         system: macroSystem,
         messages: [{ role: "user", content: intent.subject }],
@@ -251,9 +251,9 @@ export async function POST(request: NextRequest) {
         tokens_in: r.usage?.input_tokens,
         tokens_out: r.usage?.output_tokens,
       });
-      const b = r.content[0];
-      if (b?.type === "text") {
-        const raw = b.text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+      const t = textOf(r);
+      if (t) {
+        const raw = t.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
         macros = JSON.parse(raw);
       }
     } catch {

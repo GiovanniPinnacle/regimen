@@ -5,7 +5,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
@@ -104,7 +104,7 @@ Generate one recipe. JSON only.`;
   let raw = "";
   try {
     const res = await anthropic.messages.create({
-      model: MODELS.chat,
+      ...MODEL_OPTS.chat,
       max_tokens: 2048,
       system,
       messages: [{ role: "user", content: userMsg }],

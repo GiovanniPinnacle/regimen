@@ -6,7 +6,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     try {
       const anthropic = getAnthropic();
       const r = await anthropic.messages.create({
-        model: MODELS.chat,
+        ...MODEL_OPTS.chat,
         max_tokens: 400,
         system: TEXT_MACRO_SYSTEM,
         messages: [{ role: "user", content: body.content }],
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
         tokens_in: r.usage?.input_tokens,
         tokens_out: r.usage?.output_tokens,
       });
-      const text = r.content[0]?.type === "text" ? r.content[0].text : "";
+      const text = textOf(r);
       const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
       const parsed = JSON.parse(cleaned);
       calories = parsed.calories ?? calories;

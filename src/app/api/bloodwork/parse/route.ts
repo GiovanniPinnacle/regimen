@@ -14,7 +14,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -179,19 +179,19 @@ export async function POST(request: NextRequest) {
   let result: ParseResult;
   try {
     const res = await anthropic.messages.create({
-      model: MODELS.vision,
+      ...MODEL_OPTS.vision,
       max_tokens: 4096,
       system: PARSE_SYSTEM,
       messages,
     });
-    const block = res.content[0];
-    if (!block || block.type !== "text") {
+    const text = textOf(res);
+    if (!text) {
       return NextResponse.json(
         { error: "Empty parse response" },
         { status: 500 },
       );
     }
-    const raw = block.text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+    const raw = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
     result = JSON.parse(raw) as ParseResult;
     void recordUsage(user.id, "vision", {
       route: "/api/bloodwork/parse",

@@ -6,7 +6,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -119,7 +119,7 @@ Style:
   let raw = "";
   try {
     const res = await anthropic.messages.create({
-      model: MODELS.chat,
+      ...MODEL_OPTS.chat,
       max_tokens: 1500,
       system,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),

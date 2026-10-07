@@ -5,7 +5,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   buildContextForCurrentUser,
@@ -65,8 +65,8 @@ export async function POST(request: NextRequest) {
     async start(controller) {
       try {
         const res = await anthropic.messages.stream({
-          model: MODELS.chat,
-          max_tokens: 2048,
+          ...MODEL_OPTS.coach,
+          max_tokens: 8000,
           system,
           messages,
         });

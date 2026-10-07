@@ -7,7 +7,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS } from "@/lib/anthropic";
+import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const res = await anthropic.messages.create({
-      model: MODELS.chat,
+      ...MODEL_OPTS.chat,
       max_tokens: 600,
       system: SYSTEM,
       messages: [{ role: "user", content: userMsg }],
@@ -93,10 +93,7 @@ export async function POST(request: NextRequest) {
       tokens_out: res.usage?.output_tokens,
     });
 
-    const text =
-      res.content[0]?.type === "text"
-        ? res.content[0].text
-        : "";
+    const text = textOf(res);
 
     // Parse JSON — strip any markdown fence if Coach added one
     const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
