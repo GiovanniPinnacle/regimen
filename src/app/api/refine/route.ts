@@ -4,12 +4,18 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
-import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
-import { getUserToday } from "@/lib/user-date";
 import {
-  buildContextForCurrentUser,
-  contextToSystemPrompt,
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  assertCompleted,
+  llmErrorResponse,
+} from "@/lib/anthropic";
+import { jsonError, internalError } from "@/lib/api";
+import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
+import {
+  buildContextForUser,
+  contextToCachedSystem,
 } from "@/lib/context";
 
 export const runtime = "nodejs";
@@ -20,18 +26,16 @@ export async function POST() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
   const limited = await rateLimitOrError(user.id, "coach");
   if (limited) return limited;
-  const { today: ctxToday } = await getUserToday(supabase, user.id);
+  const ctx = await buildContextForUser(user.id);
+  const ctxToday = ctx.today;
 
-  const ctx = await buildContextForCurrentUser();
-  const baseSystem = contextToSystemPrompt(ctx);
-
-  const system = `${baseSystem}
-
-# REFINEMENT MODE
+  const system = contextToCachedSystem(
+    ctx,
+    `# REFINEMENT MODE
 You're running a weekly refinement audit. Your job is NOT to add anything. Output what to DROP, SWAP, or SIMPLIFY.
 
 Output structure (markdown):
@@ -55,7 +59,8 @@ Rules:
 - DO NOT propose any additions. Refinement only.
 - Cite specific data points from the context above (adherence %, skip reasons, recent symptom logs, daily check-ins). If you reference a metric, name it.
 - If the data is insufficient for a confident drop call, say so AND name the data you'd need.
-- Concise. Plain English. No fluff.`;
+- Concise. Plain English. No fluff.`,
+  );
 
   const userMsg = `Run the weekly refinement audit. Be specific and data-driven.`;
 
@@ -64,7 +69,7 @@ Rules:
   try {
     const res = await anthropic.messages.create({
       ...MODEL_OPTS.chat,
-      max_tokens: 2000,
+      max_tokens: 8000,
       system,
       messages: [{ role: "user", content: userMsg }],
     });
@@ -77,12 +82,9 @@ Rules:
       tokens_in: res.usage?.input_tokens,
       tokens_out: res.usage?.output_tokens,
     });
+    assertCompleted(res);
   } catch (err) {
-    console.error("refine/POST claude error", err);
-    return NextResponse.json(
-      { error: `Coach error: ${(err as Error).message}` },
-      { status: 500 },
-    );
+    return llmErrorResponse(err) ?? internalError("/api/refine", err);
   }
 
   // Record the run. user-state / Coach context read triggered_by="refine"

@@ -6,8 +6,15 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
-import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  parseJsonResponse,
+} from "@/lib/anthropic";
+import { jsonError, readJson } from "@/lib/api";
+import { getUserToday } from "@/lib/user-date";
+import { checkRateLimit, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -60,11 +67,11 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
-  const body = (await request.json()) as Body;
+  const parsedBody = await readJson<Body>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
   if (!body.transcript || body.transcript.trim().length < 3) {
     return NextResponse.json(
       { error: "Transcript too short" },
@@ -126,16 +133,18 @@ export async function POST(request: NextRequest) {
   // intake_log with macros estimated by Coach. Best-effort, non-blocking
   // on failure — voice memo save still succeeds even if this fails.
   let loggedAsMeal = false;
-  if (detectFoodIntent(transcript, body.context_tag ?? null)) {
-    // Rate-limit only the LLM-backed branch — non-food voice memos
-    // are pure DB writes and shouldn't burn the coach bucket.
-    const limited = await rateLimitOrError(user.id, "coach");
-    if (limited) return limited;
+  // Rate-limit only the LLM-backed branch — non-food voice memos are
+  // pure DB writes and shouldn't burn the coach bucket. When limited,
+  // skip the meal auto-log rather than 429ing: the memo is already saved.
+  const wantsMealLog = detectFoodIntent(transcript, body.context_tag ?? null);
+  const mealLogAllowed =
+    wantsMealLog && (await checkRateLimit(user.id, "coach")).ok;
+  if (mealLogAllowed) {
     try {
       const anthropic = getAnthropic();
       const r = await anthropic.messages.create({
         ...MODEL_OPTS.chat,
-        max_tokens: 400,
+        max_tokens: 1024,
         system: TEXT_MACRO_SYSTEM,
         messages: [{ role: "user", content: transcript }],
       });
@@ -145,17 +154,19 @@ export async function POST(request: NextRequest) {
         tokens_in: r.usage?.input_tokens,
         tokens_out: r.usage?.output_tokens,
       });
-      const text = textOf(r);
-      const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
-      const parsed = JSON.parse(cleaned) as {
+      const parsed = parseJsonResponse<{
         calories?: number;
         protein_g?: number;
         fat_g?: number;
         carbs_g?: number;
         serving?: string;
-      };
-      await supabase.from("intake_log").insert({
+      }>(r);
+      // intake_log.date defaults to the DB's UTC current_date — anchor on
+      // the user's local day like /api/intake does.
+      const { today } = await getUserToday(supabase, user.id);
+      const { error: intakeErr } = await supabase.from("intake_log").insert({
         user_id: user.id,
+        date: today,
         kind: "meal",
         content: transcript,
         serving: parsed.serving ?? null,
@@ -166,6 +177,7 @@ export async function POST(request: NextRequest) {
         analyzed_by: "claude_voice",
         notes: `From voice memo`,
       });
+      if (intakeErr) throw intakeErr;
       loggedAsMeal = true;
     } catch (e) {
       console.warn("voice-memo food intent estimate failed", e);
@@ -186,9 +198,7 @@ export async function GET() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
   const since = new Date(Date.now() - 14 * 86400000).toISOString();
   const { data, error } = await supabase
     .from("voice_memos")

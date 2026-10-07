@@ -4,11 +4,18 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  jsonSchemaFormat,
+  parseJsonResponse,
+} from "@/lib/anthropic";
+import { jsonError } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
-  buildContextForCurrentUser,
-  contextToSystemPrompt,
+  buildContextForUser,
+  contextToCachedSystem,
 } from "@/lib/context";
 import type { Item } from "@/lib/types";
 
@@ -17,34 +24,26 @@ export const maxDuration = 300; // 5 minutes; will iterate items sequentially
 
 const MAX_ITEMS_PER_CALL = 10;
 
-function extractJson(raw: string): string {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fenced) return fenced[1].trim();
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start >= 0 && end > start) return raw.slice(start, end + 1);
-  return raw.trim();
-}
 
 export async function POST() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
   const limited = await rateLimitOrError(user.id, "research");
   if (limited) return limited;
 
   const { data: missingRows } = await supabase
     .from("items")
-    .select("*")
+    .select("id, name, brand, dose, item_type, timing_slot, goals, status, notes")
     .eq("user_id", user.id)
     .is("research_generated_at", null)
     .in("status", ["active", "queued"])
     .limit(MAX_ITEMS_PER_CALL);
 
-  const missing = (missingRows ?? []) as Item[];
+  const missing = (missingRows ?? []) as unknown as Item[];
   if (missing.length === 0) {
     const { count } = await supabase
       .from("items")
@@ -58,21 +57,23 @@ export async function POST() {
     });
   }
 
-  const ctx = await buildContextForCurrentUser();
-  const baseSystem = contextToSystemPrompt(ctx);
+  const ctx = await buildContextForUser(user.id);
   const anthropic = getAnthropic();
 
-  const system = `${baseSystem}
+  // Every item in the loop shares this exact system prompt, so the
+  // tail gets a cache breakpoint too: items 2..N read the whole system
+  // prompt from cache.
+  const system = contextToCachedSystem(
+    ctx,
+    `# RESEARCH GENERATION MODE
+Generate two fields for the item below.
 
-# RESEARCH GENERATION MODE
-Generate two fields for the item below. Respond with VALID JSON ONLY.
+- usage_notes: 1–3 sentences OR 2–5 numbered steps if procedural. Concrete + actionable. Speak to Giovanni directly ('you').
+- research_summary: 2–3 paragraphs. (a) Mechanism (b) Trial data with author+year (c) Why it's in HIS stack at Day-${ctx.dayPostOp} post-op. Note interactions with other active items.
 
-{
-  "usage_notes": "1–3 sentences OR 2–5 numbered steps if procedural. Concrete + actionable. Speak to Giovanni directly ('you').",
-  "research_summary": "2–3 paragraphs. (a) Mechanism (b) Trial data with author+year (c) Why it's in HIS stack at Day-${ctx.dayPostOp} post-op. Note interactions with other active items."
-}
-
-Honor HARD NOs and triggers. Flag antiplatelet/Day 8–14 issues if relevant.`;
+Honor HARD NOs and triggers. Flag antiplatelet/Day 8–14 issues if relevant.`,
+    { cacheTail: true },
+  );
 
   const results: { id: string; ok: boolean; error?: string }[] = [];
   let succeeded = 0;
@@ -86,11 +87,20 @@ Timing slot: ${item.timing_slot}
 Goals: ${(item.goals ?? []).join(", ") || "none"}
 Status: ${item.status}
 ${item.notes ? `Existing notes: ${item.notes}\n` : ""}
-Generate usage_notes + research_summary. JSON only.`;
+Generate usage_notes + research_summary.`;
 
       const res = await anthropic.messages.create({
         ...MODEL_OPTS.chat,
-        max_tokens: 1500,
+        max_tokens: 4096,
+        output_config: jsonSchemaFormat({
+          type: "object",
+          properties: {
+            usage_notes: { type: "string" },
+            research_summary: { type: "string" },
+          },
+          required: ["usage_notes", "research_summary"],
+          additionalProperties: false,
+        }),
         system,
         messages: [{ role: "user", content: userMsg }],
       });
@@ -100,12 +110,10 @@ Generate usage_notes + research_summary. JSON only.`;
         tokens_in: res.usage?.input_tokens,
         tokens_out: res.usage?.output_tokens,
       });
-      let raw = "";
-      for (const b of res.content) if (b.type === "text") raw += b.text;
-      const parsed = JSON.parse(extractJson(raw)) as {
+      const parsed = parseJsonResponse<{
         usage_notes?: string;
         research_summary?: string;
-      };
+      }>(res);
       const usage_notes = parsed.usage_notes
         ? String(parsed.usage_notes).slice(0, 800)
         : null;

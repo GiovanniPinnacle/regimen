@@ -1,7 +1,6 @@
 // ItemTypeIcon — renders the item type as a tinted-block vector icon
-// matching the EmptyGlyph aesthetic. Replaces the emoji 💊🧴📟🏥🧘🥑🛏🧪
-// pattern from v2 with line-art icons consistent with the rest of the
-// app.
+// matching the EmptyGlyph aesthetic. Line-art icons instead of the v2
+// emoji set, consistent with the rest of the app.
 //
 // Sizing pattern: 28-36px outer block (rounded 10px) with a 14-18px
 // icon inside. Tinted background uses --surface-alt by default so the
@@ -16,14 +15,16 @@ type Tone = "neutral" | "accent" | "pro" | "premium";
 
 const TONE_BG: Record<Tone, string> = {
   neutral: "var(--surface-alt)",
-  accent: "var(--accent-tint)",
+  // "accent" = emphasized neutral (detail headers). Green is reserved
+  // for success, so it no longer tints type icons.
+  accent: "var(--surface-alt)",
   pro: "var(--pro-tint)",
   premium: "var(--premium-tint)",
 };
 
 const TONE_FG: Record<Tone, string> = {
   neutral: "var(--foreground-soft)",
-  accent: "var(--accent)",
+  accent: "var(--foreground)",
   pro: "var(--pro)",
   premium: "var(--premium)",
 };

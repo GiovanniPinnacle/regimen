@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { addDaysISO, localDateISO } from "@/lib/series";
-import { getUserToday } from "@/lib/user-date";
+import { addDaysISO, localDateISO, type DoseLog } from "@/lib/series";
+import { fetchAllRows } from "@/lib/insights/load";
+import { computeItemInsights } from "@/lib/insights/item";
+import type { CheckinRow, OuraRow } from "@/lib/insights/metrics";
+import ItemDataSection from "@/components/insights/ItemDataSection";
 import { notFound } from "next/navigation";
 import CategoryBadge from "@/components/CategoryBadge";
 import {
@@ -31,11 +34,11 @@ export default async function ItemDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("items")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  // Round trip 1: the item + who's viewing (for their timezone).
+  const [{ data, error }, authRes] = await Promise.all([
+    supabase.from("items").select("*").eq("id", id).maybeSingle(),
+    supabase.auth.getUser(),
+  ]);
 
   if (error || !data) {
     notFound();
@@ -43,6 +46,7 @@ export default async function ItemDetailPage({
 
   const item = data as Item;
   const info = getItemInfo(item.seed_id);
+  const viewer = authRes.data.user;
 
   // Pull the linked catalog row (if any) so we can render Coach's
   // shared enrichment — mechanism, timing, brand picks, cautions —
@@ -74,57 +78,67 @@ export default async function ItemDetailPage({
     default_vendor: string | null;
     default_list_price_cents: number | null;
   };
-  let catalog: CatalogEnrichment | null = null;
-  if (item.catalog_item_id) {
-    const { data: catalogRow } = await supabase
-      .from("catalog_items")
-      .select(
-        "coach_summary, mechanism, best_timing, pairs_well_with, " +
-          "conflicts_with, cautions, brand_recommendations, evidence_grade, " +
-          "source, serving_size, calories, protein_g, fat_g, carbs_g, " +
-          "fiber_g, sugar_g, micros, active_ingredients, " +
-          "default_affiliate_url, default_vendor, default_list_price_cents",
-      )
-      .eq("id", item.catalog_item_id)
-      .maybeSingle();
-    catalog = catalogRow as unknown as CatalogEnrichment | null;
-  }
 
-  // Related items (same primary goal, active)
   const primaryGoal = item.goals[0];
-  let related: Item[] = [];
-  if (primaryGoal) {
-    const { data: relatedData } = await supabase
-      .from("items")
-      .select("*")
-      .eq("status", "active")
-      .contains("goals", [primaryGoal])
-      .neq("id", id)
-      .limit(5);
-    related = (relatedData ?? []) as Item[];
-  }
-
-  // Personal history with this item — last 30d reactions, last 14d memos,
-  // last 14d skips. The "what's MY relationship with this item" view.
   const NOW = getNow();
-  // reacted_on / stack_log.date are the user's local days (server is UTC).
-  const {
-    data: { user: viewer },
-  } = await supabase.auth.getUser();
-  const userToday = viewer
-    ? (await getUserToday(supabase, viewer.id)).today
-    : localDateISO(new Date(NOW));
-  const since30 = addDaysISO(userToday, -30);
-  const since14 = addDaysISO(userToday, -14);
+  // Bounds are generous (UTC-based) so every query can start before we
+  // know the user's local "today"; exact local windows are applied below.
+  const roughToday = localDateISO(new Date(NOW));
+  const since16 = addDaysISO(roughToday, -16);
   const since14Iso = new Date(NOW - 14 * 86400000).toISOString();
+  const startedOn = item.started_on?.slice(0, 10) ?? null;
+  const logsFrom =
+    [startedOn, item.arrived_on?.slice(0, 10) ?? null, addDaysISO(roughToday, -95)]
+      .filter((d): d is string => !!d)
+      .sort()[0];
+  const ouraFrom = addDaysISO(
+    startedOn && startedOn < roughToday ? startedOn : roughToday,
+    -30,
+  );
 
-  const [reactionsHistRes, memosHistRes, skipsHistRes] = await Promise.all([
+  // Round trip 2: everything else in parallel, projected columns only.
+  const [
+    catalogRes,
+    relatedRes,
+    tzRes,
+    reactionsHistRes,
+    memosHistRes,
+    skipsHistRes,
+    itemLogs,
+    ouraRes,
+    moodRes,
+  ] = await Promise.all([
+    item.catalog_item_id
+      ? supabase
+          .from("catalog_items")
+          .select(
+            "coach_summary, mechanism, best_timing, pairs_well_with, " +
+              "conflicts_with, cautions, brand_recommendations, evidence_grade, " +
+              "source, serving_size, calories, protein_g, fat_g, carbs_g, " +
+              "fiber_g, sugar_g, micros, active_ingredients, " +
+              "default_affiliate_url, default_vendor, default_list_price_cents",
+          )
+          .eq("id", item.catalog_item_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    primaryGoal
+      ? supabase
+          .from("items")
+          .select("id, name, dose, item_type, timing_slot")
+          .eq("status", "active")
+          .contains("goals", [primaryGoal])
+          .neq("id", id)
+          .limit(5)
+      : Promise.resolve({ data: [] }),
+    viewer
+      ? supabase.from("profiles").select("timezone").eq("id", viewer.id).maybeSingle()
+      : Promise.resolve({ data: null }),
     supabase
       .from("item_reactions")
       .select("reaction, reacted_on, notes")
       .eq("item_id", id)
-      .gte("reacted_on", since30)
-      .order("reacted_on", { ascending: false }),
+      .order("reacted_on", { ascending: false })
+      .limit(200),
     supabase
       .from("voice_memos")
       .select("id, transcript, context_tag, created_at")
@@ -138,26 +152,72 @@ export default async function ItemDetailPage({
       .eq("item_id", id)
       .eq("taken", false)
       .not("skipped_reason", "is", null)
-      .gte("date", since14)
+      .gte("date", since16)
       .order("date", { ascending: false })
-      .limit(10),
+      .limit(12),
+    fetchAllRows<DoseLog>(
+      (a, b) =>
+        supabase
+          .from("stack_log")
+          .select("item_id, date, taken")
+          .eq("item_id", id)
+          .gte("date", logsFrom)
+          .order("date")
+          .range(a, b),
+      "item stack_log",
+    ),
+    supabase
+      .from("oura_daily")
+      .select("date, hrv, rhr, sleep_score, deep_sleep_min, readiness, total_sleep_min")
+      .gte("date", ouraFrom)
+      .order("date")
+      .limit(1000),
+    supabase
+      .from("daily_checkins")
+      .select("date, mood")
+      .gte("date", ouraFrom)
+      .not("mood", "is", null)
+      .limit(1000),
   ]);
 
-  const reactions = (reactionsHistRes.data ?? []) as {
+  const catalog = (catalogRes.data ?? null) as unknown as CatalogEnrichment | null;
+  const related = (relatedRes.data ?? []) as Pick<
+    Item,
+    "id" | "name" | "dose" | "item_type" | "timing_slot"
+  >[];
+  const tz = (tzRes.data as { timezone?: string | null } | null)?.timezone ?? undefined;
+  // reacted_on / stack_log.date are the user's local days (server is UTC).
+  const userToday = localDateISO(new Date(NOW), tz);
+  const since30 = addDaysISO(userToday, -30);
+  const since14 = addDaysISO(userToday, -14);
+  const allReactions = (reactionsHistRes.data ?? []) as {
     reaction: string;
     reacted_on: string;
     notes: string | null;
   }[];
+  const insights = computeItemInsights({
+    item,
+    logs: itemLogs,
+    oura: (ouraRes.data ?? []) as OuraRow[],
+    checkins: (moodRes.data ?? []) as CheckinRow[],
+    reactions: allReactions,
+    today: userToday,
+  });
+  const showData =
+    item.item_type !== "test" &&
+    (insights.adherence != null || insights.metrics.length > 0 || !!item.started_on);
+
+  const reactions = allReactions.filter((r) => r.reacted_on >= since30);
   const memos = (memosHistRes.data ?? []) as {
     id: string;
     transcript: string;
     context_tag: string | null;
     created_at: string;
   }[];
-  const skips = (skipsHistRes.data ?? []) as {
+  const skips = ((skipsHistRes.data ?? []) as {
     date: string;
     skipped_reason: string;
-  }[];
+  }[]).filter((sk) => sk.date >= since14);
 
   const reactionCounts = {
     helped: reactions.filter((r) => r.reaction === "helped").length,
@@ -251,6 +311,10 @@ export default async function ItemDetailPage({
       </header>
 
       <ItemActions item={item} />
+
+      {showData && (
+        <ItemDataSection data={insights} today={userToday} itemName={item.name} />
+      )}
 
       {/* Tutorial / how-to — surfaced near the top so users see the
           link before scrolling through research notes etc. */}

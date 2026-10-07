@@ -7,6 +7,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserToday } from "@/lib/user-date";
+import { jsonError, readJson } from "@/lib/api";
 
 type Body = {
   slug: string;
@@ -18,13 +19,13 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
   // Day keys are the user's local calendar day (server clock is UTC).
   const { today: userToday } = await getUserToday(supabase, user.id);
 
-  const body = (await request.json()) as Body;
+  const parsedBody = await readJson<Body>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
   if (!body.slug) {
     return NextResponse.json({ error: "slug required" }, { status: 400 });
   }

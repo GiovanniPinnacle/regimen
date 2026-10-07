@@ -12,7 +12,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  parseJsonResponse,
+  llmErrorResponse,
+} from "@/lib/anthropic";
+import { jsonError, readJson, internalError } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   userSubmission,
@@ -64,16 +71,11 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
-  let body: Body;
-  try {
-    body = (await request.json()) as Body;
-  } catch {
-    return NextResponse.json({ error: "Bad request" }, { status: 400 });
-  }
+  const parsedBody = await readJson<Body>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
   if (!body.name?.trim()) {
     return NextResponse.json({ error: "Missing name" }, { status: 400 });
   }
@@ -112,7 +114,7 @@ export async function POST(request: NextRequest) {
     const anthropic = getAnthropic();
     const res = await anthropic.messages.create({
       ...MODEL_OPTS.chat,
-      max_tokens: 1500,
+      max_tokens: 4096,
       messages: [
         {
           role: "user",
@@ -130,13 +132,7 @@ export async function POST(request: NextRequest) {
       tokens_in: res.usage?.input_tokens,
       tokens_out: res.usage?.output_tokens,
     });
-    const text = res.content
-      .map((c) => (c.type === "text" ? c.text : ""))
-      .join("")
-      .trim();
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON in Coach response");
-    const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+    const parsed = parseJsonResponse<Record<string, unknown>>(res);
 
     const itemType = ((parsed.item_type as string | undefined) ??
       body.item_type ??
@@ -190,9 +186,6 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ ok: true, id: data.id, generated: true });
   } catch (err) {
-    return NextResponse.json(
-      { error: (err as Error).message },
-      { status: 500 },
-    );
+    return llmErrorResponse(err) ?? internalError("/api/catalog/generate", err);
   }
 }

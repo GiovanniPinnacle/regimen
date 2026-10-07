@@ -3,9 +3,13 @@
 //
 // User types a small item name like "garlic", "avocado", "olive oil";
 // optionally picks a parent to attach it to as a companion. We insert
-// with sensible defaults — item_type defaults to food, category to
-// permanent, status to active, and the timing_slot is whatever slot
-// the QuickAdd is rendered under.
+// with sensible defaults — category permanent, status active, and the
+// timing_slot is whatever slot the QuickAdd is rendered under.
+//
+// item_type: the caller's explicit choice wins. Otherwise a companion
+// inherits its parent's type, and a standalone add defaults to
+// "supplement". (It used to default to "food", which /today filters out
+// of the checklist — the item was saved and then vanished.)
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -22,8 +26,8 @@ type Body = {
   /** Free-text instruction for how to use as a companion (e.g. "stir
    *  into the bowl", "drizzle on top"). */
   companion_instruction?: string;
-  /** Override default — defaults to "food" since most quick-adds are
-   *  toppings/whole foods. Coach can override via the proposal pipeline. */
+  /** Explicit type. When omitted: parent's type for companions, else
+   *  "supplement" (a type /today shows as a check-off). */
   item_type?: ItemType;
   category?: Category;
   dose?: string;
@@ -86,10 +90,22 @@ export async function POST(request: NextRequest) {
     "situational",
     "condition_linked",
   ]);
-  const itemType: ItemType =
-    body.item_type && VALID_TYPES.has(body.item_type)
-      ? body.item_type
-      : "food";
+  // Companions inherit the parent's type so they render (and count)
+  // alongside it on /today.
+  let parentType: ItemType | null = null;
+  if (body.parent_id) {
+    const { data: parent } = await supabase
+      .from("items")
+      .select("item_type")
+      .eq("id", body.parent_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const t = parent?.item_type as ItemType | undefined;
+    if (t && VALID_TYPES.has(t)) parentType = t;
+  }
+  const explicitType =
+    body.item_type && VALID_TYPES.has(body.item_type) ? body.item_type : null;
+  const itemType: ItemType = explicitType ?? parentType ?? "supplement";
   const category: Category =
     body.category && VALID_CATEGORIES.has(body.category)
       ? body.category
@@ -111,7 +127,13 @@ export async function POST(request: NextRequest) {
     .limit(1)
     .maybeSingle();
 
-  let data: { id: string; name: string; timing_slot: string; companion_of: string | null };
+  let data: {
+    id: string;
+    name: string;
+    timing_slot: string;
+    item_type: string;
+    companion_of: string | null;
+  };
   let isReactivate = false;
 
   if (existing) {
@@ -122,6 +144,10 @@ export async function POST(request: NextRequest) {
       started_on: userToday,
     };
     if (body.dose?.trim()) updates.dose = body.dose.trim();
+    // Re-activating keeps the old type unless the caller chose one (or
+    // it's joining a parent) — otherwise a past "food" row would stay
+    // hidden from /today.
+    if (explicitType || parentType) updates.item_type = itemType;
     if (body.parent_id) {
       updates.companion_of = body.parent_id;
       if (body.companion_instruction?.trim()) {
@@ -133,7 +159,7 @@ export async function POST(request: NextRequest) {
       .update(updates)
       .eq("id", existing.id)
       .eq("user_id", user.id)
-      .select("id, name, timing_slot, companion_of")
+      .select("id, name, timing_slot, item_type, companion_of")
       .single();
     if (upErr) {
       return NextResponse.json({ error: upErr.message }, { status: 500 });
@@ -161,7 +187,7 @@ export async function POST(request: NextRequest) {
     const { data: inserted, error } = await supabase
       .from("items")
       .insert(insertRow)
-      .select("id, name, timing_slot, companion_of")
+      .select("id, name, timing_slot, item_type, companion_of")
       .single();
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

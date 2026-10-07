@@ -46,10 +46,10 @@ export type PickedHit = {
 };
 
 const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
-  off: { label: "Open Food Facts", color: "var(--accent)" },
-  usda: { label: "USDA", color: "var(--pro)" },
-  dsld: { label: "NIH DSLD", color: "var(--premium)" },
-  manual: { label: "Curated", color: "var(--accent)" },
+  off: { label: "Open Food Facts", color: "var(--foreground-soft)" },
+  usda: { label: "USDA", color: "var(--foreground-soft)" },
+  dsld: { label: "NIH DSLD", color: "var(--foreground-soft)" },
+  manual: { label: "Curated", color: "var(--foreground-soft)" },
   coach: { label: "Coach", color: "var(--pro)" },
 };
 
@@ -169,7 +169,7 @@ export default function CatalogAutocomplete({
       }}
     >
       <div
-        className="px-3 py-1.5 text-[10px] uppercase tracking-wider flex items-center justify-between"
+        className="px-3 py-1.5 text-caption uppercase tracking-wider flex items-center justify-between"
         style={{
           color: "var(--muted)",
           fontWeight: 700,
@@ -211,7 +211,7 @@ export default function CatalogAutocomplete({
                 : `Have Coach research "${query.trim()}"`}
             </div>
             <div
-              className="text-[11px] mt-0.5 leading-snug"
+              className="text-caption mt-0.5 leading-snug"
               style={{ color: "var(--muted)" }}
             >
               Coach generates a structured catalog entry with mechanism,
@@ -240,7 +240,7 @@ export default function CatalogAutocomplete({
                 {hit.name}
               </div>
               <span
-                className="text-[9.5px] uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0"
+                className="text-caption uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0"
                 style={{
                   background: `${meta.color}1F`,
                   color: meta.color,
@@ -252,7 +252,7 @@ export default function CatalogAutocomplete({
               </span>
             </div>
             <div
-              className="text-[11px] flex flex-wrap gap-x-2 gap-y-0.5"
+              className="text-caption flex flex-wrap gap-x-2 gap-y-0.5"
               style={{ color: "var(--muted)" }}
             >
               {hit.brand && <span>{hit.brand}</span>}

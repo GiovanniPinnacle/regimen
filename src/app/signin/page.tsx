@@ -33,7 +33,9 @@ export default function SignInPage() {
 function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/today";
+  const rawNext = searchParams.get("next") ?? "/today";
+  // Same-origin paths only — never bounce to an attacker-supplied URL.
+  const next = /^\/(?![/\\])/.test(rawNext) ? rawNext : "/today";
   const justDeleted = searchParams.get("deleted") === "1";
   const callbackError = searchParams.get("error") === "auth_failed";
 

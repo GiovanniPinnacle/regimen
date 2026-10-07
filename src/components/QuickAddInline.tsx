@@ -191,14 +191,14 @@ export default function QuickAddInline({
       <div className="flex items-center gap-2 mb-2">
         <span
           className="shrink-0"
-          style={{ color: "var(--accent)" }}
+          style={{ color: "var(--foreground-soft)" }}
         >
           <Icon name="plus" size={13} strokeWidth={2.2} />
         </span>
         <span
-          className="text-[11px] uppercase tracking-wider"
+          className="text-caption uppercase tracking-wider"
           style={{
-            color: "var(--accent)",
+            color: "var(--foreground-soft)",
             fontWeight: 700,
             letterSpacing: "0.06em",
           }}
@@ -253,14 +253,14 @@ export default function QuickAddInline({
       {parents.length > 0 && (
         <div className="mt-2.5 flex items-center gap-2 flex-wrap">
           <span
-            className="text-[11px]"
+            className="text-caption"
             style={{ color: "var(--muted)" }}
           >
             Attach to:
           </span>
           <button
             onClick={() => setParentId(null)}
-            className="text-[11px] px-2.5 py-1 rounded-full"
+            className="text-caption px-2.5 py-1 rounded-full"
             style={{
               background:
                 parentId === null
@@ -279,14 +279,14 @@ export default function QuickAddInline({
             <button
               key={p.id}
               onClick={() => setParentId(p.id)}
-              className="text-[11px] px-2.5 py-1 rounded-full truncate max-w-[140px]"
+              className="text-caption px-2.5 py-1 rounded-full truncate max-w-[140px]"
               style={{
                 background:
                   parentId === p.id
-                    ? "var(--accent)"
+                    ? "var(--foreground)"
                     : "var(--surface)",
                 color:
-                  parentId === p.id ? "#FFFFFF" : "var(--foreground-soft)",
+                  parentId === p.id ? "var(--background)" : "var(--foreground-soft)",
                 fontWeight: 600,
               }}
               title={p.name}
@@ -320,7 +320,7 @@ export default function QuickAddInline({
                   void handleSave(t);
                 }}
                 disabled={busy}
-                className="text-[10.5px] px-2 py-1 rounded-full"
+                className="text-caption px-2 py-1 rounded-full"
                 style={{
                   background: "var(--background)",
                   color: "var(--muted)",
@@ -337,7 +337,7 @@ export default function QuickAddInline({
 
       {err && (
         <div
-          className="text-[11px] mt-2"
+          className="text-caption mt-2"
           style={{ color: "var(--error)" }}
         >
           {err}

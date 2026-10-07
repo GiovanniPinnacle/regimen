@@ -11,11 +11,18 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  jsonSchemaFormat,
+  parseJsonResponse,
+} from "@/lib/anthropic";
+import { jsonError, internalError } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
-  buildContextForCurrentUser,
-  contextToSystemPrompt,
+  buildContextForUser,
+  contextToCachedSystem,
 } from "@/lib/context";
 
 export const runtime = "nodejs";
@@ -38,11 +45,14 @@ export async function GET() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
-  const ctx = await buildContextForCurrentUser();
+  let ctx: Awaited<ReturnType<typeof buildContextForUser>>;
+  try {
+    ctx = await buildContextForUser(user.id);
+  } catch (err) {
+    return internalError("/api/coach/suggestions", err);
+  }
 
   // Cheap heuristics first — no LLM call when patterns are obvious
   const heuristic = findHeuristicSuggestion(ctx.activeItems);
@@ -61,19 +71,19 @@ export async function GET() {
   const limited = await rateLimitOrError(user.id, "coach");
   if (limited) return limited;
 
-  const system = contextToSystemPrompt(ctx);
+  const system = contextToCachedSystem(ctx);
   const userPrompt = `Look at my active stack ONLY. Find the SINGLE highest-leverage pairing/topping/consolidation opportunity I'm missing — like a fat-soluble vitamin without a fat companion, eggs without yolk cofactors, or two items in the same slot that should be merged into one card via companion_of.
 
-Return ONLY a JSON object on one line, no prose:
-{"kind":"pair|topping|consolidate|move_slot","title":"<60-char headline>","body":"<2-sentence explanation in plain English>","apply_prompt":"<the prompt I should fire to Coach to emit a one-tap PROPOSAL block for this change>","item_ids":["<id>","<id>"]}
+Fields: kind (pair|topping|consolidate|move_slot), title (60-char headline), body (2-sentence explanation in plain English), apply_prompt (the prompt I should fire to Coach to emit a one-tap PROPOSAL block for this change), item_ids (ids of the items involved).
 
-If nothing high-leverage is missing right now, return: {"kind":"none","title":"","body":"","apply_prompt":""}`;
+If nothing high-leverage is missing right now, return kind "none" with empty strings and an empty item_ids array.`;
 
   try {
     const anthropic = getAnthropic();
     const res = await anthropic.messages.create({
       ...MODEL_OPTS.chat,
-      max_tokens: 512,
+      max_tokens: 2048,
+      output_config: jsonSchemaFormat(SUGGESTION_SCHEMA),
       system,
       messages: [{ role: "user", content: userPrompt }],
     });
@@ -83,21 +93,13 @@ If nothing high-leverage is missing right now, return: {"kind":"none","title":""
       tokens_in: res.usage?.input_tokens,
       tokens_out: res.usage?.output_tokens,
     });
-    const text = res.content
-      .map((c) => (c.type === "text" ? c.text : ""))
-      .join("")
-      .trim();
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) {
-      return NextResponse.json({ suggestion: null });
-    }
-    const parsed = JSON.parse(match[0]) as {
+    const parsed = parseJsonResponse<{
       kind: string;
       title: string;
       body: string;
       apply_prompt: string;
       item_ids?: string[];
-    };
+    }>(res);
     if (parsed.kind === "none" || !parsed.title) {
       return NextResponse.json({ suggestion: null });
     }
@@ -110,10 +112,28 @@ If nothing high-leverage is missing right now, return: {"kind":"none","title":""
       item_ids: parsed.item_ids,
     };
     return NextResponse.json({ suggestion });
-  } catch {
+  } catch (err) {
+    // Non-critical widget — degrade to "no suggestion" on any failure.
+    console.warn("coach/suggestions LLM failed", err);
     return NextResponse.json({ suggestion: null });
   }
 }
+
+const SUGGESTION_SCHEMA = {
+  type: "object",
+  properties: {
+    kind: {
+      type: "string",
+      enum: ["pair", "topping", "consolidate", "move_slot", "none"],
+    },
+    title: { type: "string" },
+    body: { type: "string" },
+    apply_prompt: { type: "string" },
+    item_ids: { type: "array", items: { type: "string" } },
+  },
+  required: ["kind", "title", "body", "apply_prompt", "item_ids"],
+  additionalProperties: false,
+};
 
 // Cheap heuristic check — returns a Suggestion or null without any LLM
 // call. Examples covered:

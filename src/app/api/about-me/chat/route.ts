@@ -6,7 +6,15 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  extractJson,
+  assertCompleted,
+  llmErrorResponse,
+} from "@/lib/anthropic";
+import { jsonError, readJson, internalError } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -48,14 +56,6 @@ const FIELDS = [
   "current_blockers",
 ];
 
-function extractJson(raw: string): string {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fenced) return fenced[1].trim();
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start >= 0 && end > start) return raw.slice(start, end + 1);
-  return raw.trim();
-}
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -64,9 +64,11 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
-  const { messages } = (await request.json()) as { messages: Msg[] };
+  const parsedBody = await readJson<{ messages?: Msg[] }>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const { messages } = parsedBody.data;
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json({ error: "Missing messages" }, { status: 400 });
   }
@@ -133,11 +135,9 @@ Style:
       tokens_in: res.usage?.input_tokens,
       tokens_out: res.usage?.output_tokens,
     });
+    assertCompleted(res);
   } catch (err) {
-    return NextResponse.json(
-      { error: `Coach error: ${(err as Error).message}` },
-      { status: 500 },
-    );
+    return llmErrorResponse(err) ?? internalError("/api/about-me/chat", err);
   }
 
   let parsed: {
@@ -148,10 +148,7 @@ Style:
   try {
     parsed = JSON.parse(extractJson(raw));
   } catch {
-    return NextResponse.json(
-      { error: "Coach did not return valid JSON. Try again." },
-      { status: 500 },
-    );
+    return jsonError("bad_llm_json", "Coach did not return valid JSON. Try again.", 502);
   }
 
   // Apply patch if present

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0E1014">
+  <title>Regimen — offline</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --background: #0E1014;
+      --surface: #181B21;
+      --surface-alt: #21252C;
+      --foreground: #FAFAFA;
+      --muted: rgba(250, 250, 250, 0.50);
+      --border: rgba(255, 255, 255, 0.11);
+      --primary: #F5F5F7;
+      --primary-deep: #E0E0E4;
+      --primary-fg: #0E1014;
+      --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.32);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      background: var(--background);
+      color: var(--foreground);
+      font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      width: 100%;
+      max-width: 360px;
+      padding: 24px;
+      text-align: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow-card);
+    }
+    .icon { width: 48px; height: 48px; border-radius: 12px; margin-bottom: 16px; }
+    h1 { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.018em; margin: 0 0 8px; }
+    p { font-size: 13px; line-height: 18px; color: var(--muted); margin: 0 0 20px; }
+    button {
+      appearance: none;
+      width: 100%;
+      height: 44px;
+      border: 0;
+      border-radius: 14px;
+      background: var(--primary);
+      color: var(--primary-fg);
+      font: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 150ms, background-color 150ms;
+    }
+    button:hover { background: var(--primary-deep); }
+    button:active { transform: scale(0.97); }
+  </style>
+</head>
+<body>
+  <main class="card" role="alert">
+    <img class="icon" src="/icon-192.png" alt="" width="48" height="48">
+    <h1>You're offline</h1>
+    <p>Regimen needs a connection to load your stack. Your data is safe — reconnect and try again.</p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </main>
+  <script>
+    // Reload automatically once the connection comes back.
+    window.addEventListener("online", function () { location.reload(); });
+  </script>
+</body>
+</html>

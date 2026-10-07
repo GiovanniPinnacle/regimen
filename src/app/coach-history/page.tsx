@@ -5,9 +5,11 @@
 // buttons on each turn. Read-only — Coach picks up new threads from
 // the Coach FAB on /today.
 
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { Eyebrow } from "@/components/ui/Section";
+import { AskAgainButton, ContinueButton } from "./HistoryActions";
 import EmptyGlyph from "@/components/EmptyGlyph";
 import CoachMarkdown from "@/components/CoachMarkdown";
 import { addDaysISO, localDateISO } from "@/lib/series";
@@ -42,7 +44,7 @@ export default async function CoachHistoryPage() {
   } = await supabase.auth.getUser();
   if (!user) {
     return (
-      <div className="py-12 text-center" style={{ color: "var(--muted)" }}>
+      <div className="py-12 text-center text-callout text-[var(--muted)]">
         Sign in to see your Coach history.
       </div>
     );
@@ -73,76 +75,32 @@ export default async function CoachHistoryPage() {
   }
 
   return (
-    <div className="pb-24">
-      <header className="mb-6">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            You
-          </Link>
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Coach history
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          Past conversations, newest first. Coach references the most-recent
-          turn automatically; older threads stay here for your reference.
-        </p>
-      </header>
+    <div className="pb-28">
+      <PageHeader
+        back="/coach"
+        backLabel="Coach"
+        title="History"
+        subtitle="Every conversation with Coach, newest first."
+        actions={<ContinueButton />}
+        showCoach={false}
+      />
 
       {rows.length === 0 ? (
-        <div className="rounded-2xl card-glass p-7 text-center">
-          <div className="flex justify-center mb-4">
+        <Card padding="lg" className="text-center">
+          <div className="mb-4 flex justify-center">
             <EmptyGlyph icon="sparkle" tone="pro" size={64} />
           </div>
-          <div
-            className="text-[10px] uppercase tracking-wider mb-2"
-            style={{
-              color: "var(--pro)",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            No history yet
-          </div>
-          <div
-            className="text-[16px]"
-            style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
-          >
-            Open Coach to start
-          </div>
-          <div
-            className="text-[12.5px] mt-2 leading-relaxed max-w-sm mx-auto"
-            style={{ color: "var(--foreground-soft)" }}
-          >
-            Tap the sparkle button on any tab to ask Coach about your stack.
-            Every conversation lands here automatically — newest first.
-          </div>
-        </div>
+          <div className="text-title-3">No conversations yet</div>
+          <p className="mx-auto mt-1 max-w-sm text-callout text-[var(--muted)]">
+            Tap the sparkle on any screen to ask Coach about your stack. Every
+            answer lands here.
+          </p>
+        </Card>
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col">
           {groups.map((g) => (
-            <section key={g.date}>
-              <h2
-                className="text-[11px] uppercase tracking-wider mb-2.5 px-1"
-                style={{
-                  color: "var(--muted)",
-                  fontWeight: 700,
-                  letterSpacing: "0.08em",
-                }}
-              >
-                {formatDateHeading(g.date, today)}
-              </h2>
+            <section key={g.date} className="mt-7 first:mt-0">
+              <Eyebrow className="mb-2.5 px-1">{formatDateHeading(g.date, today)}</Eyebrow>
               <div className="flex flex-col gap-3">
                 {g.rows.map((row) => {
                   const userText = userTextFromJson(row.messages_json?.user);
@@ -151,62 +109,29 @@ export default async function CoachHistoryPage() {
                       ? (row.messages_json.assistant as string)
                       : "";
                   const time = new Date(row.created_at).toLocaleTimeString(
-                    undefined,
-                    { hour: "numeric", minute: "2-digit" },
+                    "en-US",
+                    { hour: "numeric", minute: "2-digit", timeZone },
                   );
                   return (
                     <article
                       key={row.id}
-                      className="rounded-2xl card-glass p-4"
+                      id={`t-${row.id}`}
+                      className="scroll-mt-6 rounded-[20px] border border-[var(--border)] bg-[var(--surface)] p-4 target:border-[var(--pro)]"
                     >
-                      <div
-                        className="text-[10px] uppercase tracking-wider mb-2"
-                        style={{
-                          color: "var(--muted)",
-                          fontWeight: 600,
-                          letterSpacing: "0.08em",
-                        }}
-                      >
-                        {time}
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="text-eyebrow uppercase text-[var(--muted)]">
+                          {time}
+                        </span>
+                        {userText && <AskAgainButton text={userText} />}
                       </div>
                       {userText ? (
-                        <div className="mb-3">
-                          <div
-                            className="text-[10px] uppercase tracking-wider mb-1"
-                            style={{
-                              color: "var(--pro)",
-                              fontWeight: 700,
-                              letterSpacing: "0.06em",
-                            }}
-                          >
-                            You
-                          </div>
-                          <div
-                            className="text-[13.5px] leading-relaxed whitespace-pre-wrap"
-                            style={{ color: "var(--foreground)" }}
-                          >
-                            {userText}
-                          </div>
-                        </div>
+                        <p className="mb-3 whitespace-pre-wrap text-callout font-semibold">
+                          {userText}
+                        </p>
                       ) : null}
                       {asstText ? (
-                        <div>
-                          <div
-                            className="text-[10px] uppercase tracking-wider mb-1"
-                            style={{
-                              color: "var(--accent)",
-                              fontWeight: 700,
-                              letterSpacing: "0.06em",
-                            }}
-                          >
-                            Coach
-                          </div>
-                          <div
-                            className="text-[13.5px] leading-relaxed"
-                            style={{ color: "var(--foreground-soft)" }}
-                          >
-                            <CoachMarkdown text={asstText} />
-                          </div>
+                        <div className="text-callout text-[var(--foreground-soft)]">
+                          <CoachMarkdown text={asstText} />
                         </div>
                       ) : null}
                     </article>

@@ -1,859 +1,507 @@
 "use client";
 
+// /stack — everything in the regimen, grouped by when you take it.
+//
+// One query loads every non-retired item; tab counts, lists and the
+// summary all derive from it. Active items get 30-day adherence (doses
+// taken vs doses scheduled — see src/lib/series.ts) with a 14-day
+// sparkline, plus monthly cost. Sort / filter live in a sheet; global
+// search is the header icon.
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import ItemCard from "@/components/ItemCard";
-import { getItemsByStatus, getItemAdherence } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/client";
-import { showToast } from "@/lib/toast";
-import type { Category, Goal, Item, ItemType, Status } from "@/lib/types";
-import { ITEM_TYPE_LABELS, todayISO } from "@/lib/constants";
-import { daysBetween } from "@/lib/series";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { Stat } from "@/components/ui/Section";
+import Button, { ButtonLink } from "@/components/ui/Button";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { ChipButton } from "@/components/ui/Chip";
+import Icon from "@/components/Icon";
 import ItemTypeIcon from "@/components/ItemTypeIcon";
-import EmptyState from "@/components/EmptyState";
-import StackFilterSheet from "@/components/StackFilterSheet";
-import AskCoachButton from "@/components/AskCoachButton";
+import Sparkline from "@/components/Sparkline";
+import Segmented from "@/components/Segmented";
+import StackFilterSheet, { type StackSortMode } from "@/components/StackFilterSheet";
+import { getItemAdherence } from "@/lib/storage";
+import { createClient } from "@/lib/supabase/client";
+import { monthlyCostFor } from "@/lib/cost";
 import {
-  SkeletonLine,
-  SkeletonPill,
-  SkeletonItemList,
-  SkeletonCard,
-} from "@/components/Skeleton";
+  DAILY_LOGGABLE_TYPES,
+  TIMING_LABELS,
+  TIMING_ORDER,
+  todayISO,
+} from "@/lib/constants";
+import { daysBetween } from "@/lib/series";
+import { openCoach } from "@/lib/coach-events";
+import type { Goal, Item, ItemType, TimingSlot } from "@/lib/types";
 
-// Filter chip arrays now live in StackFilterSheet — page only owns
-// state. Sort union type stays here since it's part of the page's
-// state shape.
-type SortMode = "default" | "name" | "adherence_low" | "supply_low" | "recent";
 type StatusTab = "active" | "queued" | "backburner";
 
-const STATUS_TABS: { value: StatusTab; label: string; subtitle: string }[] = [
-  { value: "active", label: "Active", subtitle: "On Today" },
-  {
-    value: "queued",
-    label: "Queued",
-    subtitle: "Waiting for trigger",
-  },
-  { value: "backburner", label: "Parked", subtitle: "Revisit later" },
-];
+const TAB_LABEL: Record<StatusTab, string> = {
+  active: "Active",
+  queued: "Queued",
+  backburner: "Paused",
+};
 
-/** Days of supply left. The current unit's clock starts when it ARRIVED
- *  (arrived_on) — started_on is when the item joined the regimen and
- *  doesn't reset on reorder. Falls back to started_on for items that
- *  never went through /purchases. */
-function calcSupplyLeft(item: Item): number | null {
+const ADHERENCE_DAYS = 30;
+const SPARK_DAYS = 14;
+
+/** Days of supply left — the clock starts when the current unit
+ *  arrived, falling back to when the item joined the regimen. */
+function supplyLeft(item: Item): number | null {
   const anchor = item.arrived_on ?? item.started_on;
   if (!item.days_supply || !anchor) return null;
-  const daysElapsed = Math.max(0, daysBetween(anchor, todayISO()));
-  return item.days_supply - daysElapsed;
+  return item.days_supply - Math.max(0, daysBetween(anchor, todayISO()));
+}
+
+/** Does this item produce a check-off on Today? Mirrors /today. */
+function onTodayChecklist(item: Item): boolean {
+  if (item.timing_slot === "situational") return false;
+  if (!DAILY_LOGGABLE_TYPES.includes(item.item_type)) return false;
+  const f = item.schedule_rule?.frequency;
+  return f !== "as_needed" && f !== "situational";
+}
+
+function fmtMoney(n: number) {
+  return n >= 100 ? `$${Math.round(n)}` : `$${n.toFixed(n < 10 ? 2 : 0)}`;
 }
 
 export default function StackPage() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [adherenceMap, setAdherenceMap] = useState<Record<string, number>>({});
-  const [adherenceSeriesMap, setAdherenceSeriesMap] = useState<
-    Record<string, (number | null)[]>
-  >({});
-  const [search, setSearch] = useState("");
+  const [all, setAll] = useState<Item[] | null>(null);
+  const [rates, setRates] = useState<Record<string, number>>({});
+  const [series, setSeries] = useState<Record<string, (number | null)[]>>({});
+  const [tab, setTab] = useState<StatusTab>("active");
   const [typeFilter, setTypeFilter] = useState<"all" | ItemType>("all");
-  const [categoryFilter, setCategoryFilter] = useState<"all" | Category>("all");
   const [goalFilter, setGoalFilter] = useState<"all" | Goal>("all");
-  const [sortMode, setSortMode] = useState<SortMode>("default");
-  const [statusTab, setStatusTab] = useState<StatusTab>("active");
-  const [statusCounts, setStatusCounts] = useState<Record<StatusTab, number>>({
-    active: 0,
-    queued: 0,
-    backburner: 0,
-  });
-  const [groupByType, setGroupByType] = useState(true);
-  const [loading, setLoading] = useState(true);
-
+  const [sortMode, setSortMode] = useState<StackSortMode>("timing");
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  // Density toggle — when on, item cards render in compact mode (single
-  // row, no inline goals/usage_notes/companions). Persisted in
-  // localStorage so the user's preference sticks across visits. Lazy
-  // initialization keeps the initial render in sync with the saved
-  // pref (no flash from default-off → on after hydration).
-  const [dense, setDense] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem("regimen.stack.dense") === "1";
-    } catch {
-      return false;
-    }
-  });
-  function toggleDense() {
-    setDense((v) => {
-      const next = !v;
-      try {
-        localStorage.setItem("regimen.stack.dense", next ? "1" : "0");
-      } catch {}
-      return next;
-    });
-  }
 
-  // Filter sheet — replaces the old four-row chip stack. One sticky
-  // search bar + one Filter button → tap opens the sheet.
-  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-
-  // One-time hint about the new swipe-left-to-retire gesture. Auto-hides
-  // after first dismissal OR after the user actually retires something.
-  const [showSwipeHint, setShowSwipeHint] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem("regimen.stack.hintSwipeSeen") !== "1";
-    } catch {
-      return false;
-    }
-  });
-  function dismissSwipeHint() {
-    setShowSwipeHint(false);
-    try {
-      localStorage.setItem("regimen.stack.hintSwipeSeen", "1");
-    } catch {}
-  }
-
-  // Listen for cross-component "items changed" events fired after Coach
-  // approves a proposal, after dedupe, etc. Bumping reloadKey re-runs
-  // the fetches below.
   useEffect(() => {
-    function onChange() {
-      setReloadKey((k) => k + 1);
-    }
+    const onChange = () => setReloadKey((k) => k + 1);
     window.addEventListener("regimen:items-changed", onChange);
-    return () =>
-      window.removeEventListener("regimen:items-changed", onChange);
+    return () => window.removeEventListener("regimen:items-changed", onChange);
   }, []);
 
-  // Fetch counts for all tabs whenever items change
-  useEffect(() => {
-    (async () => {
-      const [a, q, b] = await Promise.all([
-        getItemsByStatus("active"),
-        getItemsByStatus("queued"),
-        getItemsByStatus("backburner"),
-      ]);
-      setStatusCounts({
-        active: a.filter((i) => !i.companion_of).length,
-        queued: q.length,
-        backburner: b.length,
-      });
-    })();
-  }, [reloadKey]);
-
-  // Refetch on status tab change OR items-changed event. Only show
-  // the full loading skeleton on TAB change or initial mount —
-  // items-changed events refresh silently in the background so the
-  // user doesn't see /stack flash to "Loading…" every time they
-  // approve a Coach proposal or quick-add an item.
   useEffect(() => {
     let alive = true;
-    const isTabSwitch = reloadKey === 0 || items.length === 0;
     (async () => {
-      if (isTabSwitch) setLoading(true);
-      const all = await getItemsByStatus(statusTab);
+      const { data, error } = await createClient()
+        .from("items")
+        .select("*")
+        .in("status", ["active", "queued", "backburner"])
+        .order("sort_order", { ascending: true, nullsFirst: false })
+        .order("name")
+        .limit(1000);
+      if (error) console.error("stack: items", error);
+      const items = (data ?? []) as Item[];
       if (!alive) return;
-      setItems(all);
-      // Compute adherence only for active tab. Fetch the series too
-      // (parallel with the rollup) so each ItemCard can render its
-      // 14-day sparkline without an N+1 fanout.
-      if (statusTab === "active") {
-        const { rates, series } = await getItemAdherence(all, 14);
-        if (!alive) return;
-        setAdherenceMap(rates);
-        setAdherenceSeriesMap(series);
-      } else {
-        setAdherenceMap({});
-        setAdherenceSeriesMap({});
-      }
-      setLoading(false);
+      setAll(items);
+      const active = items.filter((i) => i.status === "active");
+      const adh = await getItemAdherence(active, ADHERENCE_DAYS);
+      if (!alive) return;
+      setRates(adh.rates);
+      setSeries(adh.series);
     })();
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusTab, reloadKey]);
+  }, [reloadKey]);
 
-  // Nest companions under their parents — fixes the duplicate-display bug
-  // where a child + parent both appeared as separate cards on /stack.
-  const parentItems = useMemo(() => {
-    const companionsByParent: Record<string, Item[]> = {};
-    for (const i of items) {
-      if (i.companion_of) {
-        if (!companionsByParent[i.companion_of]) {
-          companionsByParent[i.companion_of] = [];
-        }
-        companionsByParent[i.companion_of].push(i);
+  // Parents only; companions nest under their parent.
+  const { byStatus, companions } = useMemo(() => {
+    const comp: Record<string, Item[]> = {};
+    const groups: Record<StatusTab, Item[]> = { active: [], queued: [], backburner: [] };
+    for (const i of all ?? []) {
+      if (i.companion_of) (comp[i.companion_of] ??= []).push(i);
+    }
+    const ids = new Set((all ?? []).map((i) => i.id));
+    for (const i of all ?? []) {
+      // A companion whose parent isn't loaded (retired parent) stands alone.
+      if (i.companion_of && ids.has(i.companion_of)) continue;
+      if (i.status in groups) groups[i.status as StatusTab].push(i);
+    }
+    return { byStatus: groups, companions: comp };
+  }, [all]);
+
+  const tabItems = byStatus[tab];
+
+  const summary = useMemo(() => {
+    const active = all?.filter((i) => i.status === "active") ?? [];
+    const rateVals = Object.values(rates);
+    const avg = rateVals.length
+      ? rateVals.reduce((s, r) => s + r, 0) / rateVals.length
+      : null;
+    let spend = 0;
+    let costed = 0;
+    for (const i of active) {
+      const m = monthlyCostFor(i);
+      if (m != null) {
+        spend += m;
+        costed++;
       }
     }
-    return items
-      .filter((i) => !i.companion_of)
-      .map((p) => ({
-        ...p,
-        __companions: companionsByParent[p.id] ?? [],
-      })) as Item[];
-  }, [items]);
+    const checklist = byStatus.active.filter(onTodayChecklist).length;
+    const lowSupply = active
+      .map((i) => ({ item: i, days: supplyLeft(i) }))
+      .filter((x) => x.days != null && x.days < 14);
+    return { avg, spend, costed, checklist, lowSupply };
+  }, [all, rates, byStatus]);
 
-  const allGoals: Goal[] = useMemo(() => {
-    const set = new Set<Goal>();
-    parentItems.forEach((i) => i.goals.forEach((g) => set.add(g)));
-    return Array.from(set);
-  }, [parentItems]);
+  const availableGoals = useMemo(() => {
+    const s = new Set<Goal>();
+    tabItems.forEach((i) => (i.goals ?? []).forEach((g) => s.add(g)));
+    return Array.from(s);
+  }, [tabItems]);
 
-  // Compute supply left per item
-  const supplyMap = useMemo(() => {
-    const m: Record<string, number | null> = {};
-    for (const i of parentItems) m[i.id] = calcSupplyLeft(i);
+  const typeCounts = useMemo(() => {
+    const m: Partial<Record<"all" | ItemType, number>> = { all: tabItems.length };
+    for (const i of tabItems) m[i.item_type] = (m[i.item_type] ?? 0) + 1;
     return m;
-  }, [parentItems]);
+  }, [tabItems]);
 
-  // Supply alerts — items running out
-  const supplyAlerts = useMemo(() => {
-    return parentItems
-      .map((i) => ({ item: i, days: supplyMap[i.id] }))
-      .filter((x) => x.days != null && (x.days as number) < 14)
-      .sort((a, b) => (a.days as number) - (b.days as number));
-  }, [parentItems, supplyMap]);
-
-  // Filter
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return parentItems.filter((i) => {
-      if (typeFilter !== "all" && i.item_type !== typeFilter) return false;
-      if (categoryFilter !== "all" && i.category !== categoryFilter)
-        return false;
-      if (goalFilter !== "all" && !i.goals.includes(goalFilter)) return false;
-      if (q) {
-        const hay =
-          `${i.name} ${i.brand ?? ""} ${i.usage_notes ?? ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [parentItems, typeFilter, categoryFilter, goalFilter, search]);
-
-  // Sort
-  const sorted = useMemo(() => {
-    const arr = [...filtered];
-    if (sortMode === "name") {
-      arr.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sortMode === "adherence_low") {
-      arr.sort((a, b) => {
-        const aa = adherenceMap[a.id] ?? 1; // items without data → end
-        const bb = adherenceMap[b.id] ?? 1;
-        return aa - bb;
-      });
-    } else if (sortMode === "supply_low") {
-      arr.sort((a, b) => {
-        const aa = supplyMap[a.id];
-        const bb = supplyMap[b.id];
-        if (aa == null && bb == null) return 0;
-        if (aa == null) return 1;
-        if (bb == null) return -1;
-        return aa - bb;
-      });
-    } else if (sortMode === "recent") {
-      arr.sort((a, b) => {
-        const at = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return bt - at;
-      });
-    }
-    return arr;
-  }, [filtered, sortMode, adherenceMap, supplyMap]);
-
-  const grouped = useMemo(() => {
-    if (!groupByType || sortMode !== "default") return null;
-    const map: Record<ItemType, Item[]> = {
-      supplement: [],
-      topical: [],
-      device: [],
-      procedure: [],
-      practice: [],
-      food: [],
-      gear: [],
-      test: [],
-    };
-    for (const item of sorted) {
-      // Defensive: an item may have a brand-new item_type Coach proposed
-      // before the type union was widened. Default to supplement to keep
-      // the page rendering instead of crashing the whole stack.
-      const bucket = map[item.item_type] ?? map.supplement;
-      bucket.push(item);
-    }
-    return map;
-  }, [sorted, groupByType, sortMode]);
-
-  if (loading) {
-    return (
-      <div className="pb-28">
-        <header className="mb-4">
-          <SkeletonLine width={140} height={32} />
-          <div className="mt-2">
-            <SkeletonLine width={100} height={12} />
-          </div>
-        </header>
-        <SkeletonCard height={48} className="mb-3" />
-        <div className="flex gap-2 mb-3 overflow-hidden">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <SkeletonPill key={i} width={86} height={32} />
-          ))}
-        </div>
-        <SkeletonItemList count={6} />
-      </div>
+    const list = tabItems.filter(
+      (i) =>
+        (typeFilter === "all" || i.item_type === typeFilter) &&
+        (goalFilter === "all" || (i.goals ?? []).includes(goalFilter)),
     );
-  }
+    const byNum = (f: (i: Item) => number | null, dir: 1 | -1) => (a: Item, b: Item) => {
+      const x = f(a);
+      const y = f(b);
+      if (x == null && y == null) return a.name.localeCompare(b.name);
+      if (x == null) return 1;
+      if (y == null) return -1;
+      return (x - y) * dir;
+    };
+    switch (sortMode) {
+      case "name":
+        return [...list].sort((a, b) => a.name.localeCompare(b.name));
+      case "adherence_low":
+        return [...list].sort(byNum((i) => rates[i.id] ?? null, 1));
+      case "cost_high":
+        return [...list].sort(byNum(monthlyCostFor, -1));
+      case "supply_low":
+        return [...list].sort(byNum(supplyLeft, 1));
+      case "recent":
+        return [...list].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+      default:
+        return list;
+    }
+  }, [tabItems, typeFilter, goalFilter, sortMode, rates]);
+
+  const groups = useMemo(() => {
+    if (sortMode !== "timing") return null;
+    const m = new Map<TimingSlot, Item[]>();
+    for (const i of filtered) {
+      const slot = (TIMING_ORDER.includes(i.timing_slot) ? i.timing_slot : "ongoing") as TimingSlot;
+      if (!m.has(slot)) m.set(slot, []);
+      m.get(slot)!.push(i);
+    }
+    return TIMING_ORDER.filter((s) => m.has(s)).map((s) => ({ slot: s, items: m.get(s)! }));
+  }, [filtered, sortMode]);
 
   const hasActiveFilter =
-    typeFilter !== "all" ||
-    categoryFilter !== "all" ||
-    goalFilter !== "all" ||
-    search.trim() !== "" ||
-    sortMode !== "default";
+    typeFilter !== "all" || goalFilter !== "all" || sortMode !== "timing";
 
   function clearFilters() {
     setTypeFilter("all");
-    setCategoryFilter("all");
     setGoalFilter("all");
-    setSearch("");
-    setSortMode("default");
+    setSortMode("timing");
   }
 
-  // Swipe-left → retire. Optimistic remove + undo toast. We push the
-  // item to a different status (active → backburner OR queued → backburner)
-  // depending on the current tab, since "Retire" means "stop showing for
-  // now" and the backburner is the natural park.
-  async function retireItem(item: Item) {
-    // First successful swipe also dismisses the hint banner.
-    if (showSwipeHint) dismissSwipeHint();
-    const prevStatus = item.status;
-    const targetStatus: Status =
-      statusTab === "backburner" ? "retired" : "backburner";
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
-    setStatusCounts((prev) => ({
-      ...prev,
-      [statusTab]: Math.max(0, prev[statusTab] - 1),
-    }));
-
-    const client = createClient();
-    const { error } = await client
-      .from("items")
-      .update({ status: targetStatus })
-      .eq("id", item.id);
-
-    if (error) {
-      // Re-insert if the DB rejected
-      setItems((prev) => [...prev, item]);
-      showToast("Couldn't remove — try again?", { tone: "error" });
-      return;
-    }
-
-    showToast(
-      targetStatus === "retired"
-        ? `${item.name} retired`
-        : `${item.name} moved to Parked`,
-      {
-        tone: "default",
-        action:
-          targetStatus !== "retired"
-            ? {
-                label: "View",
-                onClick: () => setStatusTab("backburner"),
-              }
-            : undefined,
-        undo: async () => {
-          const c = createClient();
-          await c
-            .from("items")
-            .update({ status: prevStatus })
-            .eq("id", item.id);
-          window.dispatchEvent(new CustomEvent("regimen:items-changed"));
-        },
-      },
-    );
-    // Cross-page refresh
-    window.dispatchEvent(new CustomEvent("regimen:items-changed"));
+  function switchTab(t: StatusTab) {
+    setTab(t);
+    setTypeFilter("all");
+    setGoalFilter("all");
+    if (t !== "active" && sortMode === "adherence_low") setSortMode("timing");
   }
+
+  const tabCaption =
+    tab === "active"
+      ? `${summary.checklist} on Today's checklist${
+          byStatus.active.length - summary.checklist > 0
+            ? ` · ${byStatus.active.length - summary.checklist} not daily`
+            : ""
+        }`
+      : tab === "queued"
+        ? "Lined up to start — not scheduled yet"
+        : "Paused — kept for later, not scheduled";
+
+  const row = (item: Item) => (
+    <StackRow
+      key={item.id}
+      item={item}
+      companions={companions[item.id] ?? []}
+      rate={tab === "active" ? (rates[item.id] ?? null) : undefined}
+      spark={tab === "active" ? (series[item.id] ?? []).slice(-SPARK_DAYS) : undefined}
+    />
+  );
 
   return (
     <div className="pb-28">
-      <header className="mb-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1
-              className="text-[34px] leading-tight"
-              style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-            >
-              Stack
-            </h1>
-            <div
-              className="text-[12.5px] mt-1"
-              style={{ color: "var(--muted)" }}
-            >
-              {sorted.length} of {parentItems.length}{" "}
-              {STATUS_TABS.find((t) => t.value === statusTab)?.label.toLowerCase()}
-            </div>
-          </div>
-          {/* Density toggle + Add — compact icon group on the right.
-              Density used to live here as a wide pill; now it's an
-              icon button. Refine-stack moved to a full-width row
-              below so it doesn't fight for header space. */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={toggleDense}
-              aria-pressed={dense}
-              aria-label={dense ? "Switch to comfortable view" : "Switch to compact view"}
-              className="h-10 w-10 rounded-xl flex items-center justify-center"
-              style={{
-                background: dense ? "var(--foreground)" : "var(--surface-alt)",
-                color: dense ? "var(--background)" : "var(--muted)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                {dense ? (
-                  <path d="M3 6h18M3 12h18M3 18h18" />
-                ) : (
-                  <>
-                    <rect x="3" y="4" width="18" height="6" rx="1.5" />
-                    <rect x="3" y="14" width="18" height="6" rx="1.5" />
-                  </>
-                )}
-              </svg>
-            </button>
+      <PageHeader
+        title="Stack"
+        back="/you"
+        backLabel="You"
+        actions={
+          <>
             <Link
-              href="/items/new"
-              aria-label="Add new item"
-              className="h-10 px-3.5 rounded-xl flex items-center gap-1 text-[13.5px]"
-              style={{
-                background: "var(--foreground)",
-                color: "var(--background)",
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-              }}
+              href="/search"
+              aria-label="Search"
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground-soft)] before:absolute before:-inset-1 before:content-[''] active:scale-95"
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              Add
+              <Icon name="search" size={19} strokeWidth={1.8} />
             </Link>
-          </div>
-        </div>
-        {/* Refine stack — full width primary CTA below the title. Was
-            squeezed in the header right column; now it gets the room
-            it needs and the gradient reads properly. */}
-        <div className="mt-3">
-          <AskCoachButton
-            prompt="Audit my full stack right now. Look for: items I should drop (no_change 5+ times, worse 2+ times, skipped 14+ days), redundant items, missing essentials given my goals, and dose stacking risks. Emit each change as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format. End with a 1-sentence summary of what changes."
-            send
-            size="md"
-            label="Refine stack with Coach"
+            <Link
+              href="/items/new?from=/stack"
+              aria-label="Add item"
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-fg)] before:absolute before:-inset-1 before:content-[''] active:scale-95"
+            >
+              <Icon name="plus" size={20} strokeWidth={2.2} />
+            </Link>
+          </>
+        }
+      />
+
+      {/* ---- Summary ---- */}
+      <Card padding="md">
+        <div className="grid grid-cols-3 gap-3">
+          <Stat
+            size="sm"
+            label="Active"
+            value={all ? byStatus.active.length : "—"}
+            sub={all ? `${summary.checklist} daily` : undefined}
+          />
+          <Stat
+            size="sm"
+            label="Adherence"
+            value={summary.avg != null ? Math.round(summary.avg * 100) : "—"}
+            unit={summary.avg != null ? "%" : undefined}
+            sub="last 30 days"
+          />
+          <Stat
+            size="sm"
+            label="Per month"
+            value={summary.costed > 0 ? fmtMoney(summary.spend) : "—"}
+            sub={
+              summary.costed > 0 ? (
+                <Link href="/costs" className="underline-offset-2 hover:underline">
+                  See costs
+                </Link>
+              ) : (
+                "add costs"
+              )
+            }
           />
         </div>
-      </header>
+      </Card>
 
-      {/* Status tabs — Active / Queued / Parked */}
-      <div
-        className="grid grid-cols-3 gap-1 p-1 rounded-2xl mb-4"
-        style={{
-          background: "var(--surface-alt)",
-        }}
-        role="tablist"
-      >
-        {STATUS_TABS.map((tab) => {
-          const active = statusTab === tab.value;
-          return (
-            <button
-              key={tab.value}
-              onClick={() => setStatusTab(tab.value)}
-              role="tab"
-              aria-selected={active}
-              className="rounded-xl py-2.5 px-2 transition-all"
-              style={{
-                background: active ? "var(--surface)" : "transparent",
-                color: active ? "var(--foreground)" : "var(--muted)",
-                boxShadow: active
-                  ? "0 1px 3px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.04)"
-                  : undefined,
-                fontWeight: active ? 700 : 500,
-              }}
-            >
-              <div className="text-[13px] flex items-baseline justify-center gap-1.5">
-                <span>{tab.label}</span>
-                {statusCounts[tab.value] > 0 && (
-                  <span
-                    className="text-[10.5px] tabular-nums"
-                    style={{
-                      color: active ? "var(--olive)" : "var(--muted)",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {statusCounts[tab.value]}
-                  </span>
-                )}
-              </div>
-              <div
-                className="text-[10px] mt-0.5 uppercase tracking-wider"
-                style={{
-                  color: "var(--muted)",
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                  opacity: active ? 0.85 : 0.6,
-                }}
-              >
-                {tab.subtitle}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Supply alerts banner */}
-      {supplyAlerts.length > 0 && (
-        <details
-          className="mb-3 rounded-2xl"
-          style={{
-            background:
-              supplyAlerts.some((a) => (a.days as number) < 0)
-                ? "rgba(255, 86, 112, 0.08)"
-                : "var(--premium-tint)",
-            border:
-              supplyAlerts.some((a) => (a.days as number) < 0)
-                ? "1px solid rgba(255, 86, 112, 0.24)"
-                : "1px solid rgba(212, 166, 69, 0.28)",
-          }}
-        >
-          <summary
-            className="cursor-pointer list-none p-3 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-[14px]">⚠️</span>
-              <span className="text-[13px]" style={{ fontWeight: 500 }}>
-                {supplyAlerts.filter((a) => (a.days as number) < 0).length >
-                  0 && (
-                  <>
-                    {
-                      supplyAlerts.filter((a) => (a.days as number) < 0)
-                        .length
-                    }{" "}
-                    depleted ·{" "}
-                  </>
-                )}
-                {supplyAlerts.filter(
-                  (a) => (a.days as number) >= 0 && (a.days as number) < 14,
-                ).length}{" "}
-                running low
-              </span>
-            </div>
-            <span className="text-[12px]" style={{ color: "var(--muted)" }}>
-              ⌄
-            </span>
-          </summary>
-          <div className="px-3 pb-3 flex flex-col gap-1.5">
-            {supplyAlerts.slice(0, 8).map((a) => (
-              <Link
-                key={a.item.id}
-                href={`/items/${a.item.id}`}
-                className="rounded-lg px-3 py-2 flex items-center justify-between gap-2 text-[12px]"
-                style={{ background: "rgba(255,255,255,0.4)" }}
-              >
-                <span style={{ fontWeight: 500 }}>{a.item.name}</span>
-                <span
-                  style={{
-                    color:
-                      (a.days as number) < 0
-                        ? "#b00020"
-                        : (a.days as number) < 7
-                          ? "#C29142"
-                          : "var(--muted)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {(a.days as number) < 0
-                    ? "depleted"
-                    : `${a.days as number}d left`}
-                </span>
-              </Link>
-            ))}
-            <Link
-              href="/purchases"
-              className="text-[12px] text-center mt-1 px-3 py-2 rounded-lg"
-              style={{
-                color: "var(--olive)",
-                background: "rgba(255,255,255,0.4)",
-                fontWeight: 500,
-                textDecoration: "underline",
-              }}
-            >
-              Open shopping list →
-            </Link>
-          </div>
-        </details>
-      )}
-
-      {/* Sticky search + Filter button — replaces the old four-row
-          chip stack. Search stays inline (most-used). Everything else
-          (type / sort / category / goal) lives in StackFilterSheet
-          which opens on tap. The Filter button shows a dot when any
-          filter is active. */}
-      <div
-        className="sticky top-0 z-10 -mx-5 px-5 pt-1 pb-2 mb-2"
-        style={{
-          background:
-            "linear-gradient(to bottom, var(--background) 0%, var(--background) 88%, transparent 100%)",
-        }}
-      >
-        <div className="flex gap-2">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search…"
-            className="flex-1 rounded-xl px-4 py-2.5 text-[14px]"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              color: "var(--foreground)",
-              minHeight: 40,
-            }}
+      {summary.lowSupply.length > 0 && (
+        <ListGroup className="mt-3">
+          <ListRow
+            icon="shopping-bag"
+            iconTone="warn"
+            title={`${summary.lowSupply.length} running low`}
+            subtitle={summary.lowSupply
+              .sort((a, b) => (a.days ?? 0) - (b.days ?? 0))
+              .slice(0, 3)
+              .map((x) => `${x.item.name} (${(x.days ?? 0) < 0 ? "out" : `${x.days}d`})`)
+              .join(" · ")}
+            href="/purchases"
           />
-          <button
-            onClick={() => setFilterSheetOpen(true)}
-            aria-label={`Filter${hasActiveFilter ? " (filters active)" : ""}`}
-            className="shrink-0 px-3 rounded-xl flex items-center gap-1.5 relative"
-            style={{
-              background: hasActiveFilter
-                ? "var(--olive)"
-                : "var(--surface)",
-              color: hasActiveFilter ? "#FFFFFF" : "var(--foreground-soft)",
-              border: hasActiveFilter
-                ? "1px solid var(--olive)"
-                : "1px solid var(--border)",
-              fontWeight: hasActiveFilter ? 700 : 500,
-              minHeight: 40,
-              fontSize: 13,
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M4 6h16M7 12h10M10 18h4" />
-            </svg>
-            <span>Filter</span>
-            {hasActiveFilter && (
-              <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: "#FFFFFF" }}
-                aria-hidden
-              />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Swipe-to-retire hint — shown once per device. Auto-dismisses on
-          first successful retire OR when user taps the X. */}
-      {showSwipeHint && parentItems.length > 0 && (
-        <div
-          className="rounded-xl mb-3 px-3 py-2 flex items-center gap-2.5"
-          style={{
-            background: "var(--olive-tint)",
-            border: "1px solid var(--accent-glow)",
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ color: "var(--olive)", flexShrink: 0 }}
-            aria-hidden
-          >
-            <path d="M14 5l-7 7 7 7" />
-            <path d="M21 12H7" opacity="0.5" />
-          </svg>
-          <span
-            className="text-[12px] flex-1 leading-snug"
-            style={{ color: "var(--foreground-soft)" }}
-          >
-            <strong>New:</strong> swipe left on any card to retire it. Undo
-            stays available for 5 seconds.
-          </span>
-          <button
-            onClick={dismissSwipeHint}
-            className="shrink-0 leading-none px-1.5 py-1"
-            style={{ color: "var(--muted)" }}
-            aria-label="Dismiss tip"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 5l14 14M19 5L5 19" />
-            </svg>
-          </button>
-        </div>
+        </ListGroup>
       )}
 
-      {/* List */}
-      {grouped ? (
-        <div className="flex flex-col gap-3">
-          {(Object.keys(grouped) as ItemType[]).map((t) => {
-            const list = grouped[t];
-            if (list.length === 0) return null;
-            return (
-              <details key={t} className="group" open>
-                <summary className="cursor-pointer list-none flex items-center justify-between gap-3 py-2 px-1 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <ItemTypeIcon type={t} size={26} />
-                    <span
-                      className="text-[13px] uppercase tracking-wider"
-                      style={{
-                        color: "var(--foreground-soft)",
-                        fontWeight: 700,
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      {ITEM_TYPE_LABELS[t]}s
-                    </span>
-                    <span
-                      className="text-[11px] px-2 py-0.5 rounded-full chip-olive"
-                      style={{ fontWeight: 600 }}
-                    >
-                      {list.length}
-                    </span>
-                  </div>
-                  <span
-                    className="text-[12px] transition-transform group-open:rotate-180"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    ⌄
-                  </span>
-                </summary>
-                <div className="flex flex-col gap-2 mt-2">
-                  {list.map((item) => (
-                    <ItemCard
-                      key={item.id}
-                      item={item}
-                      adherence={adherenceMap[item.id] ?? null}
-                      adherenceSeries={adherenceSeriesMap[item.id] ?? null}
-                      daysSupplyLeft={supplyMap[item.id]}
-                      onSwipeRetire={() => retireItem(item)}
-                      compact={dense}
-                      showGoals={!dense}
-                      showTypeIcon={!dense}
-                    />
-                  ))}
-                </div>
-              </details>
-            );
-          })}
-        </div>
-      ) : (
-        <div className={`flex flex-col ${dense ? "gap-1" : "gap-2"}`}>
-          {sorted.map((item) => (
-            <ItemCard
-              key={item.id}
-              item={item}
-              adherence={adherenceMap[item.id] ?? null}
-              adherenceSeries={adherenceSeriesMap[item.id] ?? null}
-              daysSupplyLeft={supplyMap[item.id]}
-              onSwipeRetire={() => retireItem(item)}
-              compact={dense}
-              showGoals={!dense}
-              showTypeIcon={!dense}
-            />
+      {/* ---- Status tabs ---- */}
+      <Segmented
+        className="mt-6"
+        ariaLabel="Item status"
+        value={tab}
+        onChange={switchTab}
+        options={(Object.keys(TAB_LABEL) as StatusTab[]).map((t) => ({
+          value: t,
+          label: TAB_LABEL[t],
+          count: all ? byStatus[t].length : null,
+        }))}
+      />
+      <div className="mt-3 flex min-h-[44px] items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-footnote text-[var(--muted)]">
+          {all ? tabCaption : " "}
+        </p>
+        <ChipButton
+          icon="filter"
+          selected={hasActiveFilter}
+          onClick={() => setSheetOpen(true)}
+          aria-label={hasActiveFilter ? "Sort and filter (active)" : "Sort and filter"}
+        >
+          {hasActiveFilter ? "Filtered" : "Sort"}
+        </ChipButton>
+      </div>
+
+      {/* ---- List ---- */}
+      {all == null ? (
+        <div className="mt-2 flex flex-col gap-3">
+          {[0, 1, 2].map((k) => (
+            <Card key={k} className="h-[150px] animate-pulse" />
           ))}
         </div>
+      ) : filtered.length === 0 ? (
+        <Card padding="lg" className="mt-2 text-center">
+          <div className="text-title-3">
+            {tabItems.length === 0
+              ? tab === "active"
+                ? "Nothing active yet"
+                : tab === "queued"
+                  ? "Nothing queued"
+                  : "Nothing paused"
+              : "No items match"}
+          </div>
+          <p className="mt-1 text-callout text-[var(--muted)]">
+            {tabItems.length === 0
+              ? tab === "active"
+                ? "Add what you take — supplements, practices, foods — and Regimen builds your day."
+                : tab === "queued"
+                  ? "Queue things you plan to start later so they're one tap away."
+                  : "Pause an item from its detail page to keep it without scheduling it."
+              : "Try a different type or goal."}
+          </p>
+          <div className="mt-4 flex justify-center">
+            {tabItems.length === 0 ? (
+              <ButtonLink href="/items/new?from=/stack" icon="plus">
+                Add an item
+              </ButtonLink>
+            ) : (
+              <Button variant="secondary" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
+          </div>
+        </Card>
+      ) : groups ? (
+        <div className="flex flex-col">
+          {groups.map((g) => (
+            <section key={g.slot} className="mt-5 first:mt-2">
+              <div className="mb-2 flex items-baseline justify-between px-1">
+                <h2 className="text-eyebrow uppercase text-[var(--muted)]">
+                  {TIMING_LABELS[g.slot]}
+                </h2>
+                <span className="text-caption tabular-nums text-[var(--muted)]">
+                  {g.items.length}
+                </span>
+              </div>
+              <ListGroup>{g.items.map(row)}</ListGroup>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <ListGroup className="mt-2">{filtered.map(row)}</ListGroup>
       )}
 
-      {sorted.length === 0 && (
-        <div className="mt-6">
-          <EmptyState
-            icon={search.trim() ? "🔎" : "🎯"}
-            title={
-              search.trim()
-                ? `No matches for "${search}"`
-                : "No items match your filters"
+      {all != null && byStatus.active.length > 2 && tab === "active" && (
+        <ListGroup className="mt-8">
+          <ListRow
+            icon="sparkle"
+            iconTone="coach"
+            title="Ask Coach to review my stack"
+            subtitle="Drops, overlaps and timing conflicts"
+            onClick={() =>
+              openCoach({
+                text: "Audit my active stack. Look for items I should drop (low adherence, 'no change' reactions, redundant ingredients), timing conflicts, and anything missing for my goals. Emit each change as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format, then a one-sentence summary.",
+                send: true,
+              })
             }
-            body={
-              search.trim()
-                ? "Try a different keyword or clear your search."
-                : "Try clearing filters or adding your first item."
-            }
-            primary={
-              hasActiveFilter
-                ? { label: "Clear filters", onClick: clearFilters }
-                : { label: "Add an item", href: "/items/new" }
-            }
+            chevron
           />
-        </div>
+        </ListGroup>
       )}
+
       <StackFilterSheet
-        open={filterSheetOpen}
-        onClose={() => setFilterSheetOpen(false)}
-        typeCounts={(() => {
-          const m: Partial<Record<"all" | ItemType, number>> = {
-            all: items.length,
-          };
-          for (const t of [
-            "supplement",
-            "topical",
-            "device",
-            "procedure",
-            "practice",
-            "food",
-            "gear",
-            "test",
-          ] as ItemType[]) {
-            m[t] = items.filter((i) => i.item_type === t).length;
-          }
-          return m;
-        })()}
-        availableGoals={allGoals}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        typeCounts={typeCounts}
+        availableGoals={availableGoals}
         typeFilter={typeFilter}
         setTypeFilter={setTypeFilter}
-        categoryFilter={categoryFilter}
-        setCategoryFilter={setCategoryFilter}
         goalFilter={goalFilter}
         setGoalFilter={setGoalFilter}
         sortMode={sortMode}
-        setSortMode={(s) => {
-          setSortMode(s);
-          if (s !== "default") setGroupByType(false);
-        }}
+        setSortMode={setSortMode}
+        showAdherenceSort={tab === "active"}
         hasActiveFilter={hasActiveFilter}
         onClear={clearFilters}
+        resultCount={filtered.length}
       />
     </div>
+  );
+}
+
+function StackRow({
+  item,
+  companions,
+  rate,
+  spark,
+}: {
+  item: Item;
+  companions: Item[];
+  /** undefined = not applicable (non-active tab); null = nothing due. */
+  rate?: number | null;
+  spark?: (number | null)[];
+}) {
+  const monthly = monthlyCostFor(item);
+  const sub = [
+    item.dose,
+    monthly != null ? `${fmtMoney(monthly)}/mo` : null,
+    companions.length > 0
+      ? `with ${companions.map((c) => c.name).join(", ")}`
+      : null,
+    item.status !== "active" && item.review_trigger
+      ? `Revisit: ${item.review_trigger}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const pct = rate != null ? Math.round(rate * 100) : null;
+  const rateCls =
+    pct == null
+      ? "text-[var(--muted)]"
+      : pct >= 90
+        ? "text-[var(--success)]"
+        : pct < 50
+          ? "text-[var(--warn)]"
+          : "text-[var(--foreground)]";
+
+  return (
+    <Link
+      href={`/items/${item.id}`}
+      className="flex min-h-[60px] items-center gap-3 px-4 py-2.5 transition-colors active:bg-[var(--surface-alt)]"
+    >
+      <ItemTypeIcon type={item.item_type} size={32} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-callout font-semibold">{item.name}</span>
+        <span className="block truncate text-caption text-[var(--muted)] tabular-nums">
+          {sub || item.brand || "\u00a0"}
+        </span>
+      </span>
+      {pct != null && (
+        <span
+          className="flex w-12 shrink-0 flex-col items-end gap-1"
+          aria-label={`${pct}% adherence, last ${ADHERENCE_DAYS} days`}
+        >
+          <span className={`text-footnote font-semibold tabular-nums ${rateCls}`}>
+            {pct}%
+          </span>
+          {spark && spark.length > 0 && (
+            <Sparkline
+              values={spark}
+              width={48}
+              height={12}
+              max={1}
+              color="var(--foreground-soft)"
+              ariaLabel={`Last ${SPARK_DAYS} days`}
+            />
+          )}
+        </span>
+      )}
+    </Link>
   );
 }

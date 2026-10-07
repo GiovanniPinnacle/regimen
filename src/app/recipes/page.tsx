@@ -2,6 +2,12 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Recipe } from "@/lib/types";
 import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import { ButtonLink } from "@/components/ui/Button";
+import { SectionHeader } from "@/components/ui/Section";
+import { ListGroup } from "@/components/ui/ListRow";
 
 export const dynamic = "force-dynamic";
 
@@ -19,99 +25,51 @@ export default async function RecipesPage() {
   const others = recipes.filter((r) => !r.is_favorite);
 
   return (
-    <div className="pb-24">
-      <header className="mb-5">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            You
-          </Link>
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Recipes
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          {recipes.length === 0
-            ? "Trigger-safe meals portioned to your macros."
-            : `${recipes.length} saved · trigger-safe + portioned to your macros.`}
-        </p>
-      </header>
+    <div className="pb-28">
+      <PageHeader
+        back="/fuel"
+        backLabel="Fuel"
+        title="Recipes"
+        subtitle={
+          recipes.length === 0
+            ? "Meals portioned to your targets, built around what you avoid."
+            : `${recipes.length} saved · portioned to your targets.`
+        }
+      />
 
-      <div className="flex gap-2 mb-6">
-        <Link
-          href="/recipes/generate"
-          className="flex-1 px-4 py-3 rounded-xl text-[14px] text-center flex items-center justify-center gap-1.5"
-          style={{
-            background:
-              "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
-            color: "#FFFFFF",
-            fontWeight: 700,
-            boxShadow: "0 6px 16px rgba(139, 124, 252, 0.30)",
-          }}
-        >
-          <Icon name="sparkle" size={14} strokeWidth={2.2} />
-          Generate from fridge
-        </Link>
-        <Link
-          href="/recipes/new"
-          className="px-4 py-3 rounded-xl text-[13.5px] flex items-center gap-1.5"
-          style={{
-            background: "var(--surface-alt)",
-            color: "var(--foreground-soft)",
-            fontWeight: 600,
-          }}
-        >
-          <Icon name="plus" size={13} strokeWidth={2.2} />
+      <div className="mb-2 grid grid-cols-[1fr_auto] gap-2">
+        <ButtonLink href="/recipes/generate" variant="coach" icon="sparkle">
+          Generate from my fridge
+        </ButtonLink>
+        <ButtonLink href="/recipes/new" variant="secondary" icon="plus">
           Add
-        </Link>
+        </ButtonLink>
       </div>
 
       {recipes.length === 0 ? (
-        <div className="rounded-2xl card-glass p-8 text-center">
-          <span
-            className="inline-flex h-12 w-12 rounded-2xl items-center justify-center mb-3"
-            style={{
-              background: "var(--pro-tint)",
-              color: "var(--pro)",
-            }}
-          >
-            <Icon name="book" size={22} strokeWidth={1.7} />
+        <Card padding="lg" className="mt-4 text-center">
+          <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[14px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+            <Icon name="book" size={20} strokeWidth={1.8} />
           </span>
-          <div className="text-[15px]" style={{ fontWeight: 600 }}>
-            No recipes yet
-          </div>
-          <div
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            Coach can generate from what&apos;s in your fridge — honors your
-            macros, hard NOs, and trigger profile.
-          </div>
-        </div>
+          <div className="text-title-3">No recipes yet</div>
+          <p className="mx-auto mt-1 max-w-[300px] text-callout text-[var(--muted)]">
+            Tell Coach what&apos;s in your fridge. It honors your macros and
+            your hard no&apos;s.
+          </p>
+        </Card>
       ) : (
         <>
           {favorites.length > 0 && (
-            <Section title="Favorites" accent="var(--premium)">
+            <>
+              <SectionHeader title="Favorites" />
               <RecipeList recipes={favorites} />
-            </Section>
+            </>
           )}
           {others.length > 0 && (
-            <Section
-              title={favorites.length > 0 ? "Other recipes" : "All recipes"}
-              accent="var(--muted)"
-            >
+            <>
+              <SectionHeader title={favorites.length > 0 ? "Everything else" : "All recipes"} />
               <RecipeList recipes={others} />
-            </Section>
+            </>
           )}
         </>
       )}
@@ -119,124 +77,48 @@ export default async function RecipesPage() {
   );
 }
 
-function Section({
-  title,
-  accent,
-  children,
-}: {
-  title: string;
-  accent: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mb-7">
-      <h2
-        className="text-[11px] uppercase tracking-wider mb-2.5"
-        style={{
-          color: accent,
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
 function RecipeList({ recipes }: { recipes: Recipe[] }) {
   return (
-    <div className="flex flex-col gap-2">
-      {recipes.map((r) => (
-        <Link
-          key={r.id}
-          href={`/recipes/${r.id}`}
-          className="rounded-2xl card-glass p-3.5 block active:scale-[0.99] transition-transform"
-        >
-          <div className="flex items-start gap-3">
-            {r.is_favorite && (
-              <span
-                className="shrink-0 mt-0.5"
-                style={{ color: "var(--premium)" }}
-              >
-                <Icon name="star" size={14} strokeWidth={2} />
-              </span>
-            )}
-            <div className="min-w-0 flex-1">
-              <div
-                className="text-[14.5px] leading-snug"
-                style={{ fontWeight: 600 }}
-              >
-                {r.name}
-              </div>
+    <ListGroup>
+      {recipes.map((r) => {
+        const meta = [
+          r.calories_per_serving != null ? `${r.calories_per_serving} kcal` : null,
+          r.protein_g != null ? `${r.protein_g}g protein` : null,
+          r.servings > 1 ? `${r.servings} servings` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <Link
+            key={r.id}
+            href={`/recipes/${r.id}`}
+            className="flex min-h-[60px] items-start gap-3 px-4 py-3 active:bg-[var(--surface-alt)]"
+          >
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+              <Icon name={r.is_favorite ? "star" : "book"} size={16} strokeWidth={1.8} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-callout font-semibold">{r.name}</span>
               {r.description && (
-                <div
-                  className="text-[12px] mt-0.5 line-clamp-2 leading-snug"
-                  style={{ color: "var(--muted)" }}
-                >
+                <span className="mt-0.5 line-clamp-2 text-footnote text-[var(--muted)]">
                   {r.description}
-                </div>
+                </span>
               )}
-              <div
-                className="text-[11px] mt-1.5 flex gap-x-2.5 flex-wrap items-center"
-                style={{ color: "var(--muted)" }}
-              >
-                {r.calories_per_serving != null && (
-                  <span className="tabular-nums">
-                    {r.calories_per_serving} kcal
-                    {r.protein_g != null && ` · ${r.protein_g}g P`}
-                  </span>
-                )}
-                {r.servings > 1 && <span>{r.servings} servings</span>}
-                {r.source === "claude" && (
-                  <span
-                    className="text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1"
-                    style={{
-                      background: "var(--pro-tint)",
-                      color: "var(--pro)",
-                      fontWeight: 700,
-                      letterSpacing: "0.04em",
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: "inline-block",
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        background: "var(--pro)",
-                      }}
-                    />
-                    Coach
-                  </span>
-                )}
-              </div>
-              {r.tags && r.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {r.tags.slice(0, 4).map((t) => (
-                    <span
-                      key={t}
-                      className="text-[10px] px-2 py-0.5 rounded-full"
-                      style={{
-                        background: "var(--surface-alt)",
-                        color: "var(--muted)",
-                      }}
-                    >
-                      {t}
-                    </span>
-                  ))}
-                </div>
+              {(meta || r.source === "claude") && (
+                <span className="mt-1 flex flex-wrap items-center gap-1.5 text-caption tabular-nums text-[var(--muted)]">
+                  {meta}
+                  {r.source === "claude" && (
+                    <Chip size="sm" tone="coach">
+                      Coach
+                    </Chip>
+                  )}
+                </span>
               )}
-            </div>
-            <Icon
-              name="chevron-right"
-              size={14}
-              className="shrink-0 mt-1 opacity-50"
-            />
-          </div>
-        </Link>
-      ))}
-    </div>
+            </span>
+            <Icon name="chevron-right" size={16} strokeWidth={2} className="mt-2 shrink-0 text-[var(--muted)]" />
+          </Link>
+        );
+      })}
+    </ListGroup>
   );
 }

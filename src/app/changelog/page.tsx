@@ -1,210 +1,176 @@
 "use client";
 
-// /changelog — every protocol change, with reasoning. Read-only history,
-// but with a "Summarize for me" Coach action so users can quickly see
-// what's been changing in their stack and decide if it's working.
+// /changelog — every change to the stack, with the reasoning, grouped
+// by month. Coach can summarize what's working.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getChangelog } from "@/lib/storage";
 import type { ChangelogEntry } from "@/lib/types";
-import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { Eyebrow } from "@/components/ui/Section";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import Icon, { type IconName } from "@/components/Icon";
+import { openCoach } from "@/lib/coach-events";
 
-const CHANGE_META: Record<string, { accent: string; label: string }> = {
-  add: { accent: "var(--accent)", label: "Added" },
-  adjust: { accent: "var(--pro)", label: "Adjusted" },
-  update: { accent: "var(--pro)", label: "Updated" },
-  remove: { accent: "var(--error)", label: "Removed" },
-  retire: { accent: "var(--error)", label: "Retired" },
-  promote: { accent: "var(--accent)", label: "Promoted" },
-  queue: { accent: "var(--muted)", label: "Queued" },
+const CHANGE_META: Record<string, { icon: IconName; label: string }> = {
+  add: { icon: "plus", label: "Added" },
+  adjust: { icon: "edit", label: "Adjusted" },
+  update: { icon: "edit", label: "Updated" },
+  remove: { icon: "minus", label: "Removed" },
+  retire: { icon: "minus", label: "Retired" },
+  promote: { icon: "arrow-up", label: "Started" },
+  demote: { icon: "pause", label: "Paused" },
+  queue: { icon: "clock", label: "Queued" },
 };
 
+const BY_LABEL: Record<string, string> = {
+  coach: "Coach",
+  user: "You",
+  system: "Automatic",
+};
+
+function monthKey(iso: string) {
+  return iso.slice(0, 7);
+}
+
+function monthLabel(key: string) {
+  return new Date(`${key}-15T12:00:00`).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+}
+
 export default function ChangelogPage() {
-  const [entries, setEntries] = useState<ChangelogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState<ChangelogEntry[] | null>(null);
 
   useEffect(() => {
+    let alive = true;
     (async () => {
       const log = await getChangelog();
-      setEntries(log);
-      setLoading(false);
+      if (alive) setEntries(log);
     })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  function summarizeWithCoach() {
-    window.dispatchEvent(
-      new CustomEvent("regimen:ask", {
-        detail: {
-          text:
-            "Summarize my last 30 days of stack changes from the changelog. " +
-            "Identify: (a) which changes seem to be working based on adherence + reactions data, " +
-            "(b) any changes that should be reverted, and (c) gaps where I haven't acted on Coach proposals. " +
-            "Tight, honest, no flattery.",
-          send: true,
-        },
-      }),
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="py-12 text-center" style={{ color: "var(--muted)" }}>
-        Loading…
-      </div>
-    );
-  }
+  const groups = useMemo(() => {
+    const out: { key: string; rows: ChangelogEntry[] }[] = [];
+    for (const e of entries ?? []) {
+      const k = monthKey(e.date);
+      const last = out[out.length - 1];
+      if (last && last.key === k) last.rows.push(e);
+      else out.push({ key: k, rows: [e] });
+    }
+    return out;
+  }, [entries]);
 
   return (
-    <div className="pb-24">
-      <header className="mb-5">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            You
-          </Link>
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Changelog
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          {entries.length} {entries.length === 1 ? "change" : "changes"} ·
-          every protocol edit logged with reasoning.
-        </p>
-      </header>
+    <div className="pb-28">
+      <PageHeader
+        back="/you"
+        backLabel="You"
+        title="Changelog"
+        subtitle={
+          entries
+            ? `${entries.length} ${entries.length === 1 ? "change" : "changes"}, each with the reason behind it.`
+            : "Every change to your stack, with the reason."
+        }
+      />
 
-      {entries.length >= 3 && (
-        <button
-          onClick={summarizeWithCoach}
-          className="w-full mb-6 rounded-2xl card-glass p-3.5 flex items-center gap-2.5 active:scale-[0.99] transition-transform text-left"
-        >
-          <span
-            className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{
-              background: "var(--pro-tint)",
-              color: "var(--pro)",
-            }}
-          >
-            <Icon name="sparkle" size={16} strokeWidth={1.8} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div
-              className="text-[13.5px] leading-snug"
-              style={{ fontWeight: 600 }}
-            >
-              What&apos;s working — what&apos;s not
-            </div>
-            <div
-              className="text-[11.5px] mt-0.5 leading-snug"
-              style={{ color: "var(--muted)" }}
-            >
-              Coach reads your last 30 days of changes + reactions
-            </div>
-          </div>
-          <Icon name="chevron-right" size={14} className="shrink-0 opacity-50" />
-        </button>
+      {entries && entries.length >= 3 && (
+        <ListGroup className="mb-6">
+          <ListRow
+            icon="sparkle"
+            iconTone="coach"
+            title="What's working, what's not"
+            subtitle="Coach reads these changes against your data"
+            onClick={() =>
+              openCoach({
+                text:
+                  "Summarize my last 30 days of stack changes from the changelog. Which changes look like they're working based on adherence, reactions and my metrics? Any I should revert? Any Coach proposals I haven't acted on? Tight and honest.",
+                send: true,
+              })
+            }
+            chevron
+          />
+        </ListGroup>
       )}
 
-      {entries.length === 0 ? (
-        <div className="rounded-2xl card-glass p-8 text-center">
-          <span
-            className="inline-flex h-12 w-12 rounded-2xl items-center justify-center mb-3"
-            style={{
-              background: "var(--accent-tint)",
-              color: "var(--accent)",
-            }}
-          >
-            <Icon name="edit" size={22} strokeWidth={1.7} />
+      {entries == null ? (
+        <Card className="h-[240px] animate-pulse" />
+      ) : entries.length === 0 ? (
+        <Card padding="lg" className="text-center">
+          <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[14px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+            <Icon name="edit" size={20} strokeWidth={1.8} />
           </span>
-          <div
-            className="text-[15px] leading-snug"
-            style={{ fontWeight: 600 }}
-          >
-            No changes logged yet
-          </div>
-          <div
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            Changes from Coach proposals or manual edits will appear here with
-            reasoning so you can audit your own decisions.
-          </div>
-        </div>
+          <div className="text-title-3">No changes yet</div>
+          <p className="mx-auto mt-1 max-w-[300px] text-callout text-[var(--muted)]">
+            When you or Coach add, adjust or pause something, it lands here
+            with the reason — so you can look back at what you tried.
+          </p>
+        </Card>
       ) : (
-        <div className="flex flex-col gap-2">
-          {entries.map((e) => {
-            const meta = CHANGE_META[e.change_type] ?? {
-              accent: "var(--muted)",
-              label: e.change_type,
-            };
-            return (
-              <div
-                key={e.id}
-                className="rounded-2xl card-glass p-3.5"
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
-                    style={{
-                      background: `${meta.accent}1F`,
-                      color: meta.accent,
-                    }}
-                  >
-                    <Icon name="edit" size={12} strokeWidth={1.8} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                      <div
-                        className="text-[14.5px]"
-                        style={{ fontWeight: 600 }}
-                      >
-                        {e.item_name ?? "Protocol change"}
-                      </div>
-                      <span
-                        className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
-                        style={{
-                          background: `${meta.accent}1F`,
-                          color: meta.accent,
-                          fontWeight: 700,
-                          letterSpacing: "0.06em",
-                        }}
-                      >
-                        {meta.label}
+        <div className="flex flex-col gap-7">
+          {groups.map((g) => (
+            <section key={g.key}>
+              <Eyebrow className="mb-2.5 px-1">{monthLabel(g.key)}</Eyebrow>
+              <ListGroup>
+                {g.rows.map((e) => {
+                  const meta = CHANGE_META[e.change_type] ?? {
+                    icon: "edit" as IconName,
+                    label: e.change_type,
+                  };
+                  const date = new Date(`${e.date.slice(0, 10)}T12:00:00`).toLocaleDateString(
+                    undefined,
+                    { month: "short", day: "numeric" },
+                  );
+                  const by = e.triggered_by ? BY_LABEL[e.triggered_by] : null;
+                  const body = (
+                    <>
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+                        <Icon name={meta.icon} size={16} strokeWidth={1.9} />
                       </span>
-                    </div>
-                    <div
-                      className="text-[11px] mt-0.5"
-                      style={{ color: "var(--muted)" }}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-callout font-semibold">
+                            {e.item_name ?? "Stack change"}
+                          </span>
+                          <span className="shrink-0 text-caption tabular-nums text-[var(--muted)]">
+                            {date}
+                          </span>
+                        </span>
+                        <span className="block text-caption text-[var(--muted)]">
+                          {meta.label}
+                          {by ? ` · ${by}` : ""}
+                        </span>
+                        {e.reasoning && (
+                          <span className="mt-1.5 block text-footnote text-[var(--foreground-soft)]">
+                            {e.reasoning}
+                          </span>
+                        )}
+                      </span>
+                    </>
+                  );
+                  return e.item_id ? (
+                    <Link
+                      key={e.id}
+                      href={`/items/${e.item_id}`}
+                      className="flex items-start gap-3 px-4 py-3 active:bg-[var(--surface-alt)]"
                     >
-                      {new Date(e.date).toLocaleDateString(undefined, {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      })}
+                      {body}
+                    </Link>
+                  ) : (
+                    <div key={e.id} className="flex items-start gap-3 px-4 py-3">
+                      {body}
                     </div>
-                    {e.reasoning && (
-                      <div
-                        className="text-[12.5px] mt-1.5 leading-relaxed"
-                        style={{ color: "var(--foreground-soft)" }}
-                      >
-                        {e.reasoning}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                  );
+                })}
+              </ListGroup>
+            </section>
+          ))}
         </div>
       )}
     </div>

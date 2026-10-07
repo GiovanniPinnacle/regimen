@@ -4,11 +4,18 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  parseJsonResponse,
+  llmErrorResponse,
+} from "@/lib/anthropic";
+import { jsonError, readJson, internalError } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
-  buildContextForCurrentUser,
-  contextToSystemPrompt,
+  buildContextForUser,
+  contextToCachedSystem,
 } from "@/lib/context";
 import { getUserToday } from "@/lib/user-date";
 
@@ -76,24 +83,31 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
   // Day keys are the user's local calendar day (server clock is UTC).
   const { today: userToday } = await getUserToday(supabase, user.id);
 
-  const body = (await request.json()) as {
+  const parsedBody = await readJson<{
     type: AnalyzeType;
     imageUrl: string;
     path: string;
     note?: string;
-  };
+  }>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
 
   if (!body.type || !body.imageUrl || !PROMPTS[body.type]) {
     return NextResponse.json(
       { error: "Missing type or imageUrl" },
       { status: 400 },
     );
+  }
+
+  // SSRF guard: the server fetches this URL, so only accept images
+  // hosted in our own Supabase Storage (the clients always send an
+  // upload's publicUrl).
+  if (!isOwnStorageUrl(body.imageUrl)) {
+    return jsonError("bad_request", "imageUrl must point at an uploaded photo", 400);
   }
 
   const limited = await rateLimitOrError(user.id, "vision");
@@ -103,7 +117,7 @@ export async function POST(request: NextRequest) {
   let imageBase64: string;
   let mediaType = "image/jpeg";
   try {
-    const r = await fetch(body.imageUrl);
+    const r = await fetch(body.imageUrl, { redirect: "error" });
     if (!r.ok) throw new Error(`image fetch ${r.status}`);
     mediaType = r.headers.get("content-type") ?? "image/jpeg";
     const buf = await r.arrayBuffer();
@@ -115,14 +129,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const ctx = await buildContextForCurrentUser();
-  const system = contextToSystemPrompt(ctx);
-
   const anthropic = getAnthropic();
   try {
+    const system = contextToCachedSystem(await buildContextForUser(user.id));
     const res = await anthropic.messages.create({
       ...MODEL_OPTS.vision,
-      max_tokens: 1500,
+      max_tokens: 4096,
       system,
       messages: [
         {
@@ -155,25 +167,12 @@ export async function POST(request: NextRequest) {
       tokens_out: res.usage?.output_tokens,
     });
 
-    const text = res.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b as { text: string }).text)
-      .join("\n");
-
-    // Extract JSON from response (handle markdown code fences)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({
-        raw: text,
-        error: "Could not parse JSON from model output",
-      });
-    }
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = parseJsonResponse<Record<string, unknown>>(res);
 
     // Store per type
     const today = userToday;
     if (body.type === "food") {
-      const r = parsed as FoodResult;
+      const r = parsed as unknown as FoodResult;
       const flags = r.ingredients
         ?.flatMap((i) => i.flags ?? [])
         ?.filter((v, i, a) => a.indexOf(v) === i) ?? [];
@@ -227,10 +226,21 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, analysis: parsed });
   } catch (e) {
-    console.error("analyze/route error", e);
-    return NextResponse.json(
-      { error: (e as Error).message },
-      { status: 500 },
+    return llmErrorResponse(e) ?? internalError("/api/analyze", e);
+  }
+}
+
+function isOwnStorageUrl(raw: unknown): boolean {
+  if (typeof raw !== "string") return false;
+  try {
+    const url = new URL(raw);
+    const supabase = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+    return (
+      url.protocol === "https:" &&
+      url.origin === supabase.origin &&
+      url.pathname.startsWith("/storage/v1/object/")
     );
+  } catch {
+    return false;
   }
 }

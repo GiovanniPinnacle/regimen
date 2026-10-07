@@ -19,7 +19,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  jsonSchemaFormat,
+  parseJsonResponse,
+} from "@/lib/anthropic";
+import { jsonError, readJson } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
   AFFILIATE_CONFIGS,
@@ -108,16 +115,11 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
-  let body: Body;
-  try {
-    body = (await request.json()) as Body;
-  } catch {
-    return NextResponse.json({ error: "Bad request" }, { status: 400 });
-  }
+  const parsedBody = await readJson<Body>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
   if (!body.itemId) {
     return NextResponse.json({ error: "Missing itemId" }, { status: 400 });
   }
@@ -260,14 +262,26 @@ export async function POST(request: NextRequest) {
     const anthropic = getAnthropic();
     const prompt = `For the item "${item.name}"${item.brand ? ` (brand: ${item.brand})` : ""} of type "${item.item_type}", suggest the SINGLE best affiliate-link URL we could use. Choose ONE network from: amazon, iherb, thorne, fullscript. Prefer Amazon for non-pharmaceutical foods/gear, Thorne for pharma-grade supplements, iHerb for international/discount supplements, Fullscript for prescriber-network products.
 
-Return ONLY a single JSON object on one line, no prose:
-{"network":"amazon|iherb|thorne|fullscript","vendor":"<vendor name>","url":"<canonical product or search URL>"}
+Return the network, the vendor name, and a canonical product or search URL.
 
-If you can't determine a good URL, return: {"network":"amazon","vendor":"Amazon","url":"https://www.amazon.com/s?k=<URL-encoded item name>"}`;
+If you can't determine a good URL, return network "amazon", vendor "Amazon", and url "https://www.amazon.com/s?k=<URL-encoded item name>".`;
 
     const res = await anthropic.messages.create({
       ...MODEL_OPTS.chat,
-      max_tokens: 256,
+      max_tokens: 1024,
+      output_config: jsonSchemaFormat({
+        type: "object",
+        properties: {
+          network: {
+            type: "string",
+            enum: ["amazon", "iherb", "thorne", "fullscript"],
+          },
+          vendor: { type: "string" },
+          url: { type: "string" },
+        },
+        required: ["network", "vendor", "url"],
+        additionalProperties: false,
+      }),
       messages: [{ role: "user", content: prompt }],
     });
     void recordUsage(user.id, "enrich", {
@@ -276,23 +290,15 @@ If you can't determine a good URL, return: {"network":"amazon","vendor":"Amazon"
       tokens_in: res.usage?.input_tokens,
       tokens_out: res.usage?.output_tokens,
     });
-    const text =
-      res.content
-        .map((c) => (c.type === "text" ? c.text : ""))
-        .join("")
-        .trim();
-
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON in Coach response");
-    const parsed = JSON.parse(match[0]) as {
+    const parsed = parseJsonResponse<{
       network: AffiliateNetwork;
       vendor: string;
       url: string;
-    };
+    }>(res);
 
     const network: AffiliateNetwork =
       detectNetwork(parsed.url) ?? parsed.network ?? "amazon";
-    let url = parsed.url;
+    let url = typeof parsed.url === "string" ? parsed.url : "";
     if (!url.startsWith("http")) {
       url = fallbackAmazonSearchUrl(item.name as string);
     }
@@ -332,6 +338,7 @@ If you can't determine a good URL, return: {"network":"amazon","vendor":"Amazon"
       vendor: parsed.vendor,
     });
   } catch (err) {
+    console.warn("affiliates/discover: Coach lookup failed", err);
     // Mark as not_found but still set a fallback URL so BuyButton works
     const fallbackUrl = fallbackAmazonSearchUrl(item.name as string);
     await supabase
@@ -349,7 +356,6 @@ If you can't determine a good URL, return: {"network":"amazon","vendor":"Amazon"
       ok: true,
       status: "fallback_used",
       url: fallbackUrl,
-      error: (err as Error).message,
     });
   }
 }

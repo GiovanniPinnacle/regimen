@@ -1,460 +1,381 @@
-"use client";
+// /recap — this week vs last week. Server-rendered from the same loader
+// as /insights; every stat carries its comparison and n.
 
-// /recap — last 7 days at a glance. Spotify-Wrapped-style weekly hit.
-// Pulls real data: adherence trend, streak, achievements unlocked,
-// top items, total reactions, voice memos, intake totals.
-
-import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import Icon from "@/components/Icon";
-import EmptyGlyph from "@/components/EmptyGlyph";
-import {
-  addDaysISO,
-  aggregateAdherence,
-  dailyAdherence,
-  localDateISO,
-  type SchedulableItem,
-} from "@/lib/series";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { addDaysISO } from "@/lib/series";
+import { calcMacros, type ActivityLevel, type BodyGoal, type Sex } from "@/lib/macros";
+import { fetchAllRows, loadInsightsData } from "@/lib/insights/load";
+import { computeRecap, type IntakeRow, type RecapModel } from "@/lib/insights/recap";
+import { computeHub } from "@/lib/insights/hub";
+import type { Summary } from "@/lib/insights/stats";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { SectionHeader, Stat } from "@/components/ui/Section";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { ButtonLink } from "@/components/ui/Button";
+import MetricDelta from "@/components/MetricDelta";
+import BarChart from "@/components/charts/BarChart";
+import AskCoach from "@/components/insights/AskCoach";
+import { fmtShortDate, moveLabel } from "@/components/insights/WorkingItemCard";
 
-type AdherenceDay = { date: string; taken: number; total: number };
-
-type RecapData = {
-  adherence: AdherenceDay[];
-  totalTaken: number;
-  totalSlots: number;
-  reactionsCount: number;
-  memosCount: number;
-  newAchievements: number;
-  topItem: { name: string; count: number } | null;
-  thisWeekScore: number;
-  lastWeekScore: number;
+type Profile = {
+  weight_kg: number | null;
+  height_cm: number | null;
+  age: number | null;
+  biological_sex: Sex | null;
+  activity_level: ActivityLevel | null;
+  body_goal: BodyGoal | null;
+  meals_per_day: number | null;
+  postop_date: string | null;
+  water_target_oz: number | null;
 };
 
-export default function RecapPage() {
-  const [data, setData] = useState<RecapData | null>(null);
-  const [loading, setLoading] = useState(true);
+function weekday(iso: string) {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { weekday: "long" });
+}
 
-  const load = useCallback(async () => {
-    try {
-      const c = createClient();
-      const today = localDateISO();
-      const weekAgoTs = new Date(Date.now() - 7 * 86400000).toISOString();
-      // This week = last 7 local days incl. today; prev = the 7 before.
-      const thisFrom = addDaysISO(today, -6);
-      const prevFrom = addDaysISO(today, -13);
-      const prevTo = addDaysISO(today, -7);
+// Request time (server component; not a render-purity concern).
+function getNow(): number {
+  return Date.now();
+}
 
-      const [stackRes, rxRes, memosRes, achRes, itemsRes] = await Promise.all([
-        c
-          .from("stack_log")
-          .select("date, taken, item_id, items(name)")
-          .gte("date", prevFrom)
-          .lte("date", today),
-        c
-          .from("item_reactions")
-          .select("id")
-          .gte("reacted_on", addDaysISO(today, -7)),
-        c
-          .from("voice_memos")
-          .select("id")
-          .gte("created_at", weekAgoTs),
-        c
-          .from("achievements")
-          .select("id, unlocked_at")
-          .gte("unlocked_at", weekAgoTs),
-        // Schedule fields — adherence is taken / SCHEDULED doses.
-        c
-          .from("items")
-          .select(
-            "id, status, started_on, ends_on, created_at, timing_slot, item_type, schedule_rule",
-          )
-          .in("status", ["active", "retired"]),
-      ]);
-      for (const [name, res] of Object.entries({
-        stackRes,
-        rxRes,
-        memosRes,
-        achRes,
-        itemsRes,
-      })) {
-        if (res.error) console.error(`recap: ${name}`, res.error);
-      }
+const r0 = (n: number | null | undefined) => (n == null ? null : Math.round(n));
 
-      type StackRow = {
-        date: string;
-        taken: boolean;
-        item_id: string;
-        items?: { name?: string } | null;
-      };
-      const logs = (stackRes.data ?? []) as unknown as StackRow[];
-      const items = (itemsRes.data ?? []) as SchedulableItem[];
+function meanDelta(a: Summary, b: Summary): number | null {
+  return a.mean != null && b.mean != null ? Math.round(a.mean - b.mean) : null;
+}
 
-      // Top item = most check-offs this week.
-      const itemCounts: Record<string, { name: string; count: number }> = {};
-      for (const row of logs) {
-        if (!row.taken || row.date < thisFrom) continue;
-        const name = row.items?.name ?? "(unknown)";
-        if (!itemCounts[row.item_id])
-          itemCounts[row.item_id] = { name, count: 0 };
-        itemCounts[row.item_id].count++;
-      }
+export default async function RecapPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/signin?next=/recap");
 
-      const thisWeek = dailyAdherence(items, logs, thisFrom, today);
-      const last7Days: AdherenceDay[] = thisWeek.map((d) => ({
-        date: d.date,
-        taken: d.taken,
-        total: d.scheduled,
-      }));
-      const thisAgg = aggregateAdherence(thisWeek);
-      const prevAgg = aggregateAdherence(
-        dailyAdherence(items, logs, prevFrom, prevTo),
-      );
-      const totalTaken = thisAgg.taken;
-      const totalSlots = thisAgg.scheduled;
-      const thisWeekPct =
-        thisAgg.rate != null ? Math.round(thisAgg.rate * 100) : 0;
-      const lastWeekPct =
-        prevAgg.rate != null ? Math.round(prevAgg.rate * 100) : 0;
+  const data = await loadInsightsData(supabase, user.id);
+  const now = getNow();
+  const from14 = addDaysISO(data.today, -14);
+  const [intake, profRes, achRes] = await Promise.all([
+    fetchAllRows<IntakeRow>(
+      (a, b) =>
+        supabase
+          .from("intake_log")
+          .select("date, kind, protein_g, water_oz")
+          .gte("date", from14)
+          .lte("date", data.today)
+          .order("date")
+          .order("logged_at")
+          .range(a, b),
+      "intake_log",
+    ),
+    supabase
+      .from("profiles")
+      .select(
+        "weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, water_target_oz",
+      )
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("achievements")
+      .select("achievement_key, unlocked_at")
+      .gte("unlocked_at", new Date(now - 7 * 86400000).toISOString()),
+  ]);
 
-      const top = Object.values(itemCounts).sort(
-        (a, b) => b.count - a.count,
-      )[0];
+  const p = profRes.data as Profile | null;
+  let proteinTarget: number | null = null;
+  if (p?.weight_kg && p.height_cm && p.age && p.biological_sex) {
+    const postOp =
+      !!p.postop_date && new Date(p.postop_date).getTime() > now - 180 * 86400000;
+    proteinTarget = calcMacros({
+      weight_kg: p.weight_kg,
+      height_cm: p.height_cm,
+      age: p.age,
+      biological_sex: p.biological_sex,
+      activity_level: p.activity_level ?? "moderate",
+      body_goal: p.body_goal ?? "maintain",
+      meals_per_day: p.meals_per_day ?? 3,
+      post_op: postOp,
+    }).protein_g;
+  }
 
-      setData({
-        adherence: last7Days,
-        totalTaken,
-        totalSlots,
-        reactionsCount: (rxRes.data ?? []).length,
-        memosCount: (memosRes.data ?? []).length,
-        newAchievements: (achRes.data ?? []).length,
-        topItem: top ?? null,
-        thisWeekScore: thisWeekPct,
-        lastWeekScore: lastWeekPct,
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const recap = computeRecap({
+    data,
+    intake,
+    proteinTarget,
+    waterTarget: p?.water_target_oz ?? null,
+    items: data.items,
+  });
+  const hub = computeHub(data);
+  const topSignal = hub.working.find((w) => w.best && w.verdict.tone === "good") ?? null;
+  const reactionsThisWeek = data.reactions.filter((r) => r.reacted_on >= recap.thisWeek.from).length;
+  const achievements = (achRes.data ?? []).length;
 
-  useEffect(() => {
-    const id = setTimeout(() => void load(), 0);
-    return () => clearTimeout(id);
-  }, [load]);
+  const tw = recap.thisWeek;
+  const lw = recap.lastWeek;
+  const adhPct = tw.adherence.rate != null ? Math.round(tw.adherence.rate * 100) : null;
+  const adhDelta =
+    tw.adherence.rate != null && lw.adherence.rate != null
+      ? Math.round((tw.adherence.rate - lw.adherence.rate) * 100)
+      : null;
 
-  const delta = useMemo(
-    () =>
-      data ? data.thisWeekScore - data.lastWeekScore : 0,
-    [data],
-  );
+  if (tw.adherence.scheduled === 0 && tw.hrv.n === 0) {
+    return (
+      <div className="pb-24">
+        <PageHeader eyebrow="This week" title="Weekly recap" />
+        <Card padding="lg">
+          <p className="text-callout text-[var(--foreground-soft)]">
+            Nothing logged in the last 7 days yet. Check off a few doses and your
+            week-over-week numbers show up here.
+          </p>
+          <ButtonLink href="/today" className="mt-4">
+            Go to Today
+          </ButtonLink>
+        </Card>
+      </div>
+    );
+  }
+
+  const coachPrompt =
+    `Review my week (${fmtShortDate(tw.from)}–${fmtShortDate(tw.to)}) vs the week before. ` +
+    `Adherence ${adhPct ?? "—"}% (${adhDelta != null ? `${adhDelta >= 0 ? "+" : ""}${adhDelta}pp` : "no prior week"}), ` +
+    `avg HRV ${r0(tw.hrv.mean) ?? "—"} ms vs ${r0(lw.hrv.mean) ?? "—"}, sleep score ${r0(tw.sleep.mean) ?? "—"} vs ${r0(lw.sleep.mean) ?? "—"}, ` +
+    `readiness ${r0(tw.readiness.mean) ?? "—"} vs ${r0(lw.readiness.mean) ?? "—"}. ` +
+    (recap.best ? `Best day ${weekday(recap.best.date)}, hardest ${recap.worst ? weekday(recap.worst.date) : "—"}. ` : "") +
+    `What's the one thing to change next week? Be specific and honest about how little one week of data says.`;
 
   return (
-    <div className="pb-24 max-w-2xl mx-auto">
-      <header className="mb-7">
-        <div
-          className="text-[11px] uppercase tracking-wider mb-2"
-          style={{
-            color: "var(--accent)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          This week
-        </div>
-        <h1
-          className="text-[36px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.025em" }}
-        >
-          Your{" "}
-          <span
-            style={{
-              background:
-                "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            recap
-          </span>
-        </h1>
-        <p
-          className="text-[14px] mt-2 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Last 7 days at a glance.
-        </p>
-      </header>
+    <div className="pb-24">
+      <PageHeader
+        eyebrow="This week"
+        title="Weekly recap"
+        subtitle={`Last 7 full days, ${fmtShortDate(tw.from)} – ${fmtShortDate(tw.to)}, vs the 7 before`}
+      />
 
-      {loading || !data ? (
-        <div
-          className="text-[13px] text-center py-12"
-          style={{ color: "var(--muted)" }}
-        >
-          Crunching numbers…
+      <Card padding="lg">
+        <Stat
+          size="lg"
+          label="Adherence"
+          value={adhPct ?? "—"}
+          unit={adhPct != null ? "%" : undefined}
+          delta={
+            adhDelta != null ? (
+              <MetricDelta delta={adhDelta} unit="pp" baseline="vs last week" hideOnZero={false} />
+            ) : undefined
+          }
+          sub={`${tw.adherence.taken} of ${tw.adherence.scheduled} scheduled doses`}
+        />
+        <div className="mt-4">
+          <BarChart
+            bars={recap.days.map((d) => ({
+              x: d.date,
+              y: d.adherence != null ? Math.round(d.adherence * 100) : null,
+            }))}
+            target={80}
+            max={100}
+            unit="%"
+            decimals={0}
+            height={120}
+            ariaLabel="Daily adherence, last 7 days"
+          />
         </div>
-      ) : data.totalSlots === 0 ? (
-        <div className="rounded-2xl card-glass p-8 text-center">
-          <div className="flex justify-center mb-4">
-            <EmptyGlyph icon="graph" tone="accent" size={64} />
-          </div>
-          <div
-            className="text-[16px] mb-1"
-            style={{ fontWeight: 700, letterSpacing: "-0.012em" }}
-          >
-            No data yet
-          </div>
-          <div
-            className="text-[12.5px] leading-relaxed max-w-sm mx-auto"
-            style={{ color: "var(--foreground-soft)" }}
-          >
-            Come back at the end of the week — we&apos;ll have your stats.
-          </div>
-          <Link
-            href="/today"
-            className="inline-flex items-center gap-1.5 mt-4 text-[13px] px-4 py-2.5 rounded-xl"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 700,
-              minHeight: 40,
-            }}
-          >
-            Go to Today →
-          </Link>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {/* Headline stat */}
-          <section
-            className="rounded-2xl p-6"
-            style={{
-              background:
-                "var(--primary)",
-              color: "var(--primary-fg)",
-              boxShadow: "0 12px 32px var(--accent-glow)",
-            }}
-          >
-            <div
-              className="text-[10px] uppercase tracking-wider mb-2"
-              style={{
-                opacity: 0.78,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Adherence
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span
-                className="text-[56px] tabular-nums leading-none"
-                style={{ fontWeight: 700, letterSpacing: "-0.03em" }}
-              >
-                {data.thisWeekScore}
-              </span>
-              <span className="text-[20px]" style={{ opacity: 0.85 }}>
-                %
-              </span>
-              {delta !== 0 && (
-                <span
-                  className="text-[12px] tabular-nums ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
-                  style={{
-                    background: "rgba(255, 255, 255, 0.18)",
-                    fontWeight: 700,
-                    letterSpacing: "-0.005em",
-                  }}
-                >
-                  <Icon
-                    name={delta > 0 ? "arrow-up" : "arrow-down"}
-                    size={11}
-                    strokeWidth={2.4}
+      </Card>
+
+      <SectionHeader title="Recovery & habits" eyebrow="Weekly averages" />
+      <Card padding="md">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-5">
+          <WeekStat label="HRV" a={tw.hrv} b={lw.hrv} unit="ms" direction="good_higher" />
+          <WeekStat label="Sleep score" a={tw.sleep} b={lw.sleep} direction="good_higher" />
+          <WeekStat label="Readiness" a={tw.readiness} b={lw.readiness} direction="good_higher" />
+          {recap.proteinTarget != null ? (
+            <Stat
+              size="sm"
+              label="Protein days"
+              value={tw.proteinHitDays ?? 0}
+              unit="/ 7"
+              delta={
+                lw.proteinHitDays != null ? (
+                  <MetricDelta
+                    delta={(tw.proteinHitDays ?? 0) - lw.proteinHitDays}
+                    unit="d"
+                    baseline="vs last wk"
                   />
-                  {Math.abs(delta)}pp vs prev
-                </span>
-              )}
-            </div>
-            <div
-              className="text-[13px] mt-2"
-              style={{ opacity: 0.85 }}
-            >
-              {data.totalTaken} of {data.totalSlots} scheduled doses taken
-            </div>
-            {/* 7-day mini bars */}
-            <div className="flex items-end gap-1.5 h-12 mt-4">
-              {data.adherence.map((d) => {
-                const pct =
-                  d.total > 0 ? Math.max(8, (d.taken / d.total) * 48) : 4;
-                // Noon local — "YYYY-MM-DD" alone parses as UTC midnight,
-                // which is the previous weekday in US timezones.
-                const dayLabel = new Date(`${d.date}T12:00:00`).toLocaleDateString(
-                  undefined,
-                  { weekday: "narrow" },
-                );
-                return (
-                  <div
-                    key={d.date}
-                    className="flex-1 flex flex-col items-center gap-1"
-                  >
-                    <div
-                      className="w-full rounded-sm"
-                      style={{
-                        height: `${pct}px`,
-                        background: "rgba(255, 255, 255, 0.85)",
-                        opacity: d.total > 0 ? 1 : 0.3,
-                      }}
-                    />
-                    <span
-                      className="text-[9px]"
-                      style={{ opacity: 0.7 }}
-                    >
-                      {dayLabel}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Stat row */}
-          <section className="grid grid-cols-3 gap-2">
-            <RecapStat
-              label="Reactions"
-              value={String(data.reactionsCount)}
-              accent="var(--accent)"
+                ) : undefined
+              }
+              sub={`≥${recap.proteinTarget} g · ${tw.loggedFoodDays} days logged`}
             />
-            <RecapStat
-              label="Voice memos"
-              value={String(data.memosCount)}
-              accent="var(--premium)"
-            />
-            <RecapStat
-              label="Achievements"
-              value={`+${data.newAchievements}`}
-              accent="var(--pro)"
-              link={data.newAchievements > 0 ? "/achievements" : undefined}
-            />
-          </section>
-
-          {/* Top item */}
-          {data.topItem && (
-            <section className="rounded-2xl card-glass p-4 flex items-center gap-3">
-              <span
-                className="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center"
-                style={{
-                  background: "var(--accent-tint)",
-                  color: "var(--accent)",
-                }}
-              >
-                <Icon name="award" size={18} strokeWidth={1.7} />
-              </span>
-              <div className="flex-1 min-w-0">
-                <div
-                  className="text-[10px] uppercase tracking-wider"
-                  style={{
-                    color: "var(--muted)",
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  Most consistent
-                </div>
-                <div className="text-[15px]" style={{ fontWeight: 600 }}>
-                  {data.topItem.name}
-                </div>
-                <div
-                  className="text-[12px]"
-                  style={{ color: "var(--muted)" }}
-                >
-                  Taken {data.topItem.count} times this week
-                </div>
-              </div>
-            </section>
+          ) : (
+            <Stat size="sm" label="Food logged" value={tw.loggedFoodDays} unit="days" sub="Set weight & age for a protein target" />
           )}
-
-          {/* Reflection prompt */}
-          <section
-            className="rounded-2xl p-4"
-            style={{
-              background: "var(--pro-tint)",
-              border: "1px solid var(--pro-tint)",
-            }}
-          >
-            <div
-              className="text-[10px] uppercase tracking-wider mb-1"
-              style={{
-                color: "var(--pro)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Sunday reflection
-            </div>
-            <div
-              className="text-[14px] leading-snug"
-              style={{ fontWeight: 500 }}
-            >
-              {delta > 5
-                ? "You're up. Keep this momentum going next week."
-                : delta < -5
-                  ? "Tougher week. What got in the way? Run a refinement."
-                  : "Steady. The compound is working — just keep showing up."}
-            </div>
-            <Link
-              href="/insights"
-              className="text-[12px] mt-2 inline-flex items-center gap-1"
-              style={{
-                color: "var(--pro)",
-                fontWeight: 600,
-                textDecoration: "underline",
-              }}
-            >
-              Run a refinement
-              <Icon name="chevron-right" size={11} strokeWidth={2} />
-            </Link>
-          </section>
+          <Stat
+            size="sm"
+            label="Water"
+            value={tw.waterAvgOz != null ? Math.round(tw.waterAvgOz) : "—"}
+            unit="oz/day"
+            delta={
+              tw.waterAvgOz != null && lw.waterAvgOz != null ? (
+                <MetricDelta delta={Math.round(tw.waterAvgOz - lw.waterAvgOz)} unit=" oz" baseline="vs last wk" />
+              ) : undefined
+            }
+            sub={`${tw.waterDays} days logged${recap.waterTarget ? ` · goal ${recap.waterTarget}` : ""}`}
+          />
+          <Stat
+            size="sm"
+            label="Stack spend"
+            value={tw.spend != null ? `$${Math.round(tw.spend)}` : "—"}
+            delta={
+              tw.spend != null && lw.spend != null ? (
+                <MetricDelta delta={Math.round(tw.spend - lw.spend)} direction="neutral" baseline="vs last wk" />
+              ) : undefined
+            }
+            sub={
+              tw.ordered.count > 0
+                ? `doses taken · ${tw.ordered.count} order${tw.ordered.count === 1 ? "" : "s"} ($${Math.round(tw.ordered.cost)})`
+                : "cost of doses taken"
+            }
+          />
         </div>
+        <p className="mt-4 border-t border-[var(--border)] pt-3 text-caption text-[var(--muted)]">
+          Oura nights: {tw.hrv.n} this week vs {lw.hrv.n} last. One week is noisy — the
+          30-day view on Progress is steadier.
+        </p>
+      </Card>
+
+      {(recap.best || recap.worst) && (
+        <>
+          <SectionHeader
+            title="Best & hardest day"
+            eyebrow={recap.rankBy === "readiness" ? "By next-morning readiness" : "By adherence"}
+          />
+          <ListGroup>
+            {recap.best && (
+              <ListRow
+                icon="trend-up"
+                iconTone="success"
+                title={weekday(recap.best.date)}
+                subtitle={dayLine(recap.best)}
+                trailing={recap.best.readiness != null ? `${recap.best.readiness}` : undefined}
+              />
+            )}
+            {recap.worst && (
+              <ListRow
+                icon="trend-down"
+                iconTone="warn"
+                title={weekday(recap.worst.date)}
+                subtitle={dayLine(recap.worst)}
+                trailing={recap.worst.readiness != null ? `${recap.worst.readiness}` : undefined}
+              />
+            )}
+          </ListGroup>
+        </>
       )}
+
+      <SectionHeader title="What moved" />
+      <ListGroup>
+        {topSignal?.best && (
+          <ListRow
+            href="/insights"
+            icon="graph"
+            iconTone="success"
+            title={`${topSignal.name}`}
+            subtitle={`Strongest signal · ${moveLabel(topSignal.best)}`}
+          />
+        )}
+        {recap.mostImproved && (
+          <ListRow
+            href={`/items/${recap.mostImproved.id}`}
+            icon="arrow-up"
+            iconTone="success"
+            title={recap.mostImproved.name}
+            subtitle={`Most improved consistency · ${pct(recap.mostImproved.from)} → ${pct(recap.mostImproved.to)}`}
+          />
+        )}
+        {recap.slipping && (
+          <ListRow
+            href={`/items/${recap.slipping.id}`}
+            icon="arrow-down"
+            iconTone="warn"
+            title={recap.slipping.name}
+            subtitle={`Slipping · ${pct(recap.slipping.from)} → ${pct(recap.slipping.to)}`}
+          />
+        )}
+        {recap.started.map((s) => (
+          <ListRow
+            key={`s-${s.id}`}
+            href={`/items/${s.id}`}
+            icon="plus"
+            title={s.name}
+            subtitle={`Started ${weekday(s.date)}`}
+          />
+        ))}
+        {recap.stopped.map((s) => (
+          <ListRow
+            key={`x-${s.id}`}
+            href={`/items/${s.id}`}
+            icon="minus"
+            title={s.name}
+            subtitle={`Stopped ${weekday(s.date)}`}
+          />
+        ))}
+        {!topSignal && !recap.mostImproved && !recap.slipping && recap.started.length === 0 && recap.stopped.length === 0 && (
+          <ListRow title="A steady week" subtitle="No items started, stopped, or swung ±15% in consistency." />
+        )}
+      </ListGroup>
+      <p className="mt-2 px-1 text-caption text-[var(--muted)]">
+        {reactionsThisWeek} reaction{reactionsThisWeek === 1 ? "" : "s"} logged ·{" "}
+        <Link href="/achievements" className="underline underline-offset-2">
+          {achievements} achievement{achievements === 1 ? "" : "s"} unlocked
+        </Link>{" "}
+        this week
+      </p>
+
+      <div className="mt-6">
+        <AskCoach prompt={coachPrompt} label="Review my week with Coach" fullWidth />
+      </div>
     </div>
   );
 }
 
-function RecapStat({
+function pct(r: number) {
+  return `${Math.round(r * 100)}%`;
+}
+
+function dayLine(d: RecapModel["days"][number]) {
+  const parts = [
+    d.adherence != null ? `${pct(d.adherence)} of doses` : "nothing scheduled",
+    d.readiness != null ? `readiness ${d.readiness} next morning` : null,
+    d.sleep != null ? `sleep ${d.sleep}` : null,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function WeekStat({
   label,
-  value,
-  accent,
-  link,
+  a,
+  b,
+  unit,
+  direction,
 }: {
   label: string;
-  value: string;
-  accent: string;
-  link?: string;
+  a: Summary;
+  b: Summary;
+  unit?: string;
+  direction: "good_higher" | "good_lower";
 }) {
-  const inner = (
-    <div className="rounded-2xl card-glass p-4 text-center">
-      <div
-        className="text-[28px] tabular-nums leading-none"
-        style={{
-          color: accent,
-          fontWeight: 700,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        {value}
-      </div>
-      <div
-        className="text-[11px] mt-1.5"
-        style={{ color: "var(--muted)" }}
-      >
-        {label}
-      </div>
-    </div>
+  const d = meanDelta(a, b);
+  return (
+    <Stat
+      size="sm"
+      label={label}
+      value={a.mean != null ? Math.round(a.mean) : "—"}
+      unit={unit}
+      delta={
+        d != null ? (
+          <MetricDelta delta={d} unit={unit ? ` ${unit}` : undefined} direction={direction} baseline="vs last wk" />
+        ) : undefined
+      }
+      sub={`n=${a.n} vs ${b.n}`}
+    />
   );
-  if (link) {
-    return (
-      <Link href={link} className="pressable block">
-        {inner}
-      </Link>
-    );
-  }
-  return inner;
 }

@@ -11,10 +11,12 @@ import type { Item } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
 import { showToast } from "@/lib/toast";
+import Sheet from "@/components/ui/Sheet";
 import {
   snoozeItem,
   clearSnooze,
   formatExpiry,
+  SNOOZE_OPTIONS,
 } from "@/lib/snooze";
 
 type Props = {
@@ -40,7 +42,7 @@ export default function ItemQuickActions({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
-  if (!open || !item) return null;
+  if (!item) return null;
   const isFood = item.item_type === "food";
 
   /** Centralized "items changed" notifier — fires the cross-page event
@@ -61,6 +63,7 @@ export default function ItemQuickActions({
     const until = snoozeItem(item.id, minutes);
     onClose();
     showToast(`${item.name} snoozed until ${formatExpiry(until)}`, {
+      duration: 4000,
       undo: () => {
         clearSnooze(item.id);
         notifyItemsChanged();
@@ -83,7 +86,7 @@ export default function ItemQuickActions({
       showToast("Couldn't update", { tone: "error" });
       return;
     }
-    showToast(`${item.name} flagged for re-order`, {
+    showToast(`${item.name} added to your shopping list`, {
       tone: "warn",
       action: {
         label: "Shop",
@@ -107,7 +110,7 @@ export default function ItemQuickActions({
       showToast("Couldn't remove", { tone: "error" });
       return;
     }
-    showToast(`${item.name} retired`, {
+    showToast(`${item.name} removed from your stack`, {
       undo: async () => {
         const c = createClient();
         await c.from("items").update({ status: "active" }).eq("id", item.id);
@@ -118,118 +121,86 @@ export default function ItemQuickActions({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{
-        background: "rgba(0, 0, 0, 0.6)",
-        backdropFilter: "blur(4px)",
-        WebkitBackdropFilter: "blur(4px)",
-      }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-t-3xl glass-strong overflow-hidden"
-        style={{
-          paddingBottom: "calc(env(safe-area-inset-bottom, 0) + 1rem)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="px-5 pt-5 pb-3 flex items-baseline justify-between"
-          style={{ borderBottom: "1px solid var(--border)" }}
-        >
-          <div>
-            <div
-              className="text-[11px] uppercase tracking-wider"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-              }}
-            >
-              Quick actions
-            </div>
-            <div
-              className="text-[16px] mt-0.5"
-              style={{ fontWeight: 500 }}
-            >
-              {item.name}
-            </div>
+    <Sheet open={open} onClose={onClose} title={item.name} description={
+      [item.dose, item.brand].filter(Boolean).join(" · ") || undefined
+    }>
+      <div className="-mx-5 flex flex-col divide-y divide-[var(--border)] border-y border-[var(--border)]">
+        {onSkip && (
+          <ActionRow
+            icon="ban"
+            label="Skip today"
+            detail="Pick a reason. You can undo"
+            onClick={() => {
+              onClose();
+              onSkip(item);
+            }}
+            disabled={busy}
+          />
+        )}
+        {isFood && onSwap && (
+          <ActionRow
+            icon="refresh"
+            label="Log a swap"
+            detail="What you had instead"
+            onClick={() => {
+              onClose();
+              onSwap(item);
+            }}
+            disabled={busy}
+          />
+        )}
+        <div className="px-5 py-3">
+          <div className="mb-2 flex items-center gap-2 text-footnote text-[var(--muted)]">
+            <Icon name="clock" size={14} strokeWidth={1.8} />
+            Snooze this item
           </div>
-          <button
-            onClick={onClose}
-            className="leading-none px-1"
-            style={{ color: "var(--muted)" }}
-            aria-label="Close"
-          >
-            <Icon name="plus" size={16} className="rotate-45" />
-          </button>
+          <div className="grid grid-cols-3 gap-2">
+            {SNOOZE_OPTIONS.map((o) => (
+              <button
+                key={o.minutes}
+                type="button"
+                onClick={() => snooze(o.minutes)}
+                disabled={busy}
+                className="min-h-[44px] rounded-[12px] border border-[var(--border)] bg-[var(--surface-alt)] px-2 text-callout font-medium active:scale-[0.98]"
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
-
-        <div className="flex flex-col">
-          {onSkip && (
-            <ActionRow
-              icon="ban"
-              label="Skip with reason"
-              detail="Capture why you didn't take it"
-              onClick={() => {
-                onClose();
-                onSkip(item);
-              }}
-              disabled={busy}
-            />
-          )}
-
-          {isFood && onSwap && (
-            <ActionRow
-              icon="refresh"
-              label="Log a swap"
-              detail="Photo or text — what you ate instead"
-              onClick={() => {
-                onClose();
-                onSwap(item);
-              }}
-              disabled={busy}
-            />
-          )}
-
-          <ActionRow
-            icon="clock"
-            label="Snooze 1 hour"
-            detail="Hides from Today, returns at +60 min"
-            onClick={() => snooze(60)}
-            disabled={busy}
-          />
-
-          <ActionRow
-            icon="shopping-bag"
-            label="Mark as depleted"
-            detail="Adds to shopping list"
-            onClick={markDepleted}
-            disabled={busy}
-          />
-
-          <ActionRow
-            icon="edit"
-            label="Edit item"
-            detail="Dose, brand, timing, notes"
-            href={`/items/${item.id}/edit`}
-            onClick={onClose}
-            disabled={busy}
-          />
-
-          <ActionRow
-            icon="trash"
-            label="Retire from stack"
-            detail="Stops appearing on Today; you can revive later"
-            tone="error"
-            onClick={retireFromProtocol}
-            disabled={busy}
-            isLast
-          />
-        </div>
+        <ActionRow
+          icon="info"
+          label="Details"
+          detail="History, research, how to take it"
+          href={`/items/${item.id}`}
+          onClick={onClose}
+          disabled={busy}
+        />
+        <ActionRow
+          icon="edit"
+          label="Edit"
+          detail="Dose, brand, timing, notes"
+          href={`/items/${item.id}/edit`}
+          onClick={onClose}
+          disabled={busy}
+        />
+        <ActionRow
+          icon="shopping-bag"
+          label="Running low"
+          detail="Add to your shopping list"
+          onClick={markDepleted}
+          disabled={busy}
+        />
+        <ActionRow
+          icon="trash"
+          label="Remove from stack"
+          detail="Stops showing on Today. You can bring it back"
+          tone="error"
+          onClick={retireFromProtocol}
+          disabled={busy}
+        />
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -241,7 +212,6 @@ function ActionRow({
   href,
   disabled,
   tone = "default",
-  isLast,
 }: {
   icon: Parameters<typeof Icon>[0]["name"];
   label: string;
@@ -250,63 +220,57 @@ function ActionRow({
   href?: string;
   disabled?: boolean;
   tone?: "default" | "error";
-  isLast?: boolean;
 }) {
-  const color = tone === "error" ? "var(--error)" : "var(--foreground)";
   const inner = (
     <>
       <span
-        className="shrink-0 h-9 w-9 rounded-xl flex items-center justify-center"
-        style={{
-          background:
-            tone === "error" ? "rgba(176, 0, 32, 0.08)" : "var(--olive-tint)",
-          color: tone === "error" ? "var(--error)" : "var(--olive)",
-        }}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${
+          tone === "error"
+            ? "bg-[var(--error-tint)] text-[var(--error)]"
+            : "bg-[var(--surface-alt)] text-[var(--foreground-soft)]"
+        }`}
       >
-        <Icon name={icon} size={17} strokeWidth={1.7} />
+        <Icon name={icon} size={17} strokeWidth={1.8} />
       </span>
-      <div className="flex-1 min-w-0 text-left">
-        <div
-          className="text-[14px] leading-snug"
-          style={{ fontWeight: 500, color }}
+      <span className="min-w-0 flex-1 text-left">
+        <span
+          className={`block truncate text-body font-medium ${
+            tone === "error" ? "text-[var(--error)]" : ""
+          }`}
         >
           {label}
-        </div>
+        </span>
         {detail && (
-          <div
-            className="text-[12px] mt-0.5 leading-snug"
-            style={{ color: "var(--muted)" }}
-          >
+          <span className="block truncate text-footnote text-[var(--muted)]">
             {detail}
-          </div>
+          </span>
         )}
-      </div>
-      <Icon
-        name="chevron-right"
-        size={14}
-        className="shrink-0 opacity-40"
-      />
+      </span>
+      {href && (
+        <Icon
+          name="chevron-right"
+          size={16}
+          strokeWidth={2}
+          className="shrink-0 text-[var(--muted)]"
+        />
+      )}
     </>
   );
   const className =
-    "px-5 py-3.5 flex items-center gap-3 w-full text-left transition-colors";
-  const style = {
-    borderBottom: isLast ? undefined : "1px solid var(--border)",
-    opacity: disabled ? 0.5 : 1,
-  };
+    "flex min-h-[56px] w-full items-center gap-3 px-5 py-2 text-left active:bg-[var(--surface-alt)] transition-colors";
   if (href) {
     return (
-      <Link href={href} className={className} style={style} onClick={onClick}>
+      <Link href={href} className={className} onClick={onClick}>
         {inner}
       </Link>
     );
   }
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
       className={className}
-      style={style}
     >
       {inner}
     </button>

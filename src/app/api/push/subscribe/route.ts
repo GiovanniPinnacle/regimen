@@ -1,17 +1,23 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { jsonError, readJson } from "@/lib/api";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
-  const { endpoint, keys } = (await request.json()) as {
-    endpoint: string;
-    keys: { p256dh: string; auth: string };
-  };
+  const parsedBody = await readJson<{
+    endpoint?: string;
+    keys?: { p256dh?: string; auth?: string };
+  }>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const { endpoint, keys } = parsedBody.data;
+  if (!endpoint || !keys?.p256dh || !keys?.auth) {
+    return jsonError("bad_request", "endpoint and keys are required", 400);
+  }
   if (!endpoint || !keys?.p256dh || !keys?.auth) {
     return NextResponse.json({ error: "Bad subscription" }, { status: 400 });
   }

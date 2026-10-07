@@ -1,7 +1,11 @@
-// Empty state primitive — replaces bare "No items" text with a centered
-// composition that has personality and clear next-action.
+// Empty state primitive — centered glyph, title, one line of help and up
+// to two actions. Built on the shared Card / Button primitives.
 
-import Link from "next/link";
+import type { ReactNode } from "react";
+import type { IconName } from "@/components/Icon";
+import EmptyGlyph from "@/components/EmptyGlyph";
+import Card from "@/components/ui/Card";
+import Button, { ButtonLink } from "@/components/ui/Button";
 
 type CTA = {
   label: string;
@@ -10,17 +14,42 @@ type CTA = {
 };
 
 type Props = {
-  /** Optional decorative emoji or React node (an SVG, etc.). Render large. */
-  icon?: React.ReactNode;
+  /** Preferred: an icon from the shared set. */
+  glyph?: IconName;
+  /** Legacy: older callers pass an emoji. Known ones map to icons; any
+   *  other node renders as-is. */
+  icon?: ReactNode;
   title: string;
   body?: string;
   primary?: CTA;
   secondary?: CTA;
-  /** Layout: "card" wraps in a card-glass surface; "bare" renders inline. */
+  /** "card" wraps in a Card surface; "bare" renders inline. */
   variant?: "card" | "bare";
 };
 
+const EMOJI_TO_ICON: Record<string, IconName> = {
+  "🔎": "search",
+  "🔍": "search",
+  "🚫": "ban",
+  "🎯": "target",
+  "📋": "list-ordered",
+};
+
+function Action({ cta, kind }: { cta: CTA; kind: "primary" | "secondary" }) {
+  const variant = kind === "primary" ? "primary" : "secondary";
+  return cta.href ? (
+    <ButtonLink href={cta.href} variant={variant} size="md">
+      {cta.label}
+    </ButtonLink>
+  ) : (
+    <Button onClick={cta.onClick} variant={variant} size="md">
+      {cta.label}
+    </Button>
+  );
+}
+
 export default function EmptyState({
+  glyph,
   icon,
   title,
   body,
@@ -28,84 +57,33 @@ export default function EmptyState({
   secondary,
   variant = "card",
 }: Props) {
+  const mapped =
+    glyph ?? (typeof icon === "string" ? EMOJI_TO_ICON[icon] : undefined);
+
   const inner = (
-    <div className="text-center py-6 px-4 max-w-sm mx-auto">
-      {icon && (
-        <div
-          className="mb-3 mx-auto opacity-60"
-          style={{ fontSize: "44px", lineHeight: 1 }}
-          aria-hidden
-        >
+    <div className="mx-auto max-w-sm px-4 py-6 text-center">
+      {mapped ? (
+        <div className="mb-3 flex justify-center">
+          <EmptyGlyph icon={mapped} tone="muted" size={56} />
+        </div>
+      ) : icon ? (
+        <div className="mb-3 text-[40px] leading-none opacity-60" aria-hidden>
           {icon}
         </div>
-      )}
-      <div
-        className="text-[15px] mb-1"
-        style={{ fontWeight: 500 }}
-      >
-        {title}
-      </div>
+      ) : null}
+      <div className="text-body font-semibold">{title}</div>
       {body && (
-        <div
-          className="text-[13px] leading-relaxed mt-1.5 mb-5"
-          style={{ color: "var(--muted)" }}
-        >
-          {body}
-        </div>
+        <p className="mt-1.5 text-footnote text-[var(--muted)]">{body}</p>
       )}
       {(primary || secondary) && (
-        <div className="flex flex-wrap justify-center gap-2 mt-2">
-          {primary &&
-            (primary.href ? (
-              <Link
-                href={primary.href}
-                className="text-[13px] px-4 py-2 rounded-xl"
-                style={{
-                  background: "var(--primary)",
-                  color: "var(--primary-fg)",
-                  fontWeight: 500,
-                }}
-              >
-                {primary.label}
-              </Link>
-            ) : (
-              <button
-                onClick={primary.onClick}
-                className="text-[13px] px-4 py-2 rounded-xl"
-                style={{
-                  background: "var(--primary)",
-                  color: "var(--primary-fg)",
-                  fontWeight: 500,
-                }}
-              >
-                {primary.label}
-              </button>
-            ))}
-          {secondary &&
-            (secondary.href ? (
-              <Link
-                href={secondary.href}
-                className="text-[13px] px-4 py-2 rounded-xl border-hair"
-                style={{ color: "var(--muted)" }}
-              >
-                {secondary.label}
-              </Link>
-            ) : (
-              <button
-                onClick={secondary.onClick}
-                className="text-[13px] px-4 py-2 rounded-xl border-hair"
-                style={{ color: "var(--muted)" }}
-              >
-                {secondary.label}
-              </button>
-            ))}
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          {primary && <Action cta={primary} kind="primary" />}
+          {secondary && <Action cta={secondary} kind="secondary" />}
         </div>
       )}
     </div>
   );
 
-  if (variant === "card") {
-    return <div className="rounded-2xl card-glass">{inner}</div>;
-  }
+  if (variant === "card") return <Card padding="none">{inner}</Card>;
   return inner;
 }

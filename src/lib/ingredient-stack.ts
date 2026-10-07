@@ -391,23 +391,40 @@ export type IngredientStackResult = {
   skipped_item_count: number;
 };
 
-/** Compute ingredient totals + warnings for a user. */
+export type IngredientStackItem = Pick<Item, "id" | "name" | "catalog_item_id">;
+export type IngredientCatalogRow = {
+  id: string;
+  active_ingredients: ActiveIngredient[] | null;
+};
+
+/** Compute ingredient totals + warnings for a user.
+ *
+ *  Callers that already hold the user's active items (and optionally the
+ *  linked catalog rows with `active_ingredients`) can pass them in to
+ *  skip one or both queries — buildContextForUser does this so Coach
+ *  context doesn't re-read the items table. */
 export async function computeIngredientStack(
   userId: string,
+  preloaded?: {
+    /** ACTIVE items only. */
+    items: IngredientStackItem[];
+    /** Catalog rows for those items' catalog_item_ids. */
+    catalogRows?: IngredientCatalogRow[];
+  },
 ): Promise<IngredientStackResult> {
-  const admin = createAdminClient();
+  let items: IngredientStackItem[];
+  if (preloaded) {
+    items = preloaded.items;
+  } else {
+    const admin = createAdminClient();
+    const { data: itemsData } = await admin
+      .from("items")
+      .select("id, name, status, catalog_item_id")
+      .eq("user_id", userId)
+      .eq("status", "active");
+    items = (itemsData ?? []) as IngredientStackItem[];
+  }
 
-  // Pull active items + the catalog rows they link to.
-  const { data: itemsData } = await admin
-    .from("items")
-    .select("id, name, status, catalog_item_id")
-    .eq("user_id", userId)
-    .eq("status", "active");
-
-  const items = (itemsData ?? []) as Pick<
-    Item,
-    "id" | "name" | "catalog_item_id"
-  >[];
   const catalogIds = items
     .map((i) => i.catalog_item_id)
     .filter((id): id is string => Boolean(id));
@@ -421,17 +438,25 @@ export async function computeIngredientStack(
     };
   }
 
-  const { data: catalogData } = await admin
-    .from("catalog_items")
-    .select("id, active_ingredients")
-    .in("id", catalogIds);
+  let catalogRows = preloaded?.catalogRows;
+  if (!catalogRows) {
+    const admin = createAdminClient();
+    const { data: catalogData } = await admin
+      .from("catalog_items")
+      .select("id, active_ingredients")
+      .in("id", catalogIds);
+    catalogRows = (catalogData ?? []) as IngredientCatalogRow[];
+  }
+  return computeIngredientStackFrom(items, catalogRows);
+}
 
-  type CatalogRow = {
-    id: string;
-    active_ingredients: ActiveIngredient[] | null;
-  };
-  const catalogById = new Map<string, CatalogRow>();
-  for (const row of (catalogData ?? []) as CatalogRow[]) {
+/** Pure core of computeIngredientStack — no I/O. */
+export function computeIngredientStackFrom(
+  items: IngredientStackItem[],
+  catalogRows: IngredientCatalogRow[],
+): IngredientStackResult {
+  const catalogById = new Map<string, IngredientCatalogRow>();
+  for (const row of catalogRows) {
     catalogById.set(row.id, row);
   }
 

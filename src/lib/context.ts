@@ -6,8 +6,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { daysSincePostOp } from "@/lib/constants";
 import type { Item, SymptomLog } from "@/lib/types";
 import { calcMacros, type MacroTargets } from "@/lib/macros";
+import { cache } from "react";
+import type { TextBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import {
-  computeIngredientStack,
+  computeIngredientStackFrom,
+  type IngredientCatalogRow,
   type IngredientStackResult,
 } from "@/lib/ingredient-stack";
 import {
@@ -28,13 +31,15 @@ import {
   addDaysISO,
   computeStreak,
   dailyAdherence,
+  localDateISO,
   protocolProgress,
   type DoseLog,
 } from "@/lib/series";
-import { getUserToday } from "@/lib/user-date";
 
 export type ProtocolContext = {
   userId: string;
+  /** User's local calendar day (YYYY-MM-DD, from profiles.timezone). */
+  today: string;
   dayPostOp: number;
   goals: string[];
   activeItems: Item[];
@@ -246,301 +251,110 @@ const DEFAULT_GOALS = [
 ];
 
 /**
- * Build context using the authenticated user's session.
- * Throws if no user is signed in.
+ * Columns Coach context needs from `items`. Deliberately excludes the
+ * heavy text columns (deep_research, research_summary, usage_notes,
+ * how_to, …) — every Coach turn would otherwise ship every item's full
+ * research write-up to the database client and back for nothing; none of
+ * it is rendered into the system prompt.
  */
-export async function buildContextForCurrentUser(): Promise<ProtocolContext> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return buildContextForUser(user.id);
-}
+const CONTEXT_ITEM_COLUMNS =
+  "id, name, brand, dose, unit, timing_slot, schedule_rule, category, " +
+  "item_type, goals, started_on, ends_on, review_trigger, status, owned, " +
+  "notes, usage_notes, companion_of, companion_instruction, purchase_state, days_supply, " +
+  "unit_cost, catalog_item_id, sort_order, created_at";
+
+/**
+ * Build context using the authenticated user's session.
+ * Throws if no user is signed in. Prefer `buildContextForUser(user.id)`
+ * in route handlers that already called getUser() — saves an Auth
+ * round trip.
+ */
+export const buildContextForCurrentUser = cache(
+  async (): Promise<ProtocolContext> => {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+    return buildContextForUser(user.id);
+  },
+);
 
 /**
  * Build context for a specific user (used by cron jobs / admin).
+ *
+ * Wrapped in React `cache()` so multiple server components / helpers in
+ * one render share a single build (no-op outside a React request scope,
+ * e.g. cron).
  */
-export async function buildContextForUser(
+export const buildContextForUser = cache(buildContextForUserUncached);
+
+async function buildContextForUserUncached(
   userId: string,
 ): Promise<ProtocolContext> {
   const admin = createAdminClient();
+  const isoDaysAgo = (days: number) =>
+    new Date(Date.now() - days * 86400000).toISOString();
 
-  // Day keys (stack_log.date etc.) are the user's LOCAL calendar days;
-  // the server clock is UTC. Anchor every window on profiles.timezone.
-  const { today } = await getUserToday(admin, userId);
-  const since = (days: number) => addDaysISO(today, -days);
-
+  // ---- Phase A: everything that doesn't depend on the user's local day.
+  // The profile row carries `timezone`, so the local-day anchor comes
+  // out of this batch instead of a separate getUserToday() round trip.
   const [
     itemsRes,
     symptomsRes,
-    stackLogRes,
     profileRes,
-    checkinsRes,
-    skipsRes,
-    reactionsRes,
     voiceMemosRes,
-    intakeRes,
-    stackLog14Res,
     enrollmentsRes,
-    refineRes,
-    stackLog30Res,
-    changelog30Res,
-    ouraRes,
     coachConvoRes,
-    biomarkersRes,
-    checkins21Res,
+    recCatalogRes,
   ] = await Promise.all([
-      admin.from("items").select("*").eq("user_id", userId),
-      admin
-        .from("symptom_log")
-        .select("*")
-        .eq("user_id", userId)
-        .order("date", { ascending: false })
-        .limit(21),
-      admin
-        .from("stack_log")
-        .select("item_id, date, taken")
-        .eq("user_id", userId)
-        .gte(
-          "date",
-          since(7),
-        ),
-      admin
-        .from("profiles")
-        .select(
-          "display_name, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, about_me, hard_nos",
-        )
-        .eq("id", userId)
-        .maybeSingle(),
-      admin
-        .from("daily_checkins")
-        .select("date, checkin_window, meal_text, workout_text, mood, energy, stress, notes")
-        .eq("user_id", userId)
-        .gte(
-          "date",
-          since(3),
-        )
-        .order("date", { ascending: false })
-        .order("checkin_window", { ascending: true }),
-      admin
-        .from("stack_log")
-        .select("date, item_id, skipped_reason, items(name)")
-        .eq("user_id", userId)
-        .eq("taken", false)
-        .not("skipped_reason", "is", null)
-        .gte(
-          "date",
-          since(7),
-        )
-        .order("date", { ascending: false })
-        .limit(40),
-      admin
-        .from("item_reactions")
-        .select("item_id, reaction, reacted_on, items(name)")
-        .eq("user_id", userId)
-        .gte(
-          "reacted_on",
-          since(30),
-        )
-        .order("reacted_on", { ascending: false }),
-      admin
-        .from("voice_memos")
-        .select("transcript, context_tag, created_at")
-        .eq("user_id", userId)
-        .gte(
-          "created_at",
-          new Date(Date.now() - 14 * 86400000).toISOString(),
-        )
-        .order("created_at", { ascending: false })
-        .limit(15),
-      admin
-        .from("intake_log")
-        .select(
-          "date, kind, content, calories, protein_g, fat_g, carbs_g, water_oz",
-        )
-        .eq("user_id", userId)
-        .gte(
-          "date",
-          since(3),
-        )
-        .order("logged_at", { ascending: false }),
-      // 60-day taken log — streak (not capped at 14) + 14d unique log days
-      admin
-        .from("stack_log")
-        .select("date, taken")
-        .eq("user_id", userId)
-        .eq("taken", true)
-        .gte(
-          "date",
-          since(60),
-        )
-        .order("date", { ascending: false }),
-      // Active protocol enrollments
-      admin
-        .from("protocol_enrollments")
-        .select("protocol_slug, start_date, status")
-        .eq("user_id", userId)
-        .in("status", ["active", "completed"]),
-      // Recent /refine runs (changelog with triggered_by=refine)
-      admin
-        .from("changelog")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("triggered_by", "refine")
-        .gte(
-          "created_at",
-          new Date(Date.now() - 7 * 86400000).toISOString(),
-        )
-        .limit(1),
-      // 30-day stack_log with item_id — used for adherence-x-cost waste
-      // detection. Larger window than streak logic so we have enough
-      // log rows per item to trust the rate.
-      admin
-        .from("stack_log")
-        .select("item_id, date, taken")
-        .eq("user_id", userId)
-        .gte(
-          "date",
-          since(30),
-        ),
-      // 30-day changelog — every change_type, not just /refine. Used by
-      // the symptom-correlation detector to pair declining symptoms with
-      // preceding stack changes ("did X break your sleep?").
-      admin
-        .from("changelog")
-        .select("date, created_at, change_type, item_name, reasoning")
-        .eq("user_id", userId)
-        .gte("date", since(30))
-        .order("date", { ascending: false }),
-      // Last 14 days of Oura daily metrics — readiness, HRV, RHR, sleep
-      // stages. Coach was previously blind to wearable data even though
-      // the sync was working.
-      admin
-        .from("oura_daily")
-        .select(
-          "date, readiness, hrv, rhr, deep_sleep_min, rem_sleep_min, total_sleep_min, temp_deviation",
-        )
-        .eq("user_id", userId)
-        .gte(
-          "date",
-          since(14),
-        )
-        .order("date", { ascending: false }),
-      // Most-recent Coach turn within the last 7 days — surfaces "where
-      // we left off" so the user doesn't need to repeat context.
-      admin
-        .from("claude_conversations")
-        .select("messages_json, created_at")
-        .eq("user_id", userId)
-        .gte(
-          "created_at",
-          new Date(Date.now() - 7 * 86400000).toISOString(),
-        )
-        .order("created_at", { ascending: false })
-        .limit(1),
-      // Latest biomarkers — Coach uses these to ground recommendations
-      // in actual lab data. Pull last 6 months; client-side reducer
-      // collapses to "latest per name + previous for trend."
-      admin
-        .from("biomarkers")
-        .select("name, display_name, value, unit, reference_range, flag, drawn_on, panel")
-        .eq("user_id", userId)
-        .gte(
-          "drawn_on",
-          since(180),
-        )
-        .order("drawn_on", { ascending: false }),
-      // 21 days of check-in scales — the populated symptom source for the
-      // correlation detector (symptom_log has no writer today).
-      admin
-        .from("daily_checkins")
-        .select("date, mood, energy, stress")
-        .eq("user_id", userId)
-        .gte("date", since(21)),
-    ]);
-
-  // Surface query failures instead of silently treating them as "no data".
-  const queryResults = {
-    itemsRes,
-    symptomsRes,
-    stackLogRes,
-    profileRes,
-    checkinsRes,
-    skipsRes,
-    reactionsRes,
-    voiceMemosRes,
-    intakeRes,
-    stackLog14Res,
-    enrollmentsRes,
-    refineRes,
-    stackLog30Res,
-    changelog30Res,
-    ouraRes,
-    coachConvoRes,
-    biomarkersRes,
-    checkins21Res,
-  };
-  for (const [name, res] of Object.entries(queryResults)) {
-    if (res.error) console.error(`buildContextForUser: ${name}`, res.error);
-  }
-
-  const allItems = (itemsRes.data ?? []) as Item[];
-  const activeItems = allItems.filter((i) => i.status === "active");
-  const queuedItems = allItems.filter((i) => i.status === "queued");
-
-  // Cumulative ingredient totals across the active stack. Runs its own
-  // catalog query so it stays composable even if the user expands which
-  // items count later. Cheap — one items + one catalog query.
-  const ingredientStack = await computeIngredientStack(userId);
-
-  // Waste candidates — items the user is paying for but barely taking.
-  // Uses the 30-day stack_log we just fetched.
-  const wasteCandidates = findWasteCandidates(
-    activeItems,
-    (stackLog30Res.data ?? []) as StackLogRow[],
-    { from: since(30), to: today },
-  );
-
-  // Symptom × stack-change correlations — pairs declining symptom
-  // dimensions with stack changes from the prior 14 days. Empty when
-  // the user has too little data or no clear signal.
-  const symptomCorrelations = findSymptomCorrelations(
-    symptomRowsFromSources(
-      (symptomsRes.data ?? []) as SymptomCorrelateRow[],
-      (checkins21Res.data ?? []) as CheckinSymptomRow[],
-    ),
-    (changelog30Res.data ?? []) as ChangelogRow[],
-  );
-
-  // Pull catalog enrichment for active items linked to catalog rows. This
-  // gives Coach mechanism + cautions + brand picks + evidence grade for
-  // every item they discuss — so refinements cite real pharmacology, not
-  // generic guesses.
-  const catalogIds = activeItems
-    .map((i) => i.catalog_item_id)
-    .filter((id): id is string => Boolean(id));
-
-  // Pull top-evidence catalog candidates the user doesn't have yet —
-  // grounds Coach's "what should I add?" responses in our actual catalog
-  // instead of pulling from thin air. Filtered to items that are:
-  //   - Enriched (coach_summary set)
-  //   - High evidence (A or B grade)
-  //   - Not already in the user's active stack
-  type RecRow = {
-    id: string;
-    name: string;
-    brand: string | null;
-    item_type: string;
-    category: string | null;
-    coach_summary: string | null;
-    mechanism: string | null;
-    best_timing: string | null;
-    evidence_grade: string | null;
-  };
-  let recommendableCatalog: RecRow[] = [];
-  {
-    const { data: recRaw } = await admin
+    // Deterministic order keeps the regimen section of the prompt
+    // byte-stable between requests (prompt caching).
+    admin
+      .from("items")
+      .select(CONTEXT_ITEM_COLUMNS)
+      .eq("user_id", userId)
+      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true }),
+    admin
+      .from("symptom_log")
+      .select("*")
+      .eq("user_id", userId)
+      .order("date", { ascending: false })
+      .limit(21),
+    admin
+      .from("profiles")
+      .select(
+        "display_name, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, about_me, hard_nos, timezone",
+      )
+      .eq("id", userId)
+      .maybeSingle(),
+    admin
+      .from("voice_memos")
+      .select("transcript, context_tag, created_at")
+      .eq("user_id", userId)
+      .gte("created_at", isoDaysAgo(14))
+      .order("created_at", { ascending: false })
+      .limit(15),
+    // Active protocol enrollments
+    admin
+      .from("protocol_enrollments")
+      .select("protocol_slug, start_date, status")
+      .eq("user_id", userId)
+      .in("status", ["active", "completed"]),
+    // Most-recent Coach turn within the last 7 days — surfaces "where
+    // we left off" so the user doesn't need to repeat context.
+    admin
+      .from("claude_conversations")
+      .select("messages_json, created_at")
+      .eq("user_id", userId)
+      .gte("created_at", isoDaysAgo(7))
+      .order("created_at", { ascending: false })
+      .limit(1),
+    // Top-evidence catalog candidates — grounds Coach's "what should I
+    // add?" answers in the real catalog. Filtered against the user's
+    // stack below.
+    admin
       .from("catalog_items")
       .select(
         "id, name, brand, item_type, category, coach_summary, mechanism, " +
@@ -549,28 +363,149 @@ export async function buildContextForUser(
       .not("coach_summary", "is", null)
       .in("evidence_grade", ["A", "B"])
       .in("item_type", ["supplement", "food"])
-      .limit(40);
-    const userCatalogIdSet = new Set(catalogIds);
-    const userItemNames = new Set(
-      activeItems.map((i) => i.name.toLowerCase().trim()),
-    );
-    const candidates = ((recRaw ?? []) as unknown as RecRow[]).filter(
-      (r) => {
-        if (userCatalogIdSet.has(r.id)) return false;
-        // Also dedupe by name in case the user has the item but never linked
-        // to catalog
-        if (userItemNames.has(r.name.toLowerCase().trim())) return false;
-        return true;
-      },
-    );
-    // Prefer A grade first, then B
-    candidates.sort((a, b) => {
-      const aGrade = a.evidence_grade === "A" ? 0 : 1;
-      const bGrade = b.evidence_grade === "A" ? 0 : 1;
-      return aGrade - bGrade;
-    });
-    recommendableCatalog = candidates.slice(0, 12);
+      .order("id", { ascending: true })
+      .limit(40),
+  ]);
+
+  const allItems = ((itemsRes.data ?? []) as unknown) as Item[];
+  const activeItems = allItems.filter((i) => i.status === "active");
+  const queuedItems = allItems.filter((i) => i.status === "queued");
+  const itemNameById = new Map(allItems.map((i) => [i.id, i.name]));
+
+  // Day keys (stack_log.date etc.) are the user's LOCAL calendar days;
+  // the server clock is UTC. Anchor every window on profiles.timezone.
+  const timeZone =
+    (profileRes.data?.timezone as string | null | undefined) ?? undefined;
+  const today = localDateISO(new Date(), timeZone);
+  const since = (days: number) => addDaysISO(today, -days);
+
+  const catalogIds = activeItems
+    .map((i) => i.catalog_item_id)
+    .filter((id): id is string => Boolean(id));
+
+  // ---- Phase B: local-day windows + catalog rows for the active stack.
+  const [
+    stackLog30Res,
+    stackLog60Res,
+    checkins21Res,
+    reactionsRes,
+    intakeRes,
+    changelog30Res,
+    ouraRes,
+    biomarkersRes,
+    catalogRowsRes,
+  ] = await Promise.all([
+    // ONE 30-day stack_log read feeds 7-day adherence, 7-day skips and
+    // 30-day waste detection (was three separate queries). Newest first
+    // so the PostgREST row cap, if ever hit, drops the oldest days.
+    admin
+      .from("stack_log")
+      .select("item_id, date, taken, skipped_reason")
+      .eq("user_id", userId)
+      .gte("date", since(30))
+      .order("date", { ascending: false }),
+    // 60-day taken dates — streak (not capped at 14) + 14d unique log days
+    admin
+      .from("stack_log")
+      .select("date")
+      .eq("user_id", userId)
+      .eq("taken", true)
+      .gte("date", since(60))
+      .order("date", { ascending: false }),
+    // 21 days of check-ins: the last 3 days render verbatim; the scales
+    // feed the correlation detector (symptom_log has no writer today).
+    admin
+      .from("daily_checkins")
+      .select("date, checkin_window, meal_text, workout_text, mood, energy, stress, notes")
+      .eq("user_id", userId)
+      .gte("date", since(21))
+      .order("date", { ascending: false })
+      .order("checkin_window", { ascending: true }),
+    admin
+      .from("item_reactions")
+      .select("item_id, reaction, reacted_on")
+      .eq("user_id", userId)
+      .gte("reacted_on", since(30))
+      .order("reacted_on", { ascending: false }),
+    admin
+      .from("intake_log")
+      .select("date, kind, content, calories, protein_g, fat_g, carbs_g, water_oz")
+      .eq("user_id", userId)
+      .gte("date", since(3))
+      .order("logged_at", { ascending: false }),
+    // 30-day changelog — every change_type. Feeds the symptom-correlation
+    // detector AND the "ran /refine in the last 7 days" signal (was two
+    // queries).
+    admin
+      .from("changelog")
+      .select("date, created_at, change_type, item_name, reasoning, triggered_by")
+      .eq("user_id", userId)
+      .gte("date", since(30))
+      .order("date", { ascending: false }),
+    // Last 14 days of Oura daily metrics.
+    admin
+      .from("oura_daily")
+      .select(
+        "date, readiness, hrv, rhr, deep_sleep_min, rem_sleep_min, total_sleep_min, temp_deviation",
+      )
+      .eq("user_id", userId)
+      .gte("date", since(14))
+      .order("date", { ascending: false }),
+    // Latest biomarkers — last 6 months; reducer below collapses to
+    // "latest per name + previous for trend."
+    admin
+      .from("biomarkers")
+      .select("name, display_name, value, unit, reference_range, flag, drawn_on, panel")
+      .eq("user_id", userId)
+      .gte("drawn_on", since(180))
+      .order("drawn_on", { ascending: false }),
+    // Catalog enrichment for active items — one read serves both the
+    // per-item pharmacology in the prompt and the ingredient-UL check.
+    catalogIds.length > 0
+      ? admin
+          .from("catalog_items")
+          .select(
+            "id, coach_summary, mechanism, best_timing, pairs_well_with, " +
+              "conflicts_with, cautions, brand_recommendations, evidence_grade, " +
+              "active_ingredients",
+          )
+          .in("id", catalogIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  // Surface query failures instead of silently treating them as "no data".
+  const queryResults = {
+    itemsRes,
+    symptomsRes,
+    profileRes,
+    voiceMemosRes,
+    enrollmentsRes,
+    coachConvoRes,
+    recCatalogRes,
+    stackLog30Res,
+    stackLog60Res,
+    checkins21Res,
+    reactionsRes,
+    intakeRes,
+    changelog30Res,
+    ouraRes,
+    biomarkersRes,
+    catalogRowsRes,
+  };
+  for (const [name, res] of Object.entries(queryResults)) {
+    if (res.error) console.error(`buildContextForUser: ${name}`, res.error);
   }
+
+  type StackLogFullRow = StackLogRow & { skipped_reason: string | null };
+  const stackLog30 = (stackLog30Res.data ?? []) as StackLogFullRow[];
+  const stackLog7 = stackLog30.filter((r) => r.date >= since(7));
+
+  type ChangelogFullRow = ChangelogRow & { triggered_by: string | null };
+  const changelog30 = (changelog30Res.data ?? []) as ChangelogFullRow[];
+
+  type CheckinFullRow = ProtocolContext["recentCheckins"][number];
+  const checkins21 = (checkins21Res.data ?? []) as CheckinFullRow[];
+
   type CatalogEnrichmentRow = {
     id: string;
     coach_summary: string | null;
@@ -583,26 +518,60 @@ export async function buildContextForUser(
       | { brand: string; reasoning: string }[]
       | null;
     evidence_grade: string | null;
+    active_ingredients: IngredientCatalogRow["active_ingredients"];
   };
-  const catalogById = new Map<string, CatalogEnrichmentRow>();
-  if (catalogIds.length > 0) {
-    const { data: catalogRows } = await admin
-      .from("catalog_items")
-      .select(
-        "id, coach_summary, mechanism, best_timing, pairs_well_with, " +
-          "conflicts_with, cautions, brand_recommendations, evidence_grade",
-      )
-      .in("id", catalogIds);
-    for (const row of (catalogRows ?? []) as unknown as CatalogEnrichmentRow[]) {
-      catalogById.set(row.id, row);
-    }
-  }
+  const catalogRows = ((catalogRowsRes.data ?? []) as unknown) as CatalogEnrichmentRow[];
+  const catalogById = new Map<string, CatalogEnrichmentRow>(
+    catalogRows.map((r) => [r.id, r]),
+  );
+
+  // Cumulative ingredient totals across the active stack — computed from
+  // the rows already in hand (no extra queries).
+  const ingredientStack = computeIngredientStackFrom(activeItems, catalogRows);
+
+  // Waste candidates — items the user is paying for but barely taking.
+  const wasteCandidates = findWasteCandidates(activeItems, stackLog30, {
+    from: since(30),
+    to: today,
+  });
+
+  // Symptom × stack-change correlations — pairs declining symptom
+  // dimensions with stack changes from the prior 14 days. Empty when
+  // the user has too little data or no clear signal.
+  const symptomCorrelations = findSymptomCorrelations(
+    symptomRowsFromSources(
+      (symptomsRes.data ?? []) as SymptomCorrelateRow[],
+      checkins21 as CheckinSymptomRow[],
+    ),
+    changelog30,
+  );
+
+  // Catalog candidates the user doesn't have yet:
+  //   - Enriched (coach_summary set), A/B evidence, supplement/food
+  //   - Not already in the user's active stack (by catalog id or name)
+  type RecRow = ProtocolContext["recommendableCatalog"][number];
+  const userCatalogIdSet = new Set(catalogIds);
+  const userItemNames = new Set(
+    activeItems.map((i) => i.name.toLowerCase().trim()),
+  );
+  const recommendableCatalog = ((recCatalogRes.data ?? []) as unknown as RecRow[])
+    .filter(
+      (r) =>
+        !userCatalogIdSet.has(r.id) &&
+        !userItemNames.has(r.name.toLowerCase().trim()),
+    )
+    // Prefer A grade first, then B
+    .sort(
+      (a, b) =>
+        (a.evidence_grade === "A" ? 0 : 1) - (b.evidence_grade === "A" ? 0 : 1),
+    )
+    .slice(0, 12);
 
   // Adherence: taken vs SCHEDULED doses per day (not vs logged rows —
   // stack_log only has rows for days the user tapped something).
   const recentAdherence = dailyAdherence(
     allItems,
-    (stackLogRes.data ?? []) as DoseLog[],
+    stackLog7 as DoseLog[],
     since(7),
     today,
   )
@@ -635,22 +604,20 @@ export async function buildContextForUser(
     });
   }
 
-  const recentSkips = (skipsRes.data ?? [])
-    .map((s) => ({
-      date: s.date as string,
-      item_name:
-        ((s as { items?: { name?: string } }).items?.name as string) ??
-        "(unknown)",
-      skipped_reason: (s as { skipped_reason: string }).skipped_reason,
-    }))
-    .filter((s) => s.skipped_reason);
+  const recentSkips = stackLog7
+    .filter((r) => !r.taken && r.skipped_reason)
+    .slice(0, 40)
+    .map((r) => ({
+      date: r.date,
+      item_name: itemNameById.get(r.item_id) ?? "(unknown)",
+      skipped_reason: r.skipped_reason as string,
+    }));
 
   // Aggregate reactions per item over last 30 days
   type ReactionRow = {
     item_id: string;
     reaction: string;
     reacted_on: string;
-    items?: { name?: string } | null;
   };
   const reactionAgg = new Map<
     string,
@@ -667,7 +634,7 @@ export async function buildContextForUser(
   >();
   for (const row of (reactionsRes.data ?? []) as ReactionRow[]) {
     const id = row.item_id;
-    const name = row.items?.name ?? "(unknown)";
+    const name = itemNameById.get(id) ?? "(unknown)";
     if (!reactionAgg.has(id)) {
       reactionAgg.set(id, {
         item_id: id,
@@ -716,7 +683,7 @@ export async function buildContextForUser(
   const worsenedItemCount = recentReactions.filter((r) => r.worse >= 2).length;
 
   // Streak + unique log days (14d window)
-  const takenDates = ((stackLog14Res.data ?? []) as { date: string }[]).map(
+  const takenDates = ((stackLog60Res.data ?? []) as { date: string }[]).map(
     (r) => r.date,
   );
   const uniqueLogDays14d = new Set(takenDates.filter((d) => d >= since(14)))
@@ -725,7 +692,10 @@ export async function buildContextForUser(
   // Consecutive taken days ending today (or yesterday)
   const currentStreak = computeStreak(takenDates, today);
 
-  const ranRefineRecently = (refineRes.data ?? []).length > 0;
+  const refineCutoff = isoDaysAgo(7);
+  const ranRefineRecently = changelog30.some(
+    (c) => c.triggered_by === "refine" && (c.created_at ?? "") >= refineCutoff,
+  );
 
   // protocol_enrollments stores only start_date; current day + duration
   // come from the code-side protocol definition.
@@ -772,6 +742,7 @@ export async function buildContextForUser(
 
   return {
     userId,
+    today,
     dayPostOp: daysSincePostOp(),
     goals:
       profile && (profile.about_me as Record<string, string> | null)?.top_goals
@@ -785,7 +756,7 @@ export async function buildContextForUser(
     queuedItems,
     recentSymptoms: (symptomsRes.data ?? []) as SymptomLog[],
     recentAdherence,
-    recentCheckins: (checkinsRes.data ?? []) as ProtocolContext["recentCheckins"],
+    recentCheckins: checkins21.filter((c) => c.date >= since(3)),
     recentSkips,
     recentReactions,
     recentVoiceMemos: ((voiceMemosRes.data ?? []) as {
@@ -965,27 +936,331 @@ export async function buildContextForUser(
   };
 }
 
+export type SystemPromptBlocks = {
+  /** Persona + behavior rules — identical across requests for a user. */
+  stable: string;
+  /** Goals, about-me, macros, regimen, bloodwork, catalog candidates. */
+  profile: string;
+  /** Today's date + day-to-day logs/signals. */
+  volatile: string;
+};
+
 /**
- * Serialize context into a system prompt for Claude.
- * This gets prepended to every /api/ask + photo analysis + scheduled task.
+ * Split the Coach system prompt into cache-friendly blocks, ordered from
+ * most to least stable. Any byte change in a block invalidates the cache
+ * for it and everything after, so nothing time-dependent (dates, "Xh
+ * ago", today's logs) may appear in `stable` or `profile`.
  */
-export function contextToSystemPrompt(ctx: ProtocolContext): string {
+export function contextToSystemBlocks(ctx: ProtocolContext): SystemPromptBlocks {
   const activeByType: Record<string, Item[]> = {};
   for (const item of ctx.activeItems) {
     if (!activeByType[item.item_type]) activeByType[item.item_type] = [];
     activeByType[item.item_type].push(item);
   }
 
-  const lines: string[] = [];
   const userTag = ctx.displayName ?? "the user";
-  lines.push(
+
+  // ── STABLE: persona + behavior rules. Depends only on the display
+  // name, so it's byte-identical across every request for a user and
+  // forms the first prompt-cache prefix.
+  const stable: string[] = [];
+  stable.push(
     `You are Coach, the AI partner inside ${ctx.displayName ? `${ctx.displayName}'s` : "the user's"} personal health app "Regimen". Address the user as Coach — warm, direct, action-first. Sign off with concrete next steps, not encouragement clichés.`,
   );
-  lines.push(
+  stable.push(
     `Refer to the user as "${userTag}" — and never as "Giovanni" or any other hardcoded identity.`,
   );
-  lines.push(``);
+  stable.push(``);
 
+  stable.push(`# BEHAVIOR RULES`);
+  stable.push(``);
+  stable.push(`## CORE PHILOSOPHY (overrides everything below)`);
+  stable.push(`A. REFINEMENT > ADDITION. Default move is to subtract, swap, simplify, or tighten dosing — NOT add new items. The stack is already comprehensive. New additions need exceptional evidence + a specific gap they fill.`);
+  stable.push(`B. CONTEXT BEFORE SUGGESTIONS. Do NOT propose changes to dose, portions, supplements, or protocol without sufficient context. If you're missing info on: how long the user has been on something, recent side effects, sleep/energy/mood trend, adherence rate, or actual symptoms — ASK FIRST. End every advice response with at least one specific question that would sharpen your next answer.`);
+  stable.push(`C. DATA-HUNGRY BY DEFAULT. Constantly seek info: what he ate, did he train, why he skipped, energy/mood/sleep, stool, libido, scalp condition, photo updates. Surface gaps in the log. If he asks something and you don't have a recent meal/symptom log to reference, name the gap and ask for it.`);
+  stable.push(`D. TRACK CONSISTENCY + PROGRESS. Reference adherence percentages, streaks, and trend deltas in your responses ("you've been at 86% adherence the last 14 days vs 71% the 14 before — what changed?"). Use the recent symptom + adherence data above before answering.`);
+  stable.push(`E. FOOD-FIRST. Always. Suggest food before supplement. Suggest practice before product. Suggest dropping > suggest adding.`);
+  stable.push(``);
+  stable.push(`## HARD CONSTRAINTS`);
+  stable.push(`1. POST-OP SAFETY: if a recovery context is set above and the user is in Day 0-14, flag anything antiplatelet (high-dose omega-3, curcumin, vitamin E >400 IU, NSAIDs, garlic, ginkgo) as "wait Day 14+".`);
+  stable.push(`2. TRIGGER AWARENESS: seb derm flares on (a) insulin spikes (sugar/dates/dried fruit/honey/juice) and (b) histamine (aged cheese/cured meats/dark chocolate/coconut water). Dairy hits BOTH. Flag any food/recipe that hits these.`);
+  stable.push(`3. NEVER recommend HARD NOs listed above. Never re-suggest items the user has explicitly retired unless they ask again.`);
+  stable.push(`4. BLOODWORK INTERFERENCE: biotin >5000 mcg pauses 72h before any draw; Tongkat Ali pauses 7-14d before to avoid T-result confounding.`);
+  stable.push(``);
+  stable.push(`## STYLE — read this carefully, the chat UI is small and dense`);
+  stable.push(
+    `5. AGGRESSIVELY CONCISE. Default response: under 5 short sentences. The proposal card carries the structured detail — DO NOT rewrite the proposal in prose above it. Reasoning belongs in the proposal's reasoning field, not the chat body.`,
+  );
+  stable.push(
+    `5a. NO PRE-FLIGHT NARRATION. Skip "Here's what I'd do…", "Let me think about this…", "Looking at your stack…". Open with the answer or the proposal.`,
+  );
+  stable.push(
+    `5b. ONE follow-up question max, only when it would change the next move. Don't ask multiple questions per turn.`,
+  );
+  stable.push(
+    `5c. Use bullet lists for any enumeration of 3+ items. Avoid numbered prose.`,
+  );
+  stable.push(
+    `5d. Use **bold** sparingly — only on the single most important phrase per response. Never bold a heading like "**Cleanest fix:**".`,
+  );
+  stable.push(`6. When you do propose a protocol change, end with the structured proposal block:`);
+  stable.push(`   <<<PROPOSAL`);
+  stable.push(`   action: add | adjust | remove | queue | promote | retire`);
+  stable.push(`   item_name: <name>`);
+  stable.push(`   reasoning: <1-2 sentence why>`);
+  stable.push(`   [optional:] dose, brand, timing_slot, category, item_type, goals (comma-sep), frequency, notes, companion_of, companion_instruction`);
+  stable.push(`   PROPOSAL>>>`);
+  stable.push(`7. COMPANION ITEMS: nest small daily items (cinnamon, MCT oil, electrolytes) under a parent action via companion_of so Today renders them as a single bundled card.`);
+  stable.push(`8. MEAL PORTIONS: when suggesting food, size to the user's per-meal macro target in grams or standard units (e.g. "3 eggs (21g P) + 150g beef (30g) = 51g protein"). Honor food-first preference + any confirmed flare foods.`);
+  stable.push(`9. SKIP-REASON LEARNING: if recent stack_log shows skip patterns, name them. ("You've skipped X 4× this week with reason 'forgot' — should we move it to a different slot or pair it with an existing habit?")`);
+  stable.push(``);
+  stable.push(`## REFINEMENT TRIGGERS (proactively raise these)`);
+  stable.push(`- An active item's research_summary or usage_notes contradict each other`);
+  stable.push(`- Two items overlap in mechanism (suggest consolidating)`);
+  stable.push(`- A queued item's review_trigger has fired but it's still queued`);
+  stable.push(`- An item with days_supply hasn't been re-stocked and is past depletion`);
+  stable.push(`- An item has 0% adherence over 14+ days (suggest retiring or repositioning)`);
+  stable.push(`- A symptom score (sleep/seb_derm/energy) trended down for 7+ days without a stack adjustment to address it`);
+  stable.push(``);
+  stable.push(`## VENDOR / BRAND GUIDANCE`);
+  stable.push(`When proposing a NEW item (action: add or queue), include a brand suggestion in the proposal extra fields whenever you have a confident pick. Prefer in this order:`);
+  stable.push(`  1. Pharma-grade brands (Thorne, Pure Encapsulations, Designs for Health) for supplements where third-party testing matters`);
+  stable.push(`  2. Direct-to-consumer brands with strong sourcing reputations (LMNT for electrolytes, Athletic Greens, Momentous, Seed)`);
+  stable.push(`  3. Amazon for foods, gear, devices, and commodity items`);
+  stable.push(`Never let brand suggestions be a search-only "go figure it out" — name the actual brand. If you don't know which brand, say so honestly and tell ${userTag} what to look for on the label instead.`);
+  stable.push(``);
+  stable.push(`Regimen earns a small affiliate commission on items the user buys through tracked vendor links. This NEVER changes which items you recommend on health merit. But once a health-equivalent decision is made, prefer brands the app has affiliate relationships with (Thorne, iHerb, Amazon, Fullscript) so the user gets a vetted vendor and the app stays sustainable. Be transparent — if asked, explain the affiliate relationship plainly.`);
+
+  stable.push(``);
+  stable.push(
+    `## REACTION INTERPRETATION RULES (use when refining):`,
+  );
+  stable.push(
+    `- 5+ "no_change" reactions and minimal "helped" → strong drop candidate`,
+  );
+  stable.push(
+    `- 2+ "worse" reactions → URGENT review — flag for the user to drop or troubleshoot`,
+  );
+  stable.push(
+    `- 5+ "forgot" reactions → adherence problem, not efficacy — suggest moving slot or pairing with existing habit, not dropping`,
+  );
+  stable.push(
+    `- "Helped" majority + sustained over 30 days → keep, reinforce`,
+  );
+
+  // ── PROFILE: who the user is + what's in their stack. Changes only
+  // when they edit the stack/profile or upload bloodwork, so it's the
+  // second cache prefix.
+  const profile: string[] = [];
+  profile.push(`# GOALS (priority order)`);
+  ctx.goals.forEach((g, i) => profile.push(`${i + 1}. ${g}`));
+  profile.push(``);
+  if (ctx.hardNos.length > 0) {
+    profile.push(
+      `# HARD NOs — never recommend, always flag if detected in a photo or food log:`,
+    );
+    for (const n of ctx.hardNos) profile.push(`- ${n}`);
+    profile.push(``);
+  }
+  if (ctx.aboutMe && Object.keys(ctx.aboutMe).length > 0) {
+    profile.push(`# RICH CONTEXT (filled by ${userTag})`);
+    const am = ctx.aboutMe;
+    if (am.top_goals) profile.push(`## Top goals (their words):\n${am.top_goals}`);
+    if (am.why_doing_this)
+      profile.push(`## Why they're doing this:\n${am.why_doing_this}`);
+    if (am.goal_3mo) profile.push(`## 3-month vision: ${am.goal_3mo}`);
+    if (am.goal_6mo) profile.push(`## 6-month vision: ${am.goal_6mo}`);
+    if (am.goal_12mo) profile.push(`## 12-month vision: ${am.goal_12mo}`);
+    if (am.work_type) profile.push(`## Work: ${am.work_type} (${am.work_hours ?? "hours not set"})`);
+    if (am.typical_wake || am.typical_bed) {
+      profile.push(`## Sleep window: ${am.typical_wake ?? "?"} → ${am.typical_bed ?? "?"}`);
+    }
+    if (am.cooking_ability) profile.push(`## Cooking: ${am.cooking_ability}`);
+    if (am.travel_pattern) profile.push(`## Travel: ${am.travel_pattern}`);
+    if (am.current_stressors) profile.push(`## Current stressors:\n${am.current_stressors}`);
+    if (am.relationship_status) profile.push(`## Relationship: ${am.relationship_status}`);
+    if (am.family_history) profile.push(`## Family history:\n${am.family_history}`);
+    if (am.past_diagnoses) profile.push(`## Past diagnoses: ${am.past_diagnoses}`);
+    if (am.past_surgeries) profile.push(`## Past surgeries: ${am.past_surgeries}`);
+    if (am.current_medications) profile.push(`## Current medications: ${am.current_medications}`);
+    if (am.allergies_sensitivities) profile.push(`## Allergies/sensitivities: ${am.allergies_sensitivities}`);
+    if (am.chronic_issues) profile.push(`## Chronic issues: ${am.chronic_issues}`);
+    if (am.resting_heart_rate) profile.push(`## RHR: ${am.resting_heart_rate}`);
+    if (am.hrv_baseline) profile.push(`## HRV baseline: ${am.hrv_baseline}`);
+    if (am.bp_baseline) profile.push(`## BP baseline: ${am.bp_baseline}`);
+    if (am.body_fat_estimate) profile.push(`## Body fat estimate: ${am.body_fat_estimate}`);
+    if (am.cuisine_preferences) profile.push(`## Cuisine prefs: ${am.cuisine_preferences}`);
+    if (am.hard_food_dislikes) profile.push(`## Won't eat: ${am.hard_food_dislikes}`);
+    if (am.exercise_preferences) profile.push(`## Exercise prefs: ${am.exercise_preferences}`);
+    if (am.communication_style)
+      profile.push(`## Communication style: ${am.communication_style}`);
+    if (am.values) profile.push(`## Values: ${am.values}`);
+    if (am.what_success_looks_like) profile.push(`## Success looks like:\n${am.what_success_looks_like}`);
+    if (am.current_wins) profile.push(`## Current wins: ${am.current_wins}`);
+    if (am.current_blockers) profile.push(`## Current blockers: ${am.current_blockers}`);
+    profile.push(``);
+  }
+  if (ctx.macros) {
+    profile.push(`# DAILY MACRO TARGETS (from profile)`);
+    profile.push(
+      `- Calories: ${ctx.macros.calories} kcal · Protein: ${ctx.macros.protein_g}g · Fat: ${ctx.macros.fat_g}g · Carbs: ${ctx.macros.carbs_g}g`,
+    );
+    profile.push(
+      `- Per meal (${ctx.profile?.meals_per_day ?? 3}/day): ${ctx.macros.per_meal.calories} kcal · ${ctx.macros.per_meal.protein_g}g protein · ${ctx.macros.per_meal.fat_g}g fat · ${ctx.macros.per_meal.carbs_g}g carbs`,
+    );
+    profile.push(
+      `When suggesting foods/meals, render portions in grams or standard units (e.g. "3 eggs (21g protein) + 150g beef (30g)") so totals hit the per-meal target.`,
+    );
+    profile.push(``);
+  }
+  profile.push(`# CURRENT ACTIVE REGIMEN (${ctx.activeItems.length} items)`);
+  for (const [type, items] of Object.entries(activeByType)) {
+    profile.push(`## ${type}s`);
+    for (const i of items) {
+      profile.push(
+        `- ${i.name}${i.brand ? ` (${i.brand})` : ""}${i.dose ? ` — ${i.dose}` : ""} · ${i.timing_slot} · ${i.category}${i.notes ? ` · ${i.notes}` : ""}`,
+      );
+      // Append catalog enrichment inline as indented bullets so Coach
+      // sees the pharmacology + cautions for THIS specific item without
+      // needing a separate lookup
+      const enriched = ctx.catalogEnrichments.get(i.id);
+      if (enriched) {
+        if (enriched.evidence_grade) {
+          profile.push(`    Evidence grade: ${enriched.evidence_grade}`);
+        }
+        if (enriched.mechanism) {
+          profile.push(`    Mechanism: ${enriched.mechanism}`);
+        }
+        if (enriched.best_timing) {
+          profile.push(`    Best timing: ${enriched.best_timing}`);
+        }
+        if (enriched.cautions && enriched.cautions.length > 0) {
+          profile.push(
+            `    Cautions: ${enriched.cautions
+              .map((c) => `${c.tag} (${c.note})`)
+              .join("; ")}`,
+          );
+        }
+        if (enriched.conflicts_with && enriched.conflicts_with.length > 0) {
+          profile.push(
+            `    Conflicts with: ${enriched.conflicts_with
+              .map((c) => `${c.name} — ${c.reason}`)
+              .join("; ")}`,
+          );
+        }
+      }
+    }
+  }
+  profile.push(``);
+  profile.push(`# QUEUED ITEMS (${ctx.queuedItems.length}) — activate when trigger fires`);
+  for (const i of ctx.queuedItems) {
+    profile.push(`- ${i.name}${i.brand ? ` (${i.brand})` : ""} — trigger: ${i.review_trigger ?? "n/a"}`);
+  }
+  profile.push(``);
+  // Ingredient-level UL warnings — surfaced near the top of the prompt
+  // because they're a SAFETY concern. Cumulative dosing problems aren't
+  // visible from any single item's label, so Coach should always check.
+  if (ctx.ingredientStack.warnings.length > 0) {
+    profile.push(
+      `# ⚠️ STACK INGREDIENT WARNINGS (cumulative across active items)`,
+    );
+    profile.push(
+      `These flag where total daily intake from multiple items in ${userTag}'s stack approaches or exceeds the published Tolerable Upper Intake Level (UL). Treat as a hard safety signal — proactively raise these in any conversation about the affected items.`,
+    );
+    for (const w of ctx.ingredientStack.warnings) {
+      const sevTag =
+        w.severity === "critical"
+          ? "CRITICAL"
+          : w.severity === "warning"
+            ? "OVER UL"
+            : "approaching UL";
+      profile.push(
+        `- [${sevTag}] ${w.label}: ${w.total_amount} ${w.unit} / day (UL ${w.ul} ${w.unit}, ${Math.round(w.ratio * 100)}% of UL)`,
+      );
+      profile.push(`    Why this matters: ${w.rationale}`);
+      profile.push(
+        `    Sources in stack: ${w.sources.map((s) => `${s.item_name} (${s.amount} ${s.unit})`).join("; ")}`,
+      );
+    }
+    profile.push(``);
+  }
+  // Bloodwork — surface flagged values prominently, then list every
+  // recent marker. Coach should reference specific values + reference
+  // ranges when making recommendations.
+  if (ctx.biomarkers.length > 0) {
+    const flagged = ctx.biomarkers.filter((b) => b.flag);
+    profile.push(`# BLOODWORK / BIOMARKERS (latest values)`);
+    if (flagged.length > 0) {
+      profile.push(`## Flagged (out of range)`);
+      for (const b of flagged) {
+        const ref = b.reference_range ? ` (ref ${b.reference_range})` : "";
+        const trend =
+          b.prev_value != null
+            ? ` — was ${b.prev_value} on ${b.prev_drawn_on}`
+            : "";
+        profile.push(
+          `- ${b.display_name ?? b.name}: ${b.value}${b.unit ?? ""} [${b.flag}]${ref}${trend} · drawn ${b.drawn_on}`,
+        );
+      }
+    }
+    const inRange = ctx.biomarkers.filter((b) => !b.flag);
+    if (inRange.length > 0) {
+      profile.push(`## In range`);
+      for (const b of inRange) {
+        const trend =
+          b.prev_value != null
+            ? ` (prev ${b.prev_value} on ${b.prev_drawn_on})`
+            : "";
+        profile.push(
+          `- ${b.display_name ?? b.name}: ${b.value}${b.unit ?? ""}${trend}`,
+        );
+      }
+    }
+    profile.push(
+      `Cite specific values when recommending changes. Don't propose adding a supplement targeting a marker that's already in range.`,
+    );
+    profile.push(``);
+  }
+
+  // Catalog candidates — high-evidence items the user does NOT have yet.
+  // When asked "what should I add?" Coach should prefer these over
+  // generated-from-scratch suggestions because they're already enriched
+  // with mechanism, timing, and evidence grade.
+  if (ctx.recommendableCatalog.length > 0) {
+    profile.push(``);
+    profile.push(
+      `## CATALOG CANDIDATES (not in user's stack — high evidence)`,
+    );
+    profile.push(
+      `When ${userTag} asks "what should I add?" or you find a clear gap, prefer items from THIS list over generic suggestions. Each is already in our catalog with mechanism + timing + evidence grade attached. Cite the evidence grade when proposing.`,
+    );
+    for (const r of ctx.recommendableCatalog) {
+      const parts = [
+        r.name,
+        r.brand ? `(${r.brand})` : null,
+        r.evidence_grade ? `[Grade ${r.evidence_grade}]` : null,
+        r.best_timing ? `· ${r.best_timing}` : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      profile.push(`- ${parts}`);
+      if (r.coach_summary) {
+        profile.push(`    ${r.coach_summary}`);
+      }
+      if (r.mechanism) {
+        profile.push(`    Mechanism: ${r.mechanism}`);
+      }
+    }
+    profile.push(
+      `Use catalog_item_id when emitting an add proposal so the user item links to this shared row and inherits future enrichment + affiliate URL automatically.`,
+    );
+  }
+
+
+  // ── VOLATILE: dated, day-to-day data. Rendered last, never cached.
+  const volatile: string[] = [];
+  volatile.push(`# TODAY: ${ctx.today} (user's local date)`);
+  volatile.push(``);
   // User-stage block — drives Coach's tone + recommendations
   const STAGE_NOTES: Record<UserStage, string> = {
     first_visit:
@@ -1001,32 +1276,32 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
     mastery:
       "14+ logged days. Long-term user. Surface trend deltas, suggest cycles, talk about cost optimization.",
   };
-  lines.push(`# USER STAGE: ${ctx.userStage}`);
-  lines.push(`${STAGE_NOTES[ctx.userStage]}`);
-  lines.push(`- Active items: ${ctx.activeItems.length}`);
-  lines.push(`- Unique log days (14d): ${ctx.signals.uniqueLogDays14d}`);
-  lines.push(`- Current streak: ${ctx.signals.currentStreak} days`);
+  volatile.push(`# USER STAGE: ${ctx.userStage}`);
+  volatile.push(`${STAGE_NOTES[ctx.userStage]}`);
+  volatile.push(`- Active items: ${ctx.activeItems.length}`);
+  volatile.push(`- Unique log days (14d): ${ctx.signals.uniqueLogDays14d}`);
+  volatile.push(`- Current streak: ${ctx.signals.currentStreak} days`);
   if (ctx.signals.pendingAuditCount > 0)
-    lines.push(`- Items waiting on audit: ${ctx.signals.pendingAuditCount}`);
+    volatile.push(`- Items waiting on audit: ${ctx.signals.pendingAuditCount}`);
   if (ctx.signals.pendingOrderCount > 0)
-    lines.push(`- Items needing order: ${ctx.signals.pendingOrderCount}`);
+    volatile.push(`- Items needing order: ${ctx.signals.pendingOrderCount}`);
   if (ctx.signals.arrivedUnmarkedCount > 0)
-    lines.push(
+    volatile.push(
       `- Items arrived but not yet marked "using": ${ctx.signals.arrivedUnmarkedCount}`,
     );
   if (ctx.signals.worsenedItemCount > 0)
-    lines.push(
+    volatile.push(
       `- Items with 2+ "worse" reactions in last 30d: ${ctx.signals.worsenedItemCount} (URGENT — flag for review)`,
     );
   if (ctx.signals.activeProtocols.length > 0) {
-    lines.push(`- Protocol enrollments:`);
+    volatile.push(`- Protocol enrollments:`);
     for (const p of ctx.signals.activeProtocols) {
-      lines.push(
+      volatile.push(
         `    · ${p.slug}: Day ${p.current_day} of ${p.duration_days}${p.completed ? " (COMPLETED)" : ""}`,
       );
     }
   }
-  lines.push(``);
+  volatile.push(``);
 
   // Where-we-left-off — surfaces the most recent Coach conversation
   // so the user doesn't have to repeat context. Capped to keep the
@@ -1037,19 +1312,19 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
         (60 * 60 * 1000),
     );
     const agoStr = ago < 1 ? "just now" : ago < 24 ? `${ago}h ago` : `${Math.round(ago / 24)}d ago`;
-    lines.push(`# 🔁 LAST CONVERSATION (${agoStr})`);
-    lines.push(
+    volatile.push(`# 🔁 LAST CONVERSATION (${agoStr})`);
+    volatile.push(
       `Reference this when relevant — pick up where you left off without making the user re-explain.`,
     );
     if (ctx.recentCoachTurn.user) {
-      lines.push(`User: "${ctx.recentCoachTurn.user}"`);
+      volatile.push(`User: "${ctx.recentCoachTurn.user}"`);
     }
     if (ctx.recentCoachTurn.assistant) {
-      lines.push(
+      volatile.push(
         `Coach (you): "${ctx.recentCoachTurn.assistant.slice(0, 400)}${ctx.recentCoachTurn.assistant.length > 400 ? "…" : ""}"`,
       );
     }
-    lines.push(``);
+    volatile.push(``);
   }
 
   // Symptom × stack-change correlations — declining symptoms paired
@@ -1058,22 +1333,22 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   // makes the judgment call (correlation vs causation); the helper
   // just makes sure the data points are paired.
   if (ctx.symptomCorrelations.length > 0) {
-    lines.push(`# 🔗 SYMPTOM × STACK CORRELATIONS (declining + recent changes)`);
-    lines.push(
+    volatile.push(`# 🔗 SYMPTOM × STACK CORRELATIONS (declining + recent changes)`);
+    volatile.push(
       `These pair a 3-day symptom decline against stack changes from the 14 days before. n=1, so frame as hypotheses ("did X break your sleep?"), not assertions. Bring up the relevant pairing whenever the user mentions the affected symptom or the candidate item.`,
     );
     for (const c of ctx.symptomCorrelations) {
-      lines.push(
+      volatile.push(
         `- ${c.symptom_label}: recent 3-day avg ${c.recent_avg} vs prior 7-day baseline ${c.baseline_avg} (worse by ${c.worse_by} pts, started ${c.trend_start_date})`,
       );
-      lines.push(`    Candidate changes:`);
+      volatile.push(`    Candidate changes:`);
       for (const ch of c.candidate_changes) {
-        lines.push(
+        volatile.push(
           `      · ${ch.happened_on} (${ch.days_before_trend}d before): ${ch.change_type}${ch.item_name ? ` ${ch.item_name}` : ""}${ch.reasoning ? ` — ${ch.reasoning}` : ""}`,
         );
       }
     }
-    lines.push(``);
+    volatile.push(``);
   }
 
   // Adherence-x-cost waste — items the user pays for but rarely takes.
@@ -1084,159 +1359,27 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
       (s, w) => s + w.annualized_waste,
       0,
     );
-    lines.push(`# 💸 LIKELY WASTE (paying-but-not-taking)`);
-    lines.push(
+    volatile.push(`# 💸 LIKELY WASTE (paying-but-not-taking)`);
+    volatile.push(
       `These items cost ≥$15/mo and have <50% adherence over the last 30 days. Total annualized waste: ~$${Math.round(totalAnnual)}. Proactively raise these in any conversation about cost, refinement, or "what should I drop".`,
     );
     for (const w of ctx.wasteCandidates) {
-      lines.push(
+      volatile.push(
         `- ${w.item_name}: ${Math.round(w.adherence_rate * 100)}% adherence (${w.taken_count}/${w.total_count} in 30d), $${w.monthly_cost.toFixed(2)}/mo → ~$${Math.round(w.annualized_waste)}/yr in waste`,
       );
     }
-    lines.push(``);
+    volatile.push(``);
   }
 
-  // Ingredient-level UL warnings — surfaced near the top of the prompt
-  // because they're a SAFETY concern. Cumulative dosing problems aren't
-  // visible from any single item's label, so Coach should always check.
-  if (ctx.ingredientStack.warnings.length > 0) {
-    lines.push(
-      `# ⚠️ STACK INGREDIENT WARNINGS (cumulative across active items)`,
-    );
-    lines.push(
-      `These flag where total daily intake from multiple items in ${userTag}'s stack approaches or exceeds the published Tolerable Upper Intake Level (UL). Treat as a hard safety signal — proactively raise these in any conversation about the affected items.`,
-    );
-    for (const w of ctx.ingredientStack.warnings) {
-      const sevTag =
-        w.severity === "critical"
-          ? "CRITICAL"
-          : w.severity === "warning"
-            ? "OVER UL"
-            : "approaching UL";
-      lines.push(
-        `- [${sevTag}] ${w.label}: ${w.total_amount} ${w.unit} / day (UL ${w.ul} ${w.unit}, ${Math.round(w.ratio * 100)}% of UL)`,
-      );
-      lines.push(`    Why this matters: ${w.rationale}`);
-      lines.push(
-        `    Sources in stack: ${w.sources.map((s) => `${s.item_name} (${s.amount} ${s.unit})`).join("; ")}`,
-      );
-    }
-    lines.push(``);
-  }
   if (ctx.daysSincePostOp != null) {
-    lines.push(`# RECOVERY CONTEXT`);
-    lines.push(
+    volatile.push(`# RECOVERY CONTEXT`);
+    volatile.push(
       `- ${userTag} is Day ${ctx.daysSincePostOp} post-op from a procedure they tracked. Defer to their surgeon's instructions for anything specific to that recovery.`,
     );
-    lines.push(``);
+    volatile.push(``);
   }
-  lines.push(`# GOALS (priority order)`);
-  ctx.goals.forEach((g, i) => lines.push(`${i + 1}. ${g}`));
-  lines.push(``);
-  if (ctx.hardNos.length > 0) {
-    lines.push(
-      `# HARD NOs — never recommend, always flag if detected in a photo or food log:`,
-    );
-    for (const n of ctx.hardNos) lines.push(`- ${n}`);
-    lines.push(``);
-  }
-  if (ctx.aboutMe && Object.keys(ctx.aboutMe).length > 0) {
-    lines.push(`# RICH CONTEXT (filled by ${userTag})`);
-    const am = ctx.aboutMe;
-    if (am.top_goals) lines.push(`## Top goals (their words):\n${am.top_goals}`);
-    if (am.why_doing_this)
-      lines.push(`## Why they're doing this:\n${am.why_doing_this}`);
-    if (am.goal_3mo) lines.push(`## 3-month vision: ${am.goal_3mo}`);
-    if (am.goal_6mo) lines.push(`## 6-month vision: ${am.goal_6mo}`);
-    if (am.goal_12mo) lines.push(`## 12-month vision: ${am.goal_12mo}`);
-    if (am.work_type) lines.push(`## Work: ${am.work_type} (${am.work_hours ?? "hours not set"})`);
-    if (am.typical_wake || am.typical_bed) {
-      lines.push(`## Sleep window: ${am.typical_wake ?? "?"} → ${am.typical_bed ?? "?"}`);
-    }
-    if (am.cooking_ability) lines.push(`## Cooking: ${am.cooking_ability}`);
-    if (am.travel_pattern) lines.push(`## Travel: ${am.travel_pattern}`);
-    if (am.current_stressors) lines.push(`## Current stressors:\n${am.current_stressors}`);
-    if (am.relationship_status) lines.push(`## Relationship: ${am.relationship_status}`);
-    if (am.family_history) lines.push(`## Family history:\n${am.family_history}`);
-    if (am.past_diagnoses) lines.push(`## Past diagnoses: ${am.past_diagnoses}`);
-    if (am.past_surgeries) lines.push(`## Past surgeries: ${am.past_surgeries}`);
-    if (am.current_medications) lines.push(`## Current medications: ${am.current_medications}`);
-    if (am.allergies_sensitivities) lines.push(`## Allergies/sensitivities: ${am.allergies_sensitivities}`);
-    if (am.chronic_issues) lines.push(`## Chronic issues: ${am.chronic_issues}`);
-    if (am.resting_heart_rate) lines.push(`## RHR: ${am.resting_heart_rate}`);
-    if (am.hrv_baseline) lines.push(`## HRV baseline: ${am.hrv_baseline}`);
-    if (am.bp_baseline) lines.push(`## BP baseline: ${am.bp_baseline}`);
-    if (am.body_fat_estimate) lines.push(`## Body fat estimate: ${am.body_fat_estimate}`);
-    if (am.cuisine_preferences) lines.push(`## Cuisine prefs: ${am.cuisine_preferences}`);
-    if (am.hard_food_dislikes) lines.push(`## Won't eat: ${am.hard_food_dislikes}`);
-    if (am.exercise_preferences) lines.push(`## Exercise prefs: ${am.exercise_preferences}`);
-    if (am.communication_style)
-      lines.push(`## Communication style: ${am.communication_style}`);
-    if (am.values) lines.push(`## Values: ${am.values}`);
-    if (am.what_success_looks_like) lines.push(`## Success looks like:\n${am.what_success_looks_like}`);
-    if (am.current_wins) lines.push(`## Current wins: ${am.current_wins}`);
-    if (am.current_blockers) lines.push(`## Current blockers: ${am.current_blockers}`);
-    lines.push(``);
-  }
-  if (ctx.macros) {
-    lines.push(`# DAILY MACRO TARGETS (from profile)`);
-    lines.push(
-      `- Calories: ${ctx.macros.calories} kcal · Protein: ${ctx.macros.protein_g}g · Fat: ${ctx.macros.fat_g}g · Carbs: ${ctx.macros.carbs_g}g`,
-    );
-    lines.push(
-      `- Per meal (${ctx.profile?.meals_per_day ?? 3}/day): ${ctx.macros.per_meal.calories} kcal · ${ctx.macros.per_meal.protein_g}g protein · ${ctx.macros.per_meal.fat_g}g fat · ${ctx.macros.per_meal.carbs_g}g carbs`,
-    );
-    lines.push(
-      `When suggesting foods/meals, render portions in grams or standard units (e.g. "3 eggs (21g protein) + 150g beef (30g)") so totals hit the per-meal target.`,
-    );
-    lines.push(``);
-  }
-  lines.push(`# CURRENT ACTIVE REGIMEN (${ctx.activeItems.length} items)`);
-  for (const [type, items] of Object.entries(activeByType)) {
-    lines.push(`## ${type}s`);
-    for (const i of items) {
-      lines.push(
-        `- ${i.name}${i.brand ? ` (${i.brand})` : ""}${i.dose ? ` — ${i.dose}` : ""} · ${i.timing_slot} · ${i.category}${i.notes ? ` · ${i.notes}` : ""}`,
-      );
-      // Append catalog enrichment inline as indented bullets so Coach
-      // sees the pharmacology + cautions for THIS specific item without
-      // needing a separate lookup
-      const enriched = ctx.catalogEnrichments.get(i.id);
-      if (enriched) {
-        if (enriched.evidence_grade) {
-          lines.push(`    Evidence grade: ${enriched.evidence_grade}`);
-        }
-        if (enriched.mechanism) {
-          lines.push(`    Mechanism: ${enriched.mechanism}`);
-        }
-        if (enriched.best_timing) {
-          lines.push(`    Best timing: ${enriched.best_timing}`);
-        }
-        if (enriched.cautions && enriched.cautions.length > 0) {
-          lines.push(
-            `    Cautions: ${enriched.cautions
-              .map((c) => `${c.tag} (${c.note})`)
-              .join("; ")}`,
-          );
-        }
-        if (enriched.conflicts_with && enriched.conflicts_with.length > 0) {
-          lines.push(
-            `    Conflicts with: ${enriched.conflicts_with
-              .map((c) => `${c.name} — ${c.reason}`)
-              .join("; ")}`,
-          );
-        }
-      }
-    }
-  }
-  lines.push(``);
-  lines.push(`# QUEUED ITEMS (${ctx.queuedItems.length}) — activate when trigger fires`);
-  for (const i of ctx.queuedItems) {
-    lines.push(`- ${i.name}${i.brand ? ` (${i.brand})` : ""} — trigger: ${i.review_trigger ?? "n/a"}`);
-  }
-  lines.push(``);
   if (ctx.ouraDaily.length > 0) {
-    lines.push(`# WEARABLE DATA (Oura, last 14 days)`);
+    volatile.push(`# WEARABLE DATA (Oura, last 14 days)`);
     // Compute 7d-vs-7d trend on the metrics that matter most. The lib
     // already orders by date desc.
     const recent7 = ctx.ouraDaily.slice(0, 7);
@@ -1270,7 +1413,7 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
       delta("rhr", "RHR", "bpm", false),
       delta("total_sleep_min", "Total sleep", "min"),
     ].filter(Boolean) as string[];
-    for (const l of lines2) lines.push(l);
+    for (const l of lines2) volatile.push(l);
     // Most-recent-night detail
     const latest = ctx.ouraDaily[0];
     if (latest) {
@@ -1283,73 +1426,35 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
       if (latest.rem_sleep_min != null) parts.push(`${latest.rem_sleep_min}min REM`);
       if (latest.temp_deviation != null) parts.push(`temp dev ${latest.temp_deviation > 0 ? "+" : ""}${latest.temp_deviation}°C`);
       if (parts.length > 0) {
-        lines.push(`- Last night (${latest.date}): ${parts.join(" · ")}`);
+        volatile.push(`- Last night (${latest.date}): ${parts.join(" · ")}`);
       }
     }
-    lines.push(
+    volatile.push(
       `Reference these numbers when answering anything about sleep, recovery, energy, or training. Tie symptom-log scores to objective wearable data when both exist for the same day.`,
     );
-    lines.push(``);
-  }
-
-  // Bloodwork — surface flagged values prominently, then list every
-  // recent marker. Coach should reference specific values + reference
-  // ranges when making recommendations.
-  if (ctx.biomarkers.length > 0) {
-    const flagged = ctx.biomarkers.filter((b) => b.flag);
-    lines.push(`# BLOODWORK / BIOMARKERS (latest values)`);
-    if (flagged.length > 0) {
-      lines.push(`## Flagged (out of range)`);
-      for (const b of flagged) {
-        const ref = b.reference_range ? ` (ref ${b.reference_range})` : "";
-        const trend =
-          b.prev_value != null
-            ? ` — was ${b.prev_value} on ${b.prev_drawn_on}`
-            : "";
-        lines.push(
-          `- ${b.display_name ?? b.name}: ${b.value}${b.unit ?? ""} [${b.flag}]${ref}${trend} · drawn ${b.drawn_on}`,
-        );
-      }
-    }
-    const inRange = ctx.biomarkers.filter((b) => !b.flag);
-    if (inRange.length > 0) {
-      lines.push(`## In range`);
-      for (const b of inRange) {
-        const trend =
-          b.prev_value != null
-            ? ` (prev ${b.prev_value} on ${b.prev_drawn_on})`
-            : "";
-        lines.push(
-          `- ${b.display_name ?? b.name}: ${b.value}${b.unit ?? ""}${trend}`,
-        );
-      }
-    }
-    lines.push(
-      `Cite specific values when recommending changes. Don't propose adding a supplement targeting a marker that's already in range.`,
-    );
-    lines.push(``);
+    volatile.push(``);
   }
 
   if (ctx.recentSymptoms.length > 0) {
-    lines.push(`# RECENT SYMPTOM LOGS (last 7 days)`);
+    volatile.push(`# RECENT SYMPTOM LOGS (last 7 days)`);
     // We fetch 21 days for the correlation detector but only render the
     // most recent 7 in the prompt to keep token count sane.
     for (const s of ctx.recentSymptoms.slice(0, 7)) {
-      lines.push(
+      volatile.push(
         `- ${s.date}: feel=${s.feel_score ?? "—"}, sleep=${s.sleep_quality ?? "—"}, seb_derm=${s.seb_derm_score ?? "—"}, stress=${s.stress ?? "—"}, energy_pm=${s.energy_pm ?? "—"}${s.notes ? ` · ${s.notes}` : ""}`,
       );
     }
-    lines.push(``);
+    volatile.push(``);
   }
   if (ctx.recentAdherence.length > 0) {
-    lines.push(`# RECENT ADHERENCE (last 7 days)`);
+    volatile.push(`# RECENT ADHERENCE (last 7 days)`);
     for (const a of ctx.recentAdherence) {
-      lines.push(`- ${a.date}: ${a.taken}/${a.total} scheduled doses taken`);
+      volatile.push(`- ${a.date}: ${a.taken}/${a.total} scheduled doses taken`);
     }
-    lines.push(``);
+    volatile.push(``);
   }
   if (ctx.recentCheckins.length > 0) {
-    lines.push(`# RECENT DAILY CHECK-INS (last 3 days)`);
+    volatile.push(`# RECENT DAILY CHECK-INS (last 3 days)`);
     for (const c of ctx.recentCheckins) {
       const parts: string[] = [];
       if (c.meal_text) parts.push(`meal: ${c.meal_text}`);
@@ -1359,24 +1464,24 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
       if (c.stress != null) parts.push(`stress ${c.stress}/5`);
       if (c.notes) parts.push(`notes: ${c.notes}`);
       if (parts.length > 0) {
-        lines.push(`- ${c.date} [${c.checkin_window}]: ${parts.join(" · ")}`);
+        volatile.push(`- ${c.date} [${c.checkin_window}]: ${parts.join(" · ")}`);
       }
     }
-    lines.push(``);
+    volatile.push(``);
   }
   if (ctx.recentSkips.length > 0) {
-    lines.push(`# RECENT SKIPS (last 7 days, with reasons)`);
+    volatile.push(`# RECENT SKIPS (last 7 days, with reasons)`);
     for (const s of ctx.recentSkips) {
-      lines.push(`- ${s.date}: ${s.item_name} → "${s.skipped_reason}"`);
+      volatile.push(`- ${s.date}: ${s.item_name} → "${s.skipped_reason}"`);
     }
-    lines.push(``);
+    volatile.push(``);
   }
   if (ctx.todayIntake) {
-    lines.push(`# TODAY'S INTAKE (running totals)`);
-    lines.push(
+    volatile.push(`# TODAY'S INTAKE (running totals)`);
+    volatile.push(
       `- Calories: ${ctx.todayIntake.calories} · Protein: ${Math.round(ctx.todayIntake.protein_g)}g · Fat: ${Math.round(ctx.todayIntake.fat_g)}g · Carbs: ${Math.round(ctx.todayIntake.carbs_g)}g`,
     );
-    lines.push(
+    volatile.push(
       `- Water: ${Math.round(ctx.todayIntake.water_oz)}oz · Meals logged: ${ctx.todayIntake.meal_count}`,
     );
     if (ctx.macros) {
@@ -1386,36 +1491,36 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
       const calPct = Math.round(
         (ctx.todayIntake.calories / ctx.macros.calories) * 100,
       );
-      lines.push(
+      volatile.push(
         `- vs target: ${calPct}% calories · ${protPct}% protein`,
       );
     }
-    lines.push(``);
+    volatile.push(``);
   }
   if (ctx.recentMeals.length > 0) {
-    lines.push(`# RECENT MEALS (last 3 days, verbatim)`);
+    volatile.push(`# RECENT MEALS (last 3 days, verbatim)`);
     for (const m of ctx.recentMeals.slice(0, 12)) {
       const macroStr =
         m.calories || m.protein_g
           ? ` [${m.calories ?? "?"} kcal, ${m.protein_g != null ? Math.round(m.protein_g) + "g P" : "?"}]`
           : "";
-      lines.push(`- ${m.date} (${m.kind}): ${m.content}${macroStr}`);
+      volatile.push(`- ${m.date} (${m.kind}): ${m.content}${macroStr}`);
     }
-    lines.push(``);
+    volatile.push(``);
   }
   if (ctx.recentVoiceMemos.length > 0) {
-    lines.push(`# VOICE MEMOS (last 14 days — verbatim from user)`);
-    lines.push(`# These are direct from the user. Treat as primary source. Read carefully — may contain side-effect reports, frustrations, requests, or context that's not in any other field.`);
+    volatile.push(`# VOICE MEMOS (last 14 days — verbatim from user)`);
+    volatile.push(`# These are direct from the user. Treat as primary source. Read carefully — may contain side-effect reports, frustrations, requests, or context that's not in any other field.`);
     for (const m of ctx.recentVoiceMemos) {
       const date = m.created_at.slice(0, 10);
       const tag = m.context_tag ? ` [${m.context_tag}]` : "";
-      lines.push(`- ${date}${tag}: "${m.transcript}"`);
+      volatile.push(`- ${date}${tag}: "${m.transcript}"`);
     }
-    lines.push(``);
+    volatile.push(``);
   }
   if (ctx.recentReactions.length > 0) {
-    lines.push(`# ITEM REACTIONS (last 30 days — RP-style stim/fatigue tags)`);
-    lines.push(
+    volatile.push(`# ITEM REACTIONS (last 30 days — RP-style stim/fatigue tags)`);
+    volatile.push(
       `# These are the user's per-item self-ratings. STRONG SIGNAL for refinement.`,
     );
     for (const r of ctx.recentReactions) {
@@ -1425,118 +1530,65 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
         r.worse > 0 ? `worse ×${r.worse}` : null,
         r.forgot > 0 ? `forgot ×${r.forgot}` : null,
       ].filter(Boolean);
-      lines.push(`- ${r.item_name}: ${parts.join(", ")} (${r.total} reactions)`);
+      volatile.push(`- ${r.item_name}: ${parts.join(", ")} (${r.total} reactions)`);
     }
-    lines.push(``);
-    lines.push(
-      `## REACTION INTERPRETATION RULES (use when refining):`,
-    );
-    lines.push(
-      `- 5+ "no_change" reactions and minimal "helped" → strong drop candidate`,
-    );
-    lines.push(
-      `- 2+ "worse" reactions → URGENT review — flag for the user to drop or troubleshoot`,
-    );
-    lines.push(
-      `- 5+ "forgot" reactions → adherence problem, not efficacy — suggest moving slot or pairing with existing habit, not dropping`,
-    );
-    lines.push(
-      `- "Helped" majority + sustained over 30 days → keep, reinforce`,
-    );
-    lines.push(``);
-  }
-  lines.push(`# BEHAVIOR RULES`);
-  lines.push(``);
-  lines.push(`## CORE PHILOSOPHY (overrides everything below)`);
-  lines.push(`A. REFINEMENT > ADDITION. Default move is to subtract, swap, simplify, or tighten dosing — NOT add new items. The stack is already comprehensive. New additions need exceptional evidence + a specific gap they fill.`);
-  lines.push(`B. CONTEXT BEFORE SUGGESTIONS. Do NOT propose changes to dose, portions, supplements, or protocol without sufficient context. If you're missing info on: how long the user has been on something, recent side effects, sleep/energy/mood trend, adherence rate, or actual symptoms — ASK FIRST. End every advice response with at least one specific question that would sharpen your next answer.`);
-  lines.push(`C. DATA-HUNGRY BY DEFAULT. Constantly seek info: what he ate, did he train, why he skipped, energy/mood/sleep, stool, libido, scalp condition, photo updates. Surface gaps in the log. If he asks something and you don't have a recent meal/symptom log to reference, name the gap and ask for it.`);
-  lines.push(`D. TRACK CONSISTENCY + PROGRESS. Reference adherence percentages, streaks, and trend deltas in your responses ("you've been at 86% adherence the last 14 days vs 71% the 14 before — what changed?"). Use the recent symptom + adherence data above before answering.`);
-  lines.push(`E. FOOD-FIRST. Always. Suggest food before supplement. Suggest practice before product. Suggest dropping > suggest adding.`);
-  lines.push(``);
-  lines.push(`## HARD CONSTRAINTS`);
-  lines.push(`1. POST-OP SAFETY: if a recovery context is set above and the user is in Day 0-14, flag anything antiplatelet (high-dose omega-3, curcumin, vitamin E >400 IU, NSAIDs, garlic, ginkgo) as "wait Day 14+".`);
-  lines.push(`2. TRIGGER AWARENESS: seb derm flares on (a) insulin spikes (sugar/dates/dried fruit/honey/juice) and (b) histamine (aged cheese/cured meats/dark chocolate/coconut water). Dairy hits BOTH. Flag any food/recipe that hits these.`);
-  lines.push(`3. NEVER recommend HARD NOs listed above. Never re-suggest items the user has explicitly retired unless they ask again.`);
-  lines.push(`4. BLOODWORK INTERFERENCE: biotin >5000 mcg pauses 72h before any draw; Tongkat Ali pauses 7-14d before to avoid T-result confounding.`);
-  lines.push(``);
-  lines.push(`## STYLE — read this carefully, the chat UI is small and dense`);
-  lines.push(
-    `5. AGGRESSIVELY CONCISE. Default response: under 5 short sentences. The proposal card carries the structured detail — DO NOT rewrite the proposal in prose above it. Reasoning belongs in the proposal's reasoning field, not the chat body.`,
-  );
-  lines.push(
-    `5a. NO PRE-FLIGHT NARRATION. Skip "Here's what I'd do…", "Let me think about this…", "Looking at your stack…". Open with the answer or the proposal.`,
-  );
-  lines.push(
-    `5b. ONE follow-up question max, only when it would change the next move. Don't ask multiple questions per turn.`,
-  );
-  lines.push(
-    `5c. Use bullet lists for any enumeration of 3+ items. Avoid numbered prose.`,
-  );
-  lines.push(
-    `5d. Use **bold** sparingly — only on the single most important phrase per response. Never bold a heading like "**Cleanest fix:**".`,
-  );
-  lines.push(`6. When you do propose a protocol change, end with the structured proposal block:`);
-  lines.push(`   <<<PROPOSAL`);
-  lines.push(`   action: add | adjust | remove | queue | promote | retire`);
-  lines.push(`   item_name: <name>`);
-  lines.push(`   reasoning: <1-2 sentence why>`);
-  lines.push(`   [optional:] dose, brand, timing_slot, category, item_type, goals (comma-sep), frequency, notes, companion_of, companion_instruction`);
-  lines.push(`   PROPOSAL>>>`);
-  lines.push(`7. COMPANION ITEMS: nest small daily items (cinnamon, MCT oil, electrolytes) under a parent action via companion_of so Today renders them as a single bundled card.`);
-  lines.push(`8. MEAL PORTIONS: when suggesting food, size to the user's per-meal macro target in grams or standard units (e.g. "3 eggs (21g P) + 150g beef (30g) = 51g protein"). Honor food-first preference + any confirmed flare foods.`);
-  lines.push(`9. SKIP-REASON LEARNING: if recent stack_log shows skip patterns, name them. ("You've skipped X 4× this week with reason 'forgot' — should we move it to a different slot or pair it with an existing habit?")`);
-  lines.push(``);
-  lines.push(`## REFINEMENT TRIGGERS (proactively raise these)`);
-  lines.push(`- An active item's research_summary or usage_notes contradict each other`);
-  lines.push(`- Two items overlap in mechanism (suggest consolidating)`);
-  lines.push(`- A queued item's review_trigger has fired but it's still queued`);
-  lines.push(`- An item with days_supply hasn't been re-stocked and is past depletion`);
-  lines.push(`- An item has 0% adherence over 14+ days (suggest retiring or repositioning)`);
-  lines.push(`- A symptom score (sleep/seb_derm/energy) trended down for 7+ days without a stack adjustment to address it`);
-  lines.push(``);
-  lines.push(`## VENDOR / BRAND GUIDANCE`);
-  lines.push(`When proposing a NEW item (action: add or queue), include a brand suggestion in the proposal extra fields whenever you have a confident pick. Prefer in this order:`);
-  lines.push(`  1. Pharma-grade brands (Thorne, Pure Encapsulations, Designs for Health) for supplements where third-party testing matters`);
-  lines.push(`  2. Direct-to-consumer brands with strong sourcing reputations (LMNT for electrolytes, Athletic Greens, Momentous, Seed)`);
-  lines.push(`  3. Amazon for foods, gear, devices, and commodity items`);
-  lines.push(`Never let brand suggestions be a search-only "go figure it out" — name the actual brand. If you don't know which brand, say so honestly and tell ${userTag} what to look for on the label instead.`);
-  lines.push(``);
-  lines.push(`Regimen earns a small affiliate commission on items the user buys through tracked vendor links. This NEVER changes which items you recommend on health merit. But once a health-equivalent decision is made, prefer brands the app has affiliate relationships with (Thorne, iHerb, Amazon, Fullscript) so the user gets a vetted vendor and the app stays sustainable. Be transparent — if asked, explain the affiliate relationship plainly.`);
-
-  // Catalog candidates — high-evidence items the user does NOT have yet.
-  // When asked "what should I add?" Coach should prefer these over
-  // generated-from-scratch suggestions because they're already enriched
-  // with mechanism, timing, and evidence grade.
-  if (ctx.recommendableCatalog.length > 0) {
-    lines.push(``);
-    lines.push(
-      `## CATALOG CANDIDATES (not in user's stack — high evidence)`,
-    );
-    lines.push(
-      `When ${userTag} asks "what should I add?" or you find a clear gap, prefer items from THIS list over generic suggestions. Each is already in our catalog with mechanism + timing + evidence grade attached. Cite the evidence grade when proposing.`,
-    );
-    for (const r of ctx.recommendableCatalog) {
-      const parts = [
-        r.name,
-        r.brand ? `(${r.brand})` : null,
-        r.evidence_grade ? `[Grade ${r.evidence_grade}]` : null,
-        r.best_timing ? `· ${r.best_timing}` : null,
-      ]
-        .filter(Boolean)
-        .join(" ");
-      lines.push(`- ${parts}`);
-      if (r.coach_summary) {
-        lines.push(`    ${r.coach_summary}`);
-      }
-      if (r.mechanism) {
-        lines.push(`    Mechanism: ${r.mechanism}`);
-      }
-    }
-    lines.push(
-      `Use catalog_item_id when emitting an add proposal so the user item links to this shared row and inherits future enrichment + affiliate URL automatically.`,
-    );
+    volatile.push(``);
+    volatile.push(``);
   }
 
-  return lines.join("\n");
+  return {
+    stable: stable.join("\n").trim(),
+    profile: profile.join("\n").trim(),
+    volatile: volatile.join("\n").trim(),
+  };
+}
+
+/**
+ * System prompt as Anthropic text blocks with prompt-cache breakpoints
+ * on the stable + profile blocks. Any Sonnet route that sends Coach
+ * context should use this: the cached prefix is shared across /api/ask,
+ * suggestions, refine, research, etc. for the same user, so one route's
+ * cache write is another route's cache read. `extra` (route-specific
+ * instructions) goes after the breakpoints, uncached.
+ */
+export function contextToCachedSystem(
+  ctx: ProtocolContext,
+  extra?: string,
+  opts: {
+    /** Also cache the volatile+extra tail — for routes that fire several
+     *  requests with an identical system prompt in quick succession
+     *  (e.g. research-bulk's per-item loop). */
+    cacheTail?: boolean;
+  } = {},
+): TextBlockParam[] {
+  const b = contextToSystemBlocks(ctx);
+  const blocks: TextBlockParam[] = [
+    { type: "text", text: b.stable, cache_control: { type: "ephemeral" } },
+  ];
+  if (b.profile) {
+    blocks.push({
+      type: "text",
+      text: b.profile,
+      cache_control: { type: "ephemeral" },
+    });
+  }
+  const tail = [b.volatile, extra].filter(Boolean).join("\n\n");
+  if (tail) {
+    blocks.push(
+      opts.cacheTail
+        ? { type: "text", text: tail, cache_control: { type: "ephemeral" } }
+        : { type: "text", text: tail },
+    );
+  }
+  return blocks;
+}
+
+/**
+ * Serialize context into a single system-prompt string (stable → profile
+ * → volatile). Used by one-shot routes; /api/ask uses
+ * contextToSystemBlocks() directly so it can place cache breakpoints.
+ */
+export function contextToSystemPrompt(ctx: ProtocolContext): string {
+  const b = contextToSystemBlocks(ctx);
+  return [b.stable, b.profile, b.volatile].filter(Boolean).join("\n\n");
 }

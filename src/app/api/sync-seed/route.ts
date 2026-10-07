@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { syncSeed } from "@/lib/seed-db";
+import { isAdmin } from "@/lib/admin";
 
 export async function POST() {
   const supabase = await createClient();
@@ -13,6 +14,10 @@ export async function POST() {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "not signed in" }, { status: 401 });
+  }
+  // The seed is the owner's personal regimen — admin-only (ADMIN_EMAILS).
+  if (!isAdmin(user.email)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   try {
     const inserted = await syncSeed(user.id);

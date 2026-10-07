@@ -12,9 +12,10 @@
 //    experience for users who want the moment.
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
+import Card from "@/components/ui/Card";
+import Button, { ButtonLink, IconButton } from "@/components/ui/Button";
 import { addDaysISO, localDateISO } from "@/lib/series";
 
 const DISMISS_KEY = "regimen.magic_moment.dismissed.v1";
@@ -93,83 +94,40 @@ export default function MagicMomentPrompt() {
   if (!show) return null;
 
   return (
-    <section
-      className="rounded-2xl mb-6 overflow-hidden relative px-5 py-4"
-      style={{
-        background:
-          "linear-gradient(135deg, var(--olive) 0%, var(--olive-deep) 100%)",
-        color: "#FFFFFF",
-        boxShadow: "0 8px 24px var(--accent-glow)",
-      }}
-    >
-      <div className="flex items-start gap-3 pr-7">
-        <span className="shrink-0 mt-0.5">
-          <Icon name="sparkle" size={18} strokeWidth={1.7} />
+    <Card tone="coach" padding="md" className="relative mb-6">
+      <div className="flex items-start gap-3 pr-8">
+        <span className="mt-0.5 shrink-0 text-[var(--pro-soft)]">
+          <Icon name="sparkle" size={18} strokeWidth={1.8} />
         </span>
-        <div className="flex-1 min-w-0">
-          <div
-            className="text-[10px] uppercase tracking-wider"
-            style={{
-              opacity: 0.78,
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            Ready
-          </div>
-          <div
-            className="text-[15px] leading-snug mt-0.5"
-            style={{ fontWeight: 600 }}
-          >
-            Run your first refinement
-          </div>
-          <div
-            className="text-[12px] mt-1 leading-relaxed"
-            style={{ opacity: 0.85 }}
-          >
-            You&apos;ve logged {daysWithLogs} days. Coach can read your patterns
-            and tell you what to drop. Takes 15 seconds.
-          </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-body font-semibold">Ready for your first review</div>
+          <p className="mt-1 text-footnote text-[var(--foreground-soft)]">
+            You&apos;ve logged {daysWithLogs} days. Coach can look at your
+            patterns and suggest what to drop.
+          </p>
         </div>
       </div>
-      <div className="flex gap-2 mt-3 ml-9">
-        <button
-          onClick={fireCoach}
-          className="text-[12.5px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
-          style={{
-            background: "rgba(255, 255, 255, 0.96)",
-            color: "var(--olive-deep)",
-            fontWeight: 700,
-          }}
-        >
-          <Icon name="check-circle" size={13} strokeWidth={2.2} />
-          Run refinement
-        </button>
-        <Link
+      <div className="mt-3 ml-[30px] flex flex-wrap gap-2">
+        <Button variant="coach" size="sm" onClick={fireCoach} className="min-h-[44px]">
+          Review now
+        </Button>
+        <ButtonLink
           href="/welcome"
+          variant="ghost"
+          size="sm"
+          className="min-h-[44px]"
           onClick={() => {
             try {
               localStorage.setItem(SEEN_KEY, String(Date.now()));
             } catch {}
           }}
-          className="text-[12.5px] px-3 py-2 rounded-lg"
-          style={{
-            background: "rgba(255, 255, 255, 0.18)",
-            color: "#FFFFFF",
-            fontWeight: 600,
-          }}
         >
-          See full reveal
-        </Link>
+          See details
+        </ButtonLink>
       </div>
-      <button
-        onClick={dismiss}
-        className="absolute top-3 right-3 leading-none px-1"
-        style={{ color: "rgba(255, 255, 255, 0.7)" }}
-        aria-label="Dismiss"
-      >
-        <Icon name="plus" size={14} className="rotate-45" />
-      </button>
-    </section>
+      <div className="absolute top-2 right-2">
+        <IconButton icon="x" label="Dismiss" tone="plain" size={36} iconSize={16} onClick={dismiss} />
+      </div>
+    </Card>
   );
 }

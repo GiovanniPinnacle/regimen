@@ -7,7 +7,15 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  parseJsonResponse,
+  llmErrorResponse,
+  jsonSchemaFormat,
+} from "@/lib/anthropic";
+import { jsonError, readJson, internalError } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -53,16 +61,55 @@ CATEGORY DEFAULTS:
 
 Reply with JUST the JSON object, no surrounding text or markdown fences.`;
 
+// Structured outputs: the API constrains the response to this schema,
+// so enums can't drift and there's no fence-stripping.
+const CLASSIFICATION_SCHEMA = {
+  type: "object",
+  properties: {
+    item_type: {
+      type: "string",
+      enum: ["supplement", "topical", "device", "procedure", "practice", "food", "gear", "test"],
+    },
+    timing_slot: {
+      type: "string",
+      enum: ["pre_breakfast", "breakfast", "pre_workout", "lunch", "dinner", "pre_bed", "ongoing", "situational"],
+    },
+    category: {
+      type: "string",
+      enum: ["permanent", "temporary", "cycled", "situational", "condition_linked"],
+    },
+    goals: {
+      type: "array",
+      items: {
+        type: "string",
+        enum: [
+          "hair", "sleep", "gut", "foundational", "metabolic", "cortisol",
+          "inflammation", "circulation", "testosterone", "skin_joints", "AGA",
+          "seb_derm", "longevity", "recovery",
+        ],
+      },
+    },
+    frequency: {
+      type: "string",
+      enum: ["daily", "weekly", "cycle_8_2", "situational", "as_needed", "ongoing"],
+    },
+    dose_default: { type: "string" },
+    reasoning: { type: "string" },
+  },
+  required: ["item_type", "timing_slot", "category", "goals", "frequency", "dose_default", "reasoning"],
+  additionalProperties: false,
+};
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
-  const body = (await request.json()) as Body;
+  const parsedBody = await readJson<Body>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
   if (!body.name || body.name.trim().length < 2) {
     return NextResponse.json(
       { error: "Name too short to classify" },
@@ -81,7 +128,8 @@ export async function POST(request: NextRequest) {
   try {
     const res = await anthropic.messages.create({
       ...MODEL_OPTS.chat,
-      max_tokens: 600,
+      max_tokens: 1024,
+      output_config: jsonSchemaFormat(CLASSIFICATION_SCHEMA),
       system: SYSTEM,
       messages: [{ role: "user", content: userMsg }],
     });
@@ -93,17 +141,10 @@ export async function POST(request: NextRequest) {
       tokens_out: res.usage?.output_tokens,
     });
 
-    const text = textOf(res);
-
-    // Parse JSON — strip any markdown fence if Coach added one
-    const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
-    const parsed = JSON.parse(cleaned);
+    const parsed = parseJsonResponse(res);
 
     return NextResponse.json({ ok: true, classification: parsed });
   } catch (e) {
-    return NextResponse.json(
-      { error: (e as Error).message },
-      { status: 500 },
-    );
+    return llmErrorResponse(e) ?? internalError("/api/items/classify", e);
   }
 }

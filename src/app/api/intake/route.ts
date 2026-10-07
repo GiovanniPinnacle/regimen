@@ -6,7 +6,13 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  parseJsonResponse,
+} from "@/lib/anthropic";
+import { jsonError, readJson } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import { getUserToday } from "@/lib/user-date";
 
@@ -59,14 +65,14 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
   // intake_log.date defaults to the DB's current_date (UTC) — set the
   // user's local day explicitly so evening entries land on the right day.
   const { today } = await getUserToday(supabase, user.id);
 
-  const body = (await request.json()) as Body;
+  const parsedBody = await readJson<Body>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
   if (!body.kind || !body.content) {
     return NextResponse.json(
       { error: "kind and content are required" },
@@ -104,7 +110,7 @@ export async function POST(request: NextRequest) {
       const anthropic = getAnthropic();
       const r = await anthropic.messages.create({
         ...MODEL_OPTS.chat,
-        max_tokens: 400,
+        max_tokens: 1024,
         system: TEXT_MACRO_SYSTEM,
         messages: [{ role: "user", content: body.content }],
       });
@@ -114,9 +120,13 @@ export async function POST(request: NextRequest) {
         tokens_in: r.usage?.input_tokens,
         tokens_out: r.usage?.output_tokens,
       });
-      const text = textOf(r);
-      const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
+      const parsed = parseJsonResponse<{
+        calories?: number | null;
+        protein_g?: number | null;
+        fat_g?: number | null;
+        carbs_g?: number | null;
+        serving?: string | null;
+      }>(r);
       calories = parsed.calories ?? calories;
       protein_g = parsed.protein_g ?? protein_g;
       fat_g = parsed.fat_g ?? fat_g;
@@ -163,9 +173,7 @@ export async function GET() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
   const { today } = await getUserToday(supabase, user.id);
   const { data, error } = await supabase
     .from("intake_log")
@@ -205,9 +213,7 @@ export async function DELETE(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
   const url = new URL(request.url);
   const id = url.searchParams.get("id");
   if (!id) {

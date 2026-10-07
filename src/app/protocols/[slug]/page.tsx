@@ -1,72 +1,80 @@
 "use client";
 
-// /protocols/[slug] — protocol detail with full description, timeline,
-// items, safety, and the enroll button.
+// /protocols/[slug] — protocol detail: what it is, enroll, phases,
+// timeline, items by time of day, safety and research.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   getProtocol,
   isProtocolEnrollable,
   formatDuration,
+  protocolIcon,
   PROTOCOL_CATEGORY_LABELS,
 } from "@/lib/protocols";
 import { getEnrollment } from "@/lib/storage";
-import { TIMING_LABELS, ITEM_TYPE_LABELS } from "@/lib/constants";
+import { TIMING_LABELS, TIMING_ORDER, ITEM_TYPE_LABELS } from "@/lib/constants";
+import type { TimingSlot } from "@/lib/types";
+import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import Button, { ButtonLink } from "@/components/ui/Button";
+import Sheet from "@/components/ui/Sheet";
+import { SectionHeader } from "@/components/ui/Section";
+import EmptyState from "@/components/EmptyState";
+
+type Enrollment = {
+  id: string;
+  protocol_slug: string;
+  enrolled_at: string;
+  start_date: string;
+  status: string;
+};
 
 export default function ProtocolDetailPage() {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
-  const protocol = useMemo(
-    () => getProtocol(params.slug),
-    [params.slug],
-  );
+  const protocol = useMemo(() => getProtocol(params.slug), [params.slug]);
 
-  const [enrollment, setEnrollment] = useState<{
-    id: string;
-    protocol_slug: string;
-    enrolled_at: string;
-    start_date: string;
-    status: string;
-  } | null>(null);
+  const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [stopOpen, setStopOpen] = useState(false);
   const [unenrolling, setUnenrolling] = useState(false);
   const [now] = useState(() => Date.now());
 
   useEffect(() => {
-    (async () => {
-      if (!protocol) return;
-      try {
-        const e = await getEnrollment(protocol.slug);
-        setEnrollment(e);
-      } catch {
-        // not signed in or no DB access
-      }
-    })();
+    if (!protocol) return;
+    getEnrollment(protocol.slug)
+      .then(setEnrollment)
+      .catch(() => {});
   }, [protocol]);
 
   if (!protocol) {
     return (
-      <div className="py-12 text-center" style={{ color: "var(--muted)" }}>
-        Protocol not found.{" "}
-        <Link href="/protocols" className="underline">
-          Browse all
-        </Link>
+      <div className="pt-6">
+        <PageHeader back="/protocols" backLabel="Protocols" title="Not found" />
+        <EmptyState
+          glyph="search"
+          title="We couldn't find that protocol"
+          primary={{ label: "Browse protocols", href: "/protocols" }}
+        />
       </div>
     );
   }
 
   const enrollable = isProtocolEnrollable(protocol);
-  const startDate = enrollment ? new Date(enrollment.start_date) : null;
-  const dayN = startDate
+  const active = enrollment?.status === "active";
+  const dayN = enrollment
     ? Math.max(
         0,
-        Math.floor((now - startDate.getTime()) / 86400000),
+        Math.floor((now - new Date(enrollment.start_date).getTime()) / 86400000),
       ) + 1
     : 0;
+  const left = protocol.duration_days - dayN;
 
   async function enroll() {
     if (!protocol) return;
@@ -78,11 +86,11 @@ export default function ProtocolDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug: protocol.slug }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Couldn't start this protocol.");
       setConfirmed(true);
-      // After 1.5s redirect to /today
-      setTimeout(() => router.push("/today"), 1500);
+      window.dispatchEvent(new CustomEvent("regimen:items-changed"));
+      setTimeout(() => router.push("/today"), 1200);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -92,26 +100,19 @@ export default function ProtocolDetailPage() {
 
   async function unenroll(removeItems: boolean) {
     if (!protocol) return;
-    const confirm = window.confirm(
-      removeItems
-        ? `Cancel enrollment and retire all ${protocol.items.length} linked items?\n\nYour reaction history and logs are preserved — items just won't appear on Today anymore.`
-        : `Cancel enrollment but keep items active?\n\nItems stay on Today; you'll just no longer be tracked as enrolled in this protocol.`,
-    );
-    if (!confirm) return;
     setUnenrolling(true);
     setErr(null);
     try {
       const res = await fetch("/api/protocols/unenroll", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug: protocol.slug,
-          remove_items: removeItems,
-        }),
+        body: JSON.stringify({ slug: protocol.slug, remove_items: removeItems }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Couldn't stop this protocol.");
       setEnrollment(null);
+      setStopOpen(false);
+      window.dispatchEvent(new CustomEvent("regimen:items-changed"));
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -119,516 +120,285 @@ export default function ProtocolDetailPage() {
     }
   }
 
-  const itemsBySlot = protocol.items.reduce(
-    (acc, item) => {
-      const slot = item.timing_slot;
-      if (!acc[slot]) acc[slot] = [];
-      acc[slot].push(item);
-      return acc;
-    },
-    {} as Record<string, typeof protocol.items>,
-  );
+  const slots = TIMING_ORDER.map((slot) => ({
+    slot,
+    items: protocol.items.filter((i) => i.timing_slot === slot),
+  })).filter((g) => g.items.length > 0);
 
   return (
     <div className="pb-24">
-      <div className="mb-4">
-        <Link
-          href="/protocols"
-          className="text-[12px]"
-          style={{ color: "var(--muted)" }}
+      <PageHeader back="/protocols" backLabel="Protocols" title={protocol.name} />
+
+      <div className="-mt-3 mb-5 flex flex-wrap items-center gap-1.5">
+        <span
+          aria-hidden
+          className="mr-1 flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--border)] bg-[var(--surface-alt)] text-[var(--foreground-soft)]"
         >
-          ← All protocols
-        </Link>
+          <Icon name={protocolIcon(protocol)} size={18} strokeWidth={1.8} />
+        </span>
+        <Chip>
+          {PROTOCOL_CATEGORY_LABELS[protocol.category] ?? protocol.category}
+        </Chip>
+        <Chip>{formatDuration(protocol.duration_days)}</Chip>
+        {enrollable && <Chip>{protocol.items.length} items</Chip>}
+        {protocol.pricing_cents > 0 ? (
+          <Chip tone="premium">
+            ${(protocol.pricing_cents / 100).toFixed(0)}
+          </Chip>
+        ) : (
+          <Chip>Free</Chip>
+        )}
       </div>
 
-      <header className="mb-6">
-        <div className="flex items-start gap-4 mb-4">
-          <div
-            className="text-[40px] leading-none shrink-0 h-16 w-16 rounded-2xl flex items-center justify-center"
-            style={{ background: "var(--olive-tint)" }}
-            aria-hidden
-          >
-            {protocol.cover_emoji ?? "📋"}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span
-                className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                style={{
-                  background: "var(--olive-tint)",
-                  color: "var(--olive)",
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                }}
-              >
-                {PROTOCOL_CATEGORY_LABELS[protocol.category] ??
-                  protocol.category}
-              </span>
-              <span
-                className="text-[11px]"
-                style={{ color: "var(--muted)" }}
-              >
-                {formatDuration(protocol.duration_days)}
-              </span>
-              {protocol.pricing_cents > 0 ? (
-                <span
-                  className="text-[11px] px-1.5 py-0.5 rounded-full"
-                  style={{
-                    background: "var(--pro-tint)",
-                    color: "var(--pro)",
-                    fontWeight: 600,
-                  }}
-                >
-                  ${(protocol.pricing_cents / 100).toFixed(0)}
-                </span>
-              ) : (
-                <span
-                  className="text-[11px]"
-                  style={{ color: "var(--olive)", fontWeight: 600 }}
-                >
-                  Free
-                </span>
-              )}
-              {protocol.is_official && (
-                <span
-                  className="text-[10px] px-1.5 py-0.5 rounded-full"
-                  style={{
-                    background: "var(--primary)",
-                    color: "var(--primary-fg)",
-                    fontWeight: 600,
-                  }}
-                >
-                  Official
-                </span>
-              )}
-            </div>
-            <h1
-              className="text-[24px] leading-tight"
-              style={{ fontWeight: 500 }}
-            >
-              {protocol.name}
-            </h1>
-            <p
-              className="text-[13px] mt-1"
-              style={{ color: "var(--muted)" }}
-            >
-              by {protocol.author.name}
-              {protocol.author.credentials &&
-                ` · ${protocol.author.credentials}`}
-            </p>
-          </div>
-        </div>
+      <p className="text-body text-[var(--foreground-soft)]">{protocol.description}</p>
+      <p className="mt-2 text-footnote text-[var(--muted)]">
+        By {protocol.author.name}
+        {protocol.author.credentials && ` · ${protocol.author.credentials}`}
+      </p>
 
-        <p
-          className="text-[15px] leading-relaxed"
-          style={{ color: "var(--foreground)", opacity: 0.85 }}
-        >
-          {protocol.description}
-        </p>
-      </header>
-
-      {/* Enroll CTA */}
-      <section className="mb-6">
+      {/* Enroll / status */}
+      <section className="mt-6">
         {confirmed ? (
-          <div
-            className="rounded-2xl p-5 text-center"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-            }}
-          >
-            <div
-              className="text-[14px]"
-              style={{ fontWeight: 600 }}
-            >
-              ✓ Enrolled. Items added to /today.
-            </div>
-            <div className="text-[12px] mt-1" style={{ opacity: 0.85 }}>
-              Redirecting…
-            </div>
-          </div>
-        ) : enrollment && enrollment.status === "active" ? (
-          <>
-          <div
-            className="rounded-2xl p-5 flex items-center justify-between gap-3"
-            style={{
-              background: "var(--olive-tint)",
-              border: "1px solid var(--accent-glow)",
-            }}
-          >
+          <Card tone="success" padding="md" className="flex items-center gap-3" role="status">
+            <Icon name="check-circle" size={22} strokeWidth={2} className="shrink-0 text-[var(--success)]" />
             <div>
-              <div
-                className="text-[14px]"
-                style={{ fontWeight: 600, color: "var(--olive)" }}
-              >
-                Enrolled — Day {dayN}
-              </div>
-              <div
-                className="text-[12px] mt-0.5"
-                style={{ color: "var(--foreground)", opacity: 0.75 }}
-              >
-                Items live on /today. {protocol.duration_days - dayN > 0
-                  ? `${protocol.duration_days - dayN} days remaining.`
-                  : "Protocol complete."}
+              <div className="text-body font-semibold">You&apos;re in</div>
+              <div className="text-footnote text-[var(--foreground-soft)]">
+                Items are on your Today. Taking you there…
               </div>
             </div>
-            <Link
-              href="/today"
-              className="text-[13px] px-3.5 py-2 rounded-xl shrink-0"
-              style={{
-                background: "var(--primary)",
-                color: "var(--primary-fg)",
-                fontWeight: 500,
-              }}
-            >
-              Today →
-            </Link>
-          </div>
-          {/* Cancel-enrollment row — subtle, below the success card */}
-          <div className="flex items-center justify-end gap-3 mt-2 px-1">
-            <button
-              onClick={() => unenroll(false)}
-              disabled={unenrolling}
-              className="text-[11px]"
-              style={{ color: "var(--muted)", textDecoration: "underline" }}
-            >
-              Cancel (keep items)
-            </button>
-            <button
-              onClick={() => unenroll(true)}
-              disabled={unenrolling}
-              className="text-[11px]"
-              style={{ color: "var(--error)", textDecoration: "underline" }}
-            >
-              {unenrolling ? "Cancelling…" : "Cancel + retire items"}
-            </button>
-          </div>
-          </>
+          </Card>
+        ) : active ? (
+          <Card padding="md">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-body font-semibold">
+                  Day {Math.min(dayN, protocol.duration_days)} of {protocol.duration_days}
+                </div>
+                <div className="text-footnote text-[var(--muted)]">
+                  {left > 0 ? `${left} days to go` : "Complete"}
+                </div>
+              </div>
+              <ButtonLink href="/today" size="sm" className="min-h-[44px]">
+                Open Today
+              </ButtonLink>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
+              <div
+                className={`h-full rounded-full ${left > 0 ? "bg-[var(--foreground)]" : "bg-[var(--success)]"}`}
+                style={{
+                  width: `${Math.min(100, Math.round((dayN / protocol.duration_days) * 100))}%`,
+                }}
+              />
+            </div>
+            <div className="mt-2 flex justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setStopOpen(true)} className="min-h-[44px]">
+                Stop following
+              </Button>
+            </div>
+          </Card>
         ) : enrollable ? (
-          <button
-            onClick={enroll}
-            disabled={enrolling}
-            className="w-full rounded-2xl px-5 py-4 text-[15px]"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 500,
-              opacity: enrolling ? 0.6 : 1,
-              boxShadow: "0 4px 14px var(--accent-glow)",
-            }}
-          >
-            {enrolling
-              ? "Enrolling…"
-              : `Enroll → adds ${protocol.items.length} items to /today`}
-          </button>
+          <>
+            <Button size="lg" fullWidth onClick={enroll} loading={enrolling}>
+              Start protocol
+            </Button>
+            <p className="mt-2 text-center text-caption text-[var(--muted)]">
+              Adds {protocol.items.length} items to Today, each on its day.
+            </p>
+          </>
         ) : (
-          <div
-            className="rounded-2xl p-5 text-center"
-            style={{
-              background: "var(--surface-alt)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div
-              className="text-[14px]"
-              style={{ fontWeight: 500 }}
-            >
-              Coming soon
+          <Card padding="md" className="text-center">
+            <div className="text-body font-semibold">Coming soon</div>
+            <div className="mt-0.5 text-footnote text-[var(--muted)]">
+              This one is still being written.
             </div>
-            <div
-              className="text-[12px] mt-1"
-              style={{ color: "var(--muted)" }}
-            >
-              This protocol is being authored. Check back shortly.
-            </div>
-          </div>
+          </Card>
         )}
         {err && (
-          <div
-            className="text-[13px] mt-3 p-3 rounded-lg"
-            style={{
-              background: "rgba(176, 0, 32, 0.08)",
-              color: "#b00020",
-            }}
-          >
+          <p className="mt-3 text-footnote text-[var(--error)]" role="alert">
             {err}
-          </div>
+          </p>
         )}
       </section>
 
-      {/* Phases */}
       {protocol.phases && protocol.phases.length > 0 && (
-        <Section title="Phases">
-          <div className="flex flex-col gap-3">
+        <Block title="Phases">
+          <div className="flex flex-col gap-2.5">
             {protocol.phases.map((p) => (
-              <div
-                key={p.label}
-                className="rounded-2xl p-4 card-glass"
-              >
-                <div
-                  className="text-[12px] uppercase tracking-wider mb-1"
-                  style={{ color: "var(--olive)", fontWeight: 600 }}
-                >
-                  {p.label}
-                </div>
-                <div
-                  className="text-[13px] leading-relaxed"
-                  style={{ color: "var(--foreground)", opacity: 0.85 }}
-                >
-                  {p.summary}
-                </div>
+              <Card key={p.label} padding="md">
+                <div className="text-callout font-semibold">{p.label}</div>
+                <p className="mt-1 text-footnote text-[var(--foreground-soft)]">{p.summary}</p>
                 {p.what_to_expect && p.what_to_expect.length > 0 && (
-                  <div className="mt-2">
-                    <div
-                      className="text-[11px] uppercase tracking-wider mb-1"
-                      style={{ color: "var(--muted)", fontWeight: 500 }}
-                    >
-                      What to expect
-                    </div>
-                    <ul
-                      className="text-[12px] flex flex-col gap-1"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {p.what_to_expect.map((w) => (
-                        <li key={w}>· {w}</li>
-                      ))}
-                    </ul>
-                  </div>
+                  <BulletList label="What to expect" items={p.what_to_expect} />
                 )}
                 {p.red_flags && p.red_flags.length > 0 && (
-                  <div
-                    className="mt-2 p-2 rounded-lg"
-                    style={{
-                      background: "rgba(176, 0, 32, 0.05)",
-                      border: "1px solid rgba(176, 0, 32, 0.2)",
-                    }}
-                  >
-                    <div
-                      className="text-[11px] uppercase tracking-wider mb-1"
-                      style={{ color: "#b00020", fontWeight: 600 }}
-                    >
-                      Red flags
+                  <Card tone="danger" padding="sm" className="mt-3">
+                    <div className="flex items-center gap-1.5 text-caption font-semibold text-[var(--error)]">
+                      <Icon name="alert" size={13} strokeWidth={2} />
+                      Call your clinician if
                     </div>
-                    <ul
-                      className="text-[12px] flex flex-col gap-1"
-                      style={{ color: "#b00020" }}
-                    >
+                    <ul className="mt-1 flex flex-col gap-1 text-caption text-[var(--foreground-soft)]">
                       {p.red_flags.map((r) => (
-                        <li key={r}>· {r}</li>
+                        <li key={r}>{r}</li>
                       ))}
                     </ul>
-                  </div>
+                  </Card>
                 )}
-              </div>
+              </Card>
             ))}
           </div>
-        </Section>
+        </Block>
       )}
 
-      {/* Expected Timeline */}
       {protocol.expected_timeline.length > 0 && (
-        <Section title="Expected timeline">
-          <div className="flex flex-col gap-2">
-            {protocol.expected_timeline.map((t) => (
-              <div
-                key={t.marker}
-                className="rounded-xl p-3 flex gap-3 items-start"
-                style={{
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <div
-                  className="text-[12px] uppercase tracking-wider shrink-0 px-2 py-0.5 rounded-full"
-                  style={{
-                    background: "var(--olive-tint)",
-                    color: "var(--olive)",
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  {t.marker}
-                </div>
-                <div className="flex-1">
-                  <div className="text-[13px] leading-relaxed">
-                    {t.expect}
+        <Block title="What to expect, when">
+          <Card padding="none">
+            <ol className="divide-y divide-[var(--border)]">
+              {protocol.expected_timeline.map((t) => (
+                <li key={t.marker} className="flex gap-3 px-4 py-3">
+                  <span className="w-[72px] shrink-0 text-footnote font-semibold tabular-nums">
+                    {t.marker}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-footnote">{t.expect}</div>
+                    {t.evidence && (
+                      <div className="mt-1 text-caption text-[var(--muted)]">{t.evidence}</div>
+                    )}
                   </div>
-                  {t.evidence && (
-                    <div
-                      className="text-[11px] mt-1 italic"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {t.evidence}
-                    </div>
-                  )}
+                </li>
+              ))}
+            </ol>
+          </Card>
+        </Block>
+      )}
+
+      {protocol.items.length > 0 && (
+        <Block title={`What's included (${protocol.items.length})`}>
+          <div className="flex flex-col gap-5">
+            {slots.map(({ slot, items }) => (
+              <div key={slot}>
+                <div className="mb-2 text-eyebrow uppercase text-[var(--muted)]">
+                  {TIMING_LABELS[slot as TimingSlot] ?? slot}
+                </div>
+                <div className="flex flex-col gap-2">
+                  {items.map((it) => (
+                    <Card key={it.key} padding="md">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-callout font-semibold">{it.name}</div>
+                          {(it.dose || it.brand) && (
+                            <div className="text-caption text-[var(--muted)]">
+                              {[it.dose, it.brand].filter(Boolean).join(" · ")}
+                            </div>
+                          )}
+                        </div>
+                        <Chip className="shrink-0">
+                          {ITEM_TYPE_LABELS[it.item_type] ?? it.item_type}
+                        </Chip>
+                      </div>
+                      <div className="mt-1.5 text-caption text-[var(--foreground-soft)]">
+                        {it.starts_on_day != null && it.starts_on_day > 0
+                          ? `Starts day ${it.starts_on_day}`
+                          : "Starts right away"}
+                        {it.ends_on_day != null ? ` · ends day ${it.ends_on_day}` : ""}
+                      </div>
+                      {it.usage_notes && (
+                        <p className="mt-1.5 text-footnote text-[var(--foreground-soft)]">
+                          {it.usage_notes}
+                        </p>
+                      )}
+                      {it.research_summary && (
+                        <p className="mt-2 border-t border-[var(--border)] pt-2 text-caption text-[var(--muted)]">
+                          {it.research_summary}
+                        </p>
+                      )}
+                    </Card>
+                  ))}
                 </div>
               </div>
             ))}
           </div>
-        </Section>
+        </Block>
       )}
 
-      {/* Items by timing slot */}
-      <Section title={`Items in this protocol (${protocol.items.length})`}>
-        <div className="flex flex-col gap-3">
-          {Object.entries(itemsBySlot).map(([slot, items]) => (
-            <div key={slot}>
-              <div
-                className="text-[10px] uppercase tracking-wider mb-1.5"
-                style={{ color: "var(--muted)", fontWeight: 500 }}
-              >
-                {TIMING_LABELS[slot as keyof typeof TIMING_LABELS] ?? slot}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                {items.map((it) => (
-                  <div
-                    key={it.key}
-                    className="rounded-xl p-3"
-                    style={{
-                      border: "1px solid var(--border)",
-                      background: "var(--surface)",
-                    }}
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-0.5">
-                      <div
-                        className="text-[14px]"
-                        style={{ fontWeight: 500 }}
-                      >
-                        {it.name}
-                      </div>
-                      <div
-                        className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0"
-                        style={{
-                          background: "var(--surface-alt)",
-                          color: "var(--muted)",
-                          fontWeight: 600,
-                          letterSpacing: "0.06em",
-                        }}
-                      >
-                        {ITEM_TYPE_LABELS[it.item_type] ?? it.item_type}
-                      </div>
-                    </div>
-                    <div
-                      className="text-[12px]"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {[it.dose, it.brand].filter(Boolean).join(" · ")}
-                    </div>
-                    <div
-                      className="text-[11px] mt-1"
-                      style={{ color: "var(--olive)", fontWeight: 500 }}
-                    >
-                      {it.starts_on_day != null && it.starts_on_day > 0
-                        ? `Starts Day ${it.starts_on_day}`
-                        : "Starts immediately"}
-                      {it.ends_on_day != null
-                        ? ` · Ends Day ${it.ends_on_day}`
-                        : ""}
-                    </div>
-                    {it.usage_notes && (
-                      <div
-                        className="text-[12px] mt-1.5 leading-relaxed"
-                        style={{
-                          color: "var(--foreground)",
-                          opacity: 0.8,
-                        }}
-                      >
-                        {it.usage_notes}
-                      </div>
-                    )}
-                    {it.research_summary && (
-                      <div
-                        className="text-[11px] mt-2 pt-2 leading-relaxed italic"
-                        style={{
-                          color: "var(--muted)",
-                          borderTop: "1px solid var(--border)",
-                        }}
-                      >
-                        {it.research_summary}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Section>
+      <Block title="Safety">
+        <Card tone="warn" padding="md">
+          <p className="text-footnote text-[var(--foreground-soft)]">{protocol.safety_notes}</p>
+          {protocol.contraindications && protocol.contraindications.length > 0 && (
+            <BulletList label="Not for you if" items={protocol.contraindications} />
+          )}
+        </Card>
+      </Block>
 
-      {/* Safety */}
-      <Section title="Safety">
-        <div
-          className="rounded-2xl p-4"
-          style={{
-            background: "rgba(194, 145, 66, 0.08)",
-            border: "1px solid rgba(194, 145, 66, 0.25)",
-          }}
-        >
-          <p
-            className="text-[13px] leading-relaxed"
-            style={{ color: "var(--foreground)", opacity: 0.9 }}
-          >
-            {protocol.safety_notes}
-          </p>
-          {protocol.contraindications &&
-            protocol.contraindications.length > 0 && (
-              <div className="mt-3">
-                <div
-                  className="text-[11px] uppercase tracking-wider mb-1"
-                  style={{ color: "#C29142", fontWeight: 600 }}
-                >
-                  Contraindications
-                </div>
-                <ul
-                  className="text-[12px] flex flex-col gap-0.5"
-                  style={{ color: "var(--muted)" }}
-                >
-                  {protocol.contraindications.map((c) => (
-                    <li key={c}>· {c}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-        </div>
-      </Section>
-
-      {/* Research summary */}
       {protocol.research_summary && (
-        <Section title="The research, briefly">
-          <div
-            className="rounded-2xl p-4 card-glass"
-          >
-            <p
-              className="text-[13px] leading-relaxed"
-              style={{
-                color: "var(--foreground)",
-                opacity: 0.85,
-              }}
-            >
+        <Block title="The research, briefly">
+          <Card padding="md">
+            <p className="text-footnote text-[var(--foreground-soft)]">
               {protocol.research_summary}
             </p>
-          </div>
-        </Section>
+          </Card>
+        </Block>
       )}
+
+      <Sheet
+        open={stopOpen}
+        onClose={() => setStopOpen(false)}
+        title="Stop following?"
+        description="Your logs and history stay either way."
+      >
+        <div className="flex flex-col gap-2 pb-2">
+          <Button
+            variant="secondary"
+            size="lg"
+            fullWidth
+            loading={unenrolling}
+            onClick={() => unenroll(false)}
+          >
+            Stop, keep items on Today
+          </Button>
+          <Button
+            variant="destructive"
+            size="lg"
+            fullWidth
+            disabled={unenrolling}
+            onClick={() => unenroll(true)}
+          >
+            Stop and retire its {protocol.items.length} items
+          </Button>
+        </div>
+      </Sheet>
+
+      <div className="mt-8 text-center">
+        <Link
+          href="/protocols"
+          className="inline-flex min-h-[44px] items-center gap-1 text-footnote font-medium text-[var(--foreground-soft)]"
+        >
+          All protocols
+          <Icon name="chevron-right" size={14} strokeWidth={2} />
+        </Link>
+      </div>
     </div>
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="mb-6">
-      <h2
-        className="text-[11px] uppercase tracking-wider mb-3"
-        style={{ color: "var(--muted)", fontWeight: 500 }}
-      >
-        {title}
-      </h2>
+    <section>
+      <SectionHeader title={title} />
       {children}
     </section>
+  );
+}
+
+function BulletList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div className="mt-3">
+      <div className="text-caption font-semibold text-[var(--muted)]">{label}</div>
+      <ul className="mt-1 flex list-disc flex-col gap-1 pl-4 text-caption text-[var(--foreground-soft)]">
+        {items.map((w) => (
+          <li key={w}>{w}</li>
+        ))}
+      </ul>
+    </div>
   );
 }

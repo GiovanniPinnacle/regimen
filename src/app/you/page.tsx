@@ -6,7 +6,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/admin";
-import { addDaysISO, computeStreak, localDateISO } from "@/lib/series";
+import { localDateISO } from "@/lib/series";
+import { loadStreak } from "@/lib/streak";
 import PageHeader from "@/components/ui/PageHeader";
 import ListRow, { ListGroup } from "@/components/ui/ListRow";
 import { Stat } from "@/components/ui/Section";
@@ -55,18 +56,10 @@ export default async function YouPage() {
     activeCount = activeRes.error ? null : (activeRes.count ?? 0);
 
     // Streak anchored on the user's own calendar day (server is UTC).
+    // Same data path as the Today hero (lib/streak.ts) — pages past the
+    // 1000-row PostgREST cap instead of reading an arbitrary slice.
     const tz = (profile?.timezone as string | null) ?? undefined;
-    const today = localDateISO(new Date(), tz);
-    const { data: logs, error: logErr } = await supabase
-      .from("stack_log")
-      .select("date, taken")
-      .gte("date", addDaysISO(today, -120));
-    if (!logErr) {
-      streak = computeStreak(
-        (logs ?? []) as { date: string; taken?: boolean | null }[],
-        today,
-      );
-    }
+    streak = await loadStreak(supabase, localDateISO(new Date(), tz));
   }
 
   const name =

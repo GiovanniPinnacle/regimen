@@ -5,7 +5,12 @@
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!("serviceWorker" in navigator)) return null;
   try {
-    const reg = await navigator.serviceWorker.register("/sw.js");
+    // updateViaCache: "none" — always revalidate sw.js itself so SW
+    // updates (cache-version bumps) roll out promptly.
+    const reg = await navigator.serviceWorker.register("/sw.js", {
+      scope: "/",
+      updateViaCache: "none",
+    });
     return reg;
   } catch (e) {
     console.error("SW registration failed", e);

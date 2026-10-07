@@ -2,120 +2,73 @@
 
 // app/error.tsx — page-level error boundary.
 //
-// Catches any error thrown during render of a page or its children
-// (server or client components, data-fetch errors, etc.). Replaces the
-// generic Next.js error screen with a recoverable UI: shows a friendly
-// message, a "Try again" button (which calls reset() to remount the
-// page), and a fallback link back to /today.
-//
-// In dev, also surfaces digest + message so the bug is visible.
+// Catches errors thrown while rendering a route segment (server or
+// client components, data fetches). Shows a recoverable card: "Try
+// again" calls Next 16.2's `unstable_retry()`, which re-fetches AND
+// re-renders the segment (the older `reset()` only re-renders, so a
+// failed server fetch would just fail again). Fallback link to /today.
 
 import { useEffect } from "react";
-import Link from "next/link";
+import Card from "@/components/ui/Card";
+import Button, { ButtonLink } from "@/components/ui/Button";
 
 export default function Error({
   error,
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   useEffect(() => {
-    // Log to console for client-side debugging. Prod telemetry would
-    // hook in here.
+    // Prod telemetry would hook in here.
     console.error("Page error boundary caught:", error);
   }, [error]);
 
   return (
     <div className="py-12 max-w-md mx-auto">
-      <div className="rounded-2xl card-glass p-6">
-        <div
-          className="text-[11px] uppercase tracking-wider mb-2"
-          style={{
-            color: "var(--error)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
+      <Card padding="xl" role="alert">
+        <div className="text-eyebrow uppercase mb-2 text-[var(--error)]">
           Something broke
         </div>
-        <h1
-          className="text-[22px] leading-tight mb-2"
-          style={{ fontWeight: 600, letterSpacing: "-0.01em" }}
-        >
+        <h1 className="text-title-2 mb-2 text-[var(--foreground)]">
           This page hit an error
         </h1>
-        <p
-          className="text-[13px] leading-relaxed mb-5"
-          style={{ color: "var(--muted)" }}
-        >
-          Don&apos;t worry — your data is fine. The page just couldn&apos;t
-          render this time. Try again, or head back to Today and come at
-          it from there.
+        <p className="text-footnote mb-5 text-[var(--muted)]">
+          Your data is fine — the page just couldn&apos;t render this time.
+          Try again, or head back to Today.
         </p>
 
-        {/* Show the error details in production too — the alternative
-            (digging in DevTools every time) is too much friction for the
-            actual user. We don't show stack traces; just name + message
-            + digest, which is what we'd ask the user to paste anyway. */}
-        {(error.message || error.digest) ? (
-          <details
-            className="rounded-lg px-3 py-2 mb-4 text-[11px] font-mono"
-            style={{
-              background: "var(--surface-alt)",
-              color: "var(--foreground-soft)",
-              border: "1px solid var(--border)",
-              wordBreak: "break-word",
-            }}
-          >
-            <summary
-              className="cursor-pointer list-none"
-              style={{ color: "var(--muted)", fontWeight: 600 }}
-            >
-              Error details (tap to expand)
+        {/* Name + message + digest (no stack) — what we'd ask the user
+            to paste anyway; cheaper than a DevTools round trip. */}
+        {error.message || error.digest ? (
+          <details className="mb-5 rounded-[var(--r-sm)] border border-[var(--border)] bg-[var(--surface-alt)] px-3 py-2 font-mono text-caption text-[var(--foreground-soft)] break-words">
+            <summary className="cursor-pointer list-none font-sans font-semibold text-[var(--muted)]">
+              Error details
             </summary>
             <div className="mt-2">
-              {error.name && (
-                <div style={{ fontWeight: 600 }}>{error.name}</div>
-              )}
-              {error.message && <div>{error.message}</div>}
+              {error.name ? <div className="font-semibold">{error.name}</div> : null}
+              {error.message ? <div>{error.message}</div> : null}
               {error.digest ? (
-                <div
-                  className="mt-1"
-                  style={{ color: "var(--muted)" }}
-                >
-                  digest: {error.digest}
-                </div>
+                <div className="mt-1 text-[var(--muted)]">digest: {error.digest}</div>
               ) : null}
             </div>
           </details>
         ) : null}
 
         <div className="flex gap-2">
-          <button
-            onClick={() => reset()}
-            className="flex-1 px-4 py-2.5 rounded-lg text-[13px]"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 700,
-            }}
+          <Button
+            variant="primary"
+            icon="refresh"
+            fullWidth
+            onClick={() => unstable_retry()}
           >
             Try again
-          </button>
-          <Link
-            href="/today"
-            className="px-4 py-2.5 rounded-lg text-[13px] inline-flex items-center justify-center"
-            style={{
-              background: "var(--surface-alt)",
-              color: "var(--foreground)",
-              fontWeight: 600,
-            }}
-          >
+          </Button>
+          <ButtonLink href="/today" variant="secondary">
             Today
-          </Link>
+          </ButtonLink>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -94,48 +94,71 @@ export async function getTakenMap(
   return map;
 }
 
+/** Current user's id from the locally cached session — no network
+ *  round-trip (RLS still enforces ownership server-side). */
+async function sessionUserId(
+  client: ReturnType<typeof supa>,
+): Promise<string | null> {
+  const {
+    data: { session },
+  } = await client.auth.getSession();
+  return session?.user.id ?? null;
+}
+
+/** Write one stack_log row for (date, item) in a single upsert on the
+ *  (user_id, date, item_id) unique key. Throws on failure so callers can
+ *  roll back optimistic UI. */
+async function upsertLog(
+  date: string,
+  itemId: string,
+  fields: { taken: boolean; skipped_reason: string | null },
+): Promise<void> {
+  const client = supa();
+  const userId = await sessionUserId(client);
+  if (!userId) throw new Error("Not signed in");
+  const { error } = await client.from("stack_log").upsert(
+    {
+      user_id: userId,
+      date,
+      item_id: itemId,
+      taken: fields.taken,
+      skipped_reason: fields.skipped_reason,
+      logged_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,date,item_id" },
+  );
+  if (error) {
+    console.error("stack_log upsert", error);
+    throw new Error(error.message);
+  }
+}
+
+/** Set an item's taken state for a day. Taking (or un-taking) clears any
+ *  skip reason. Single upsert — no select-then-write. Throws on failure. */
+export async function setTaken(
+  date: string,
+  itemId: string,
+  taken: boolean,
+): Promise<void> {
+  await upsertLog(date, itemId, { taken, skipped_reason: null });
+}
+
+/** Flip an item's taken state. The caller passes the state it currently
+ *  shows, so this is one upsert instead of a read + write. Returns the
+ *  new state; throws on failure. */
 export async function toggleTaken(
   date: string,
   itemId: string,
+  currentlyTaken: boolean,
 ): Promise<boolean> {
-  const client = supa();
-  const {
-    data: { user },
-  } = await client.auth.getUser();
-  if (!user) return false;
+  const next = !currentlyTaken;
+  await setTaken(date, itemId, next);
+  return next;
+}
 
-  // Check current state
-  const { data: existing, error: lookupErr } = await client
-    .from("stack_log")
-    .select("id,taken")
-    .eq("date", date)
-    .eq("item_id", itemId)
-    .maybeSingle();
-  if (lookupErr) console.error("toggleTaken lookup", lookupErr);
-
-  if (existing) {
-    const newTaken = !existing.taken;
-    const { error } = await client
-      .from("stack_log")
-      .update({
-        taken: newTaken,
-        skipped_reason: newTaken ? null : (existing as { skipped_reason?: string }).skipped_reason ?? null,
-        logged_at: new Date().toISOString(),
-      })
-      .eq("id", existing.id);
-    if (error) console.error("toggleTaken update", error);
-    return newTaken;
-  } else {
-    const { error } = await client.from("stack_log").insert({
-      user_id: user.id,
-      date,
-      item_id: itemId,
-      taken: true,
-      logged_at: new Date().toISOString(),
-    });
-    if (error) console.error("toggleTaken insert", error);
-    return true;
-  }
+/** Clear a skip (undo) — back to "not taken, no reason". */
+export async function clearSkip(date: string, itemId: string): Promise<void> {
+  await upsertLog(date, itemId, { taken: false, skipped_reason: null });
 }
 
 // Mark a food item as "ate something else instead." Records what was
@@ -185,43 +208,12 @@ export async function logSkip(
   itemId: string,
   reason: string,
 ): Promise<void> {
-  const client = supa();
-  const {
-    data: { user },
-  } = await client.auth.getUser();
-  if (!user) return;
-
-  const { data: existing, error: lookupErr } = await client
-    .from("stack_log")
-    .select("id")
-    .eq("date", date)
-    .eq("item_id", itemId)
-    .maybeSingle();
-  if (lookupErr) console.error("logSkip lookup", lookupErr);
-
-  const row = {
-    user_id: user.id,
-    date,
-    item_id: itemId,
-    taken: false,
-    skipped_reason: reason,
-    logged_at: new Date().toISOString(),
-  };
-  if (existing) {
-    const { error } = await client
-      .from("stack_log")
-      .update(row)
-      .eq("id", existing.id);
-    if (error) console.error("logSkip update", error);
-  } else {
-    const { error } = await client.from("stack_log").insert(row);
-    if (error) console.error("logSkip insert", error);
-  }
+  await upsertLog(date, itemId, { taken: false, skipped_reason: reason });
 
   // Auto-supply detection: bump item's purchase_state to 'needed' when
   // skip reason mentions out-of-stock language.
   if (detectOutOfSupply(reason)) {
-    const { error: itemErr } = await client
+    const { error: itemErr } = await supa()
       .from("items")
       .update({ purchase_state: "needed", owned: false })
       .eq("id", itemId)

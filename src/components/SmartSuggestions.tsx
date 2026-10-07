@@ -1,20 +1,17 @@
 "use client";
 
-// SmartSuggestions — proactive pairings/toppings/consolidation tips on
-// /today. Pulls one suggestion at a time from /api/coach/suggestions
-// (heuristic-first, Coach-fallback). User can:
-//   - Apply (fires Coach with the focused prompt → one-tap proposal)
-//   - Dismiss for now (localStorage 7-day mute)
-//   - Tell me more (open Coach for discussion)
-//
-// Pattern: "wow how did they know to think of this?" → "tap to make it
-// happen". The whole point is reducing the friction between insight
-// and action.
+// SmartSuggestions — one proactive pairing / topping / consolidation /
+// slot-move idea from /api/coach/suggestions (heuristics first, Coach
+// fallback). Apply hands it to Coach for a one-tap proposal; dismiss
+// mutes it for 7 days on this device.
 
 import { useEffect, useState } from "react";
-import Icon from "@/components/Icon";
+import { type IconName } from "@/components/Icon";
+import Button from "@/components/ui/Button";
 import SwipeDismiss from "@/components/SwipeDismiss";
 import { usePulseCount } from "@/components/CoachPulse";
+import { CoachNoteCard } from "@/components/CoachCardStack";
+import { openCoach } from "@/lib/coach-events";
 
 type Suggestion = {
   id: string;
@@ -25,14 +22,20 @@ type Suggestion = {
   item_ids?: string[];
 };
 
-const KIND_ACCENT: Record<Suggestion["kind"], string> = {
-  pair: "var(--accent)",
-  topping: "var(--premium)",
-  consolidate: "var(--pro)",
-  move_slot: "var(--warn)",
+const KIND_META: Record<Suggestion["kind"], { icon: IconName; eyebrow: string }> = {
+  pair: { icon: "link", eyebrow: "Pair these" },
+  topping: { icon: "utensils", eyebrow: "Easy add-on" },
+  consolidate: { icon: "list-ordered", eyebrow: "Simplify" },
+  move_slot: { icon: "clock", eyebrow: "Better timing" },
 };
 
 const DISMISS_KEY_PREFIX = "regimen.smart_suggestion.dismissed.v1.";
+
+function mute(id: string) {
+  try {
+    localStorage.setItem(`${DISMISS_KEY_PREFIX}${id}`, String(Date.now()));
+  } catch {}
+}
 
 export default function SmartSuggestions() {
   const [s, setS] = useState<Suggestion | null>(null);
@@ -45,20 +48,15 @@ export default function SmartSuggestions() {
         const res = await fetch("/api/coach/suggestions");
         if (!res.ok) return;
         const data = await res.json();
-        if (!alive) return;
         const sug = data.suggestion as Suggestion | null;
-        if (!sug) return;
-        // Honor 7-day dismissal
+        if (!alive || !sug) return;
         try {
-          const dismissedAt = localStorage.getItem(
-            `${DISMISS_KEY_PREFIX}${sug.id}`,
-          );
-          if (dismissedAt) {
-            const t = parseInt(dismissedAt, 10);
-            if (Date.now() - t < 7 * 86400000) return;
-          }
+          const at = localStorage.getItem(`${DISMISS_KEY_PREFIX}${sug.id}`);
+          if (at && Date.now() - parseInt(at, 10) < 7 * 86400000) return;
         } catch {}
         setS(sug);
+      } catch {
+        // offline — nothing to suggest
       } finally {
         if (alive) setLoading(false);
       }
@@ -70,125 +68,50 @@ export default function SmartSuggestions() {
 
   function dismiss() {
     if (!s) return;
-    try {
-      localStorage.setItem(
-        `${DISMISS_KEY_PREFIX}${s.id}`,
-        String(Date.now()),
-      );
-    } catch {}
+    mute(s.id);
     setS(null);
   }
 
   function apply() {
     if (!s) return;
-    window.dispatchEvent(
-      new CustomEvent("regimen:ask", {
-        detail: { text: s.apply_prompt, send: true },
-      }),
-    );
-    // Mark dismissed too so it doesn't keep popping after Coach acts
-    try {
-      localStorage.setItem(
-        `${DISMISS_KEY_PREFIX}${s.id}`,
-        String(Date.now()),
-      );
-    } catch {}
+    openCoach({ text: s.apply_prompt, send: true });
+    mute(s.id);
     setS(null);
   }
 
   function discuss() {
     if (!s) return;
-    window.dispatchEvent(
-      new CustomEvent("regimen:ask", {
-        detail: {
-          text: `Talk me through this idea before I apply it:\n\n**${s.title}**\n${s.body}\n\nWhat's the trade-off? Anything to watch for?`,
-        },
-      }),
-    );
+    openCoach({
+      text: `Talk me through this idea before I apply it:\n\n**${s.title}**\n${s.body}\n\nWhat's the trade-off? Anything to watch for?`,
+    });
   }
 
   usePulseCount("suggestions", !loading && s ? 1 : 0);
   if (loading || !s) return null;
-
-  const accent = KIND_ACCENT[s.kind];
+  const meta = KIND_META[s.kind] ?? KIND_META.pair;
 
   return (
-    <SwipeDismiss onDismiss={dismiss}>
-    <section className="rounded-2xl card-glass mb-5 overflow-hidden">
-      <div className="px-4 py-3.5 flex items-start gap-3">
-        <span
-          className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
-          style={{
-            background: `${accent}1F`,
-            color: accent,
-          }}
-        >
-          <Icon name="sparkle" size={13} strokeWidth={2} />
-        </span>
-        <div className="flex-1 min-w-0">
-          <div
-            className="text-[10px] uppercase tracking-wider"
-            style={{
-              color: accent,
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            Coach noticed
-          </div>
-          <div
-            className="text-[14px] leading-snug mt-0.5"
-            style={{ fontWeight: 600 }}
-          >
-            {s.title}
-          </div>
-          <div
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            {s.body}
-          </div>
-        </div>
-        <button
-          onClick={dismiss}
-          className="shrink-0 leading-none px-1 -mr-1 -mt-0.5"
-          style={{ color: "var(--muted)" }}
-          aria-label="Dismiss"
-        >
-          <Icon name="plus" size={14} className="rotate-45" />
-        </button>
-      </div>
-      <div
-        className="px-4 pb-3 flex gap-2 ml-10"
-        style={{ paddingLeft: 53 }}
-      >
-        <button
-          onClick={apply}
-          className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
-          style={{
-            background: accent,
-            color: "#FFFFFF",
-            fontWeight: 700,
-            minHeight: 36,
-          }}
-        >
-          <Icon name="check-circle" size={13} strokeWidth={2.2} />
-          Yes, apply
-        </button>
-        <button
-          onClick={discuss}
-          className="text-[13px] px-3.5 py-2 rounded-lg"
-          style={{
-            background: "var(--surface-alt)",
-            color: "var(--foreground)",
-            fontWeight: 600,
-            minHeight: 36,
-          }}
-        >
-          Tell me more
-        </button>
-      </div>
+    <section className="mb-4">
+      <SwipeDismiss onDismiss={dismiss}>
+        <CoachNoteCard
+          icon={meta.icon}
+          tone="coach"
+          eyebrow={meta.eyebrow}
+          title={s.title}
+          body={s.body}
+          onDismiss={dismiss}
+          actions={
+            <>
+              <Button size="md" variant="primary" onClick={apply}>
+                Apply
+              </Button>
+              <Button size="md" variant="secondary" onClick={discuss}>
+                Tell me more
+              </Button>
+            </>
+          }
+        />
+      </SwipeDismiss>
     </section>
-    </SwipeDismiss>
   );
 }

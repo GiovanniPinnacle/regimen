@@ -1,30 +1,36 @@
+// /costs — what the stack costs and where money goes unused.
+// Monthly run-rate = unit cost ÷ days of supply × 30. "Unused" =
+// monthly cost × (1 − 30-day adherence against scheduled doses).
+
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import {
   computeCostBreakdown,
   findWasteCandidates,
   monthlyCostFor,
-  formatUSD,
   type StackLogRow,
 } from "@/lib/cost";
 import { ITEM_TYPE_LABELS } from "@/lib/constants";
 import { addDaysISO, localDateISO } from "@/lib/series";
 import type { Item, ItemType } from "@/lib/types";
-import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { SectionHeader, Stat } from "@/components/ui/Section";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
 import CostsCoachAction from "@/components/CostsCoachAction";
 import WasteCandidates from "@/components/WasteCandidates";
+import CostBars from "./CostBars";
 
 export const dynamic = "force-dynamic";
 
-/** Server-side date helper — extracted out of the component body so the
- *  react-hooks/purity rule doesn't flag Date.now() in render. Server
- *  components are re-rendered per request anyway, but the rule doesn't
- *  distinguish, so we sidestep it. */
+/** Kept outside the component so the purity lint doesn't flag Date. */
 function wasteWindow(timeZone?: string): { from: string; to: string } {
-  // Server runtime is UTC — anchor "today" on the user's profile zone so
-  // the window lines up with stack_log.date (a local calendar day).
   const to = localDateISO(new Date(), timeZone);
   return { from: addDaysISO(to, -29), to };
+}
+
+function usd(n: number): string {
+  return n >= 100 ? `$${Math.round(n).toLocaleString("en-US")}` : `$${n.toFixed(2)}`;
 }
 
 export default async function CostsPage() {
@@ -32,9 +38,6 @@ export default async function CostsPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  // Cap at 500 active items — far above any realistic stack size
-  // but bounds the worst case so a runaway insert can't blow up
-  // the costs page.
   const { data, error: itemsErr } = await supabase
     .from("items")
     .select("*")
@@ -44,10 +47,7 @@ export default async function CostsPage() {
   const items = (data ?? []) as Item[];
   const breakdown = computeCostBreakdown(items);
 
-  // Pull last 30 days of stack_log for the user — we need this to compute
-  // adherence-x-cost waste candidates. Cheap query (already indexed by
-  // user_id + date).
-  let wasteCandidates: ReturnType<typeof findWasteCandidates> = [];
+  let waste: ReturnType<typeof findWasteCandidates> = [];
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -64,240 +64,115 @@ export default async function CostsPage() {
       .gte("date", from)
       .lte("date", to);
     if (logErr) console.error("costs: stack_log", logErr);
-    wasteCandidates = findWasteCandidates(
-      items,
-      (logRows ?? []) as StackLogRow[],
-      { from, to },
-    );
+    waste = findWasteCandidates(items, (logRows ?? []) as StackLogRow[], {
+      from,
+      to,
+      adherenceMax: 0.8,
+      monthlyCostMin: 5,
+    }).slice(0, 6);
   }
+  const monthlyWaste = waste.reduce(
+    (s, c) => s + c.monthly_cost * (1 - c.adherence_rate),
+    0,
+  );
 
-  const itemsWithCost = items
+  const withCost = items
     .map((i) => ({ item: i, monthly: monthlyCostFor(i) }))
-    .filter((x) => x.monthly != null) as { item: Item; monthly: number }[];
+    .filter((x): x is { item: Item; monthly: number } => x.monthly != null)
+    .sort((a, b) => b.monthly - a.monthly);
 
-  itemsWithCost.sort((a, b) => b.monthly - a.monthly);
-
-  // Group by item_type
-  const byType: Record<string, { items: typeof itemsWithCost; total: number }> =
-    {};
-  for (const x of itemsWithCost) {
+  const byType = new Map<ItemType, { total: number; n: number }>();
+  for (const x of withCost) {
     const t = x.item.item_type;
-    if (!byType[t]) byType[t] = { items: [], total: 0 };
-    byType[t].items.push(x);
-    byType[t].total += x.monthly;
+    const cur = byType.get(t) ?? { total: 0, n: 0 };
+    byType.set(t, { total: cur.total + x.monthly, n: cur.n + 1 });
   }
+  const typeRows = [...byType.entries()].sort((a, b) => b[1].total - a[1].total);
 
   return (
-    <div className="pb-24">
-      <header className="mb-6">
-        <div className="mb-2">
-          <Link
-            href="/more"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            More
-          </Link>
+    <div className="pb-28">
+      <PageHeader
+        back="/you"
+        backLabel="You"
+        title="Costs"
+        subtitle="Monthly run-rate from price and days of supply."
+      />
+
+      <Card padding="md">
+        <div className="grid grid-cols-3 gap-3">
+          <Stat size="sm" label="Per month" value={usd(breakdown.totalMonthly)} />
+          <Stat size="sm" label="Per year" value={usd(breakdown.totalMonthly * 12)} />
+          <Stat
+            size="sm"
+            label="Unused"
+            value={waste.length > 0 ? usd(monthlyWaste) : "$0"}
+            sub="per month"
+          />
         </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Stack costs
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Monthly run-rate based on unit cost ÷ days supply × 30.
+        <p className="mt-3 text-caption text-[var(--muted)]">
+          {breakdown.trackedCount} of {breakdown.trackedCount + breakdown.untrackedCount}{" "}
+          active items have a price.
         </p>
-      </header>
+      </Card>
 
-      {/* Headline cost card */}
-      <section
-        className="rounded-2xl p-5 mb-6"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--premium) 0%, var(--premium-deep) 100%)",
-          color: "#FFFFFF",
-          boxShadow: "0 12px 32px var(--premium-glow)",
-        }}
-      >
-        <div className="flex items-baseline justify-between gap-4">
-          <div>
-            <div
-              className="text-[10px] uppercase tracking-wider"
-              style={{
-                opacity: 0.85,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Monthly total
-            </div>
-            <div
-              className="text-[36px] tabular-nums leading-none mt-1"
-              style={{ fontWeight: 700, letterSpacing: "-0.02em" }}
-            >
-              {formatUSD(breakdown.totalMonthly)}
-            </div>
-            <div
-              className="text-[12px] mt-2"
-              style={{ opacity: 0.85 }}
-            >
-              {breakdown.trackedCount} tracked · {breakdown.untrackedCount} untracked
-            </div>
-          </div>
-          <div className="text-right">
-            <div
-              className="text-[10px] uppercase tracking-wider"
-              style={{
-                opacity: 0.85,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Per year
-            </div>
-            <div
-              className="text-[20px] tabular-nums mt-1"
-              style={{ fontWeight: 600 }}
-            >
-              {formatUSD(breakdown.totalMonthly * 12)}
-            </div>
-          </div>
-        </div>
-
-        {breakdown.totalMonthly > 0 && (
+      {breakdown.totalMonthly > 0 && (
+        <div className="mt-3">
           <CostsCoachAction monthlyTotal={breakdown.totalMonthly} />
+        </div>
+      )}
+
+      {waste.length > 0 && (
+        <>
+          <SectionHeader
+            title="Paying for, not taking"
+            eyebrow="Last 30 days · tap to ask Coach"
+          />
+          <WasteCandidates candidates={waste} />
+        </>
+      )}
+
+      <SectionHeader title="Where it goes" eyebrow="Monthly, by item" />
+      <Card padding="md">
+        <CostBars
+          rows={withCost.slice(0, 12).map((x) => ({
+            label: x.item.name,
+            value: x.monthly,
+          }))}
+        />
+        {withCost.length > 12 && (
+          <p className="mt-3 text-caption text-[var(--muted)]">
+            + {withCost.length - 12} more ·{" "}
+            {usd(withCost.slice(12).reduce((s, x) => s + x.monthly, 0))}/mo
+          </p>
         )}
-      </section>
+      </Card>
 
-      {/* Likely-waste detector — items the user is paying $15+/mo for
-          but only taking <50% of the time over the last 30 days. The
-          biggest dollar lever in the costs view. */}
-      {wasteCandidates.length > 0 && (
-        <WasteCandidates candidates={wasteCandidates} />
-      )}
-
-      {breakdown.topItems.length > 0 && (
-        <section className="mb-6">
-          <h2
-            className="text-[11px] uppercase tracking-wider mb-2.5"
-            style={{
-              color: "var(--muted)",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            Top costs
-          </h2>
-          <div className="flex flex-col gap-2">
-            {breakdown.topItems.map((t, i) => (
-              <div
-                key={i}
-                className="rounded-2xl card-glass p-3.5 flex items-center justify-between"
-              >
-                <div
-                  className="text-[14px] leading-snug"
-                  style={{ fontWeight: 600 }}
-                >
-                  {t.name}
-                </div>
-                <div
-                  className="text-[14px] tabular-nums"
-                  style={{ fontWeight: 700, color: "var(--premium)" }}
-                >
-                  {formatUSD(t.monthly)}/mo
-                </div>
-              </div>
+      {typeRows.length > 1 && (
+        <>
+          <SectionHeader title="By type" />
+          <ListGroup>
+            {typeRows.map(([t, v]) => (
+              <ListRow
+                key={t}
+                title={`${ITEM_TYPE_LABELS[t] ?? t}s`}
+                subtitle={`${v.n} ${v.n === 1 ? "item" : "items"}`}
+                trailing={`${usd(v.total)}/mo`}
+              />
             ))}
-          </div>
-        </section>
-      )}
-
-      {Object.keys(byType).length > 0 && (
-        <section className="mb-6">
-          <h2
-            className="text-[11px] uppercase tracking-wider mb-2.5"
-            style={{
-              color: "var(--muted)",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            By type
-          </h2>
-          <div className="flex flex-col gap-2">
-            {(Object.keys(byType) as ItemType[]).map((t) => {
-              const group = byType[t];
-              return (
-                <details
-                  key={t}
-                  className="rounded-2xl card-glass overflow-hidden"
-                >
-                  <summary
-                    className="px-3.5 py-3 cursor-pointer list-none flex items-center justify-between"
-                  >
-                    <div
-                      className="text-[14px] leading-snug"
-                      style={{ fontWeight: 600 }}
-                    >
-                      {ITEM_TYPE_LABELS[t]}{" "}
-                      <span
-                        className="text-[12px] ml-1"
-                        style={{ color: "var(--muted)", fontWeight: 400 }}
-                      >
-                        · {group.items.length}
-                      </span>
-                    </div>
-                    <div
-                      className="text-[14px] tabular-nums"
-                      style={{ fontWeight: 700, color: "var(--premium)" }}
-                    >
-                      {formatUSD(group.total)}/mo
-                    </div>
-                  </summary>
-                  <div
-                    className="px-3.5 pb-3 flex flex-col gap-1.5"
-                    style={{ borderTop: "1px solid var(--border)" }}
-                  >
-                    {group.items.map(({ item, monthly }) => (
-                      <Link
-                        key={item.id}
-                        href={`/items/${item.id}`}
-                        className="flex items-center justify-between text-[13px] py-2 first:mt-2"
-                      >
-                        <span style={{ fontWeight: 500 }}>{item.name}</span>
-                        <span
-                          className="tabular-nums"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          {formatUSD(monthly)}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </details>
-              );
-            })}
-          </div>
-        </section>
+          </ListGroup>
+        </>
       )}
 
       {breakdown.untrackedCount > 0 && (
-        <section
-          className="rounded-2xl p-3.5 text-[12px] leading-relaxed"
-          style={{
-            background: "var(--surface-alt)",
-            color: "var(--muted)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          {breakdown.untrackedCount} active items don&apos;t have unit cost +
-          days supply set yet — open any item and tap Edit to add them.
-        </section>
+        <p className="mt-6 px-1 text-footnote text-[var(--muted)]">
+          {breakdown.untrackedCount} active{" "}
+          {breakdown.untrackedCount === 1 ? "item has" : "items have"} no price
+          yet. Open one from{" "}
+          <Link href="/stack" className="font-medium text-[var(--foreground-soft)] underline underline-offset-2">
+            your stack
+          </Link>{" "}
+          and add it under More options.
+        </p>
       )}
     </div>
   );

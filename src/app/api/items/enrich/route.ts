@@ -21,10 +21,16 @@
 // Idempotent: safe to call multiple times. Each step is a no-op if
 // the field is already populated.
 
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  parseJsonResponse,
+} from "@/lib/anthropic";
+import { jsonError, readJson } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import { userSubmission } from "@/lib/catalog/moderation";
 import { findCurated } from "@/lib/tutorials/curated";
@@ -85,7 +91,7 @@ async function generateTutorial(
     const anthropic = getAnthropic();
     const res = await anthropic.messages.create({
       ...MODEL_OPTS.chat,
-      max_tokens: 400,
+      max_tokens: 1024,
       messages: [
         { role: "user", content: TUTORIAL_PROMPT(name, itemType) },
       ],
@@ -96,10 +102,7 @@ async function generateTutorial(
       tokens_in: res.usage?.input_tokens,
       tokens_out: res.usage?.output_tokens,
     });
-    const text = textOf(res);
-    if (!text) return { media_url: null, how_to: null };
-    const raw = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
-    const parsed = JSON.parse(raw) as TutorialResponse;
+    const parsed = parseJsonResponse<TutorialResponse>(res);
 
     // STEP C — gate the URL through 3 layers before saving:
     //   1. Format check (regex) — drops obvious garbage.
@@ -135,15 +138,10 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
-  let body: Body;
-  try {
-    body = (await request.json()) as Body;
-  } catch {
-    return NextResponse.json({ error: "Bad request" }, { status: 400 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
+  const parsedBody = await readJson<Body>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
   if (!body.item_id) {
     return NextResponse.json({ error: "Missing item_id" }, { status: 400 });
   }
@@ -214,7 +212,7 @@ export async function POST(request: NextRequest) {
 {"name":"<canonical>","brand":"<or null>","item_type":"${item.item_type}","category":"<short category or null>","serving_size":"<or null>","calories":<num or null>,"protein_g":<num or null>,"fat_g":<num or null>,"carbs_g":<num or null>,"fiber_g":<num or null>,"sugar_g":<num or null>,"coach_summary":"<2-3 sentences>","mechanism":"<1-2 sentences or null>","best_timing":"<short or null>","evidence_grade":"<A|B|C|D>"}`;
         const r = await anthropic.messages.create({
           ...MODEL_OPTS.chat,
-          max_tokens: 800,
+          max_tokens: 2048,
           messages: [{ role: "user", content: GEN_PROMPT }],
         });
         void recordUsage(user.id, "enrich", {
@@ -223,9 +221,7 @@ export async function POST(request: NextRequest) {
           tokens_in: r.usage?.input_tokens,
           tokens_out: r.usage?.output_tokens,
         });
-        const t = textOf(r);
-        if (t) {
-          const raw = t.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+        {
           type GenResult = {
             name: string;
             brand: string | null;
@@ -243,7 +239,9 @@ export async function POST(request: NextRequest) {
             best_timing: string | null;
             evidence_grade: string | null;
           };
-          const parsed = JSON.parse(raw) as GenResult;
+          // Throws on truncation/refusal/bad JSON → caught below, so a
+          // half-generated row never lands in the shared catalog.
+          const parsed = parseJsonResponse<GenResult>(r);
           // User-submitted catalog row — visible only to this user
           // until an admin promotes it via /admin/catalog. Prevents
           // one user's hallucinated entry from leaking into every
@@ -407,21 +405,26 @@ export async function POST(request: NextRequest) {
     // Fire the existing /api/affiliates/discover. Inline-call its logic
     // would be duplication — safer to ping the route. Use the user's
     // session cookie since the endpoint is auth-gated.
-    try {
-      const cookie = request.headers.get("cookie") ?? "";
-      const origin = request.nextUrl.origin;
-      void fetch(`${origin}/api/affiliates/discover`, {
+    // after(): runs once the response is sent and keeps the function
+    // alive until it settles (a bare `void fetch` can be dropped when a
+    // serverless instance freezes, and its rejection was unhandled).
+    const cookie = request.headers.get("cookie") ?? "";
+    const origin = request.nextUrl.origin;
+    after(() =>
+      fetch(`${origin}/api/affiliates/discover`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           cookie,
         },
         body: JSON.stringify({ itemId: item.id }),
-      });
-      steps.push("affiliate_dispatched");
-    } catch {
-      steps.push("affiliate_dispatch_failed");
-    }
+      })
+        .then((r) => {
+          if (!r.ok) console.warn("items/enrich: affiliate dispatch", r.status);
+        })
+        .catch((e) => console.warn("items/enrich: affiliate dispatch failed", e)),
+    );
+    steps.push("affiliate_dispatched");
   }
 
   return NextResponse.json({ ok: true, item_id: item.id, steps });

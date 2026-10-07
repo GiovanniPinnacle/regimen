@@ -18,6 +18,7 @@ import {
   validateUserCatalogPayload,
 } from "@/lib/catalog/moderation";
 import type { NormalizedCatalogRecord } from "@/lib/catalog/types";
+import { jsonError, readJson } from "@/lib/api";
 
 export const runtime = "nodejs";
 
@@ -27,17 +28,12 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
   // 2. Parse + validate.
-  let body: NormalizedCatalogRecord;
-  try {
-    body = (await request.json()) as NormalizedCatalogRecord;
-  } catch {
-    return NextResponse.json({ error: "Bad request" }, { status: 400 });
-  }
+  const parsedBody = await readJson<NormalizedCatalogRecord>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
 
   if (!body.name?.trim() || !body.source || !body.item_type) {
     return NextResponse.json(

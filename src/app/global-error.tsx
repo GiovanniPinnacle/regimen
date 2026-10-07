@@ -2,22 +2,22 @@
 
 // app/global-error.tsx — root-level error boundary.
 //
-// Catches errors thrown in the root layout (or higher) — i.e. errors
-// that the per-page error.tsx can't handle because the layout itself
-// crashed. Must include <html> + <body> tags since the rest of the
-// layout never rendered.
-//
-// Kept intentionally minimal — no app chrome, no Coach FAB, no nav.
-// The user can always tap "Reload" and try again.
+// Catches errors thrown in the root layout itself, so it replaces the
+// whole document: it must render <html>/<body> and bring its own styles
+// (globals.css carries the design tokens). No app chrome — just a card
+// and a retry. `unstable_retry()` (Next 16.2) re-fetches + re-renders.
 
+import "./globals.css";
 import { useEffect } from "react";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 
 export default function GlobalError({
   error,
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   useEffect(() => {
     console.error("Global error boundary caught:", error);
@@ -25,58 +25,28 @@ export default function GlobalError({
 
   return (
     <html lang="en">
-      <body
-        style={{
-          background: "#0E2A1F",
-          color: "#FFFFFF",
-          fontFamily:
-            "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 24,
-          margin: 0,
-        }}
-      >
-        <div style={{ maxWidth: 360, textAlign: "center" }}>
-          <div
-            style={{
-              fontSize: 22,
-              fontWeight: 600,
-              marginBottom: 8,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            App hit an error
-          </div>
-          <p
-            style={{
-              fontSize: 14,
-              opacity: 0.75,
-              lineHeight: 1.5,
-              marginBottom: 20,
-            }}
-          >
-            Something at the root level crashed. Reload to try again — your
-            data is safe.
+      <body className="min-h-dvh flex items-center justify-center p-6 bg-[var(--background)] text-[var(--foreground)] font-sans antialiased">
+        <title>Regimen — something went wrong</title>
+        <Card padding="xl" className="w-full max-w-sm text-center" role="alert">
+          <h1 className="text-title-2 mb-2">App hit an error</h1>
+          <p className="text-footnote mb-5 text-[var(--muted)]">
+            Something at the root level crashed. Your data is safe — try
+            again.
           </p>
-          <button
-            onClick={() => reset()}
-            style={{
-              background: "#22c55e",
-              color: "#0E2A1F",
-              border: "none",
-              padding: "10px 20px",
-              borderRadius: 12,
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
+          {error.digest ? (
+            <p className="mb-4 font-mono text-caption text-[var(--muted)]">
+              digest: {error.digest}
+            </p>
+          ) : null}
+          <Button
+            variant="primary"
+            icon="refresh"
+            fullWidth
+            onClick={() => unstable_retry()}
           >
-            Reload
-          </button>
-        </div>
+            Try again
+          </Button>
+        </Card>
       </body>
     </html>
   );

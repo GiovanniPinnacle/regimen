@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Recipe } from "@/lib/types";
 import { localDateISO } from "@/lib/series";
+import Button from "@/components/ui/Button";
+import { showToast } from "@/lib/toast";
 
 export default function RecipeActions({ recipe }: { recipe: Recipe }) {
   const router = useRouter();
@@ -34,6 +36,7 @@ export default function RecipeActions({ recipe }: { recipe: Recipe }) {
         last_made: localDateISO(),
       })
       .eq("id", recipe.id);
+    showToast(`Logged — made ${recipe.times_made + 1}×`, { tone: "success" });
     router.refresh();
     setBusy(null);
   }
@@ -48,36 +51,35 @@ export default function RecipeActions({ recipe }: { recipe: Recipe }) {
   }
 
   return (
-    <div className="flex gap-2 mb-6 flex-wrap">
-      <button
+    <div className="mb-6 flex flex-wrap gap-2">
+      <Button
+        variant={fav ? "primary" : "secondary"}
+        icon="star"
         onClick={toggleFav}
         disabled={busy !== null}
-        className="px-3 py-2 rounded-lg text-[13px] border-hair"
-        style={{
-          background: fav ? "var(--foreground)" : "var(--background)",
-          color: fav ? "var(--background)" : "var(--muted)",
-          fontWeight: 500,
-          opacity: busy ? 0.5 : 1,
-        }}
+        loading={busy === "fav"}
+        aria-pressed={fav}
       >
-        {busy === "fav" ? "…" : fav ? "★ Favorited" : "☆ Favorite"}
-      </button>
-      <button
+        {fav ? "Favorite" : "Add to favorites"}
+      </Button>
+      <Button
+        variant="secondary"
+        icon="check"
         onClick={logMade}
         disabled={busy !== null}
-        className="px-3 py-2 rounded-lg text-[13px] border-hair"
-        style={{ color: "var(--muted)", opacity: busy ? 0.5 : 1 }}
+        loading={busy === "made"}
       >
-        {busy === "made" ? "…" : "I made this today"}
-      </button>
-      <button
+        Made it today
+      </Button>
+      <Button
+        variant="destructive"
+        icon="trash"
         onClick={remove}
         disabled={busy !== null}
-        className="px-3 py-2 rounded-lg text-[13px] border-hair"
-        style={{ color: "#b00020", opacity: busy ? 0.5 : 1 }}
+        loading={busy === "del"}
       >
-        {busy === "del" ? "…" : "Delete"}
-      </button>
+        Delete
+      </Button>
     </div>
   );
 }

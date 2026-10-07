@@ -22,12 +22,12 @@
 //  10. Long-term user, no obvious signal             → null (let other components shine)
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import Icon from "@/components/Icon";
+import { type IconName } from "@/components/Icon";
+import Button, { ButtonLink } from "@/components/ui/Button";
 import { usePulseCount } from "@/components/CoachPulse";
+import { CoachNoteCard, type NoteTone } from "@/components/CoachCardStack";
+import { openCoach } from "@/lib/coach-events";
 import type { UserStage, UserSignals } from "@/lib/context";
-
-type IconName = Parameters<typeof Icon>[0]["name"];
 
 type StateRes = {
   stage: UserStage;
@@ -95,126 +95,53 @@ export default function NextStep({
   if (loading || !state) return null;
   if (!step) return null;
 
-  function fireCoach(prompt: string) {
-    window.dispatchEvent(
-      new CustomEvent("regimen:ask", {
-        detail: { text: prompt, send: true },
-      }),
+  const tone: NoteTone =
+    step.accent === "var(--premium)"
+      ? "premium"
+      : step.accent === "var(--pro)"
+        ? "coach"
+        : step.accent === "var(--error)"
+          ? "danger"
+          : "neutral";
+
+  const renderAction = (
+    a: Step["primary"] | NonNullable<Step["secondary"]>,
+    primary: boolean,
+  ) =>
+    a.type === "link" && a.href ? (
+      <ButtonLink
+        href={a.href}
+        size="md"
+        variant={primary ? "primary" : "secondary"}
+      >
+        {a.label}
+      </ButtonLink>
+    ) : (
+      <Button
+        size="md"
+        variant={primary ? "coach" : "secondary"}
+        icon={primary ? "sparkle" : undefined}
+        onClick={() => a.coachPrompt && openCoach({ text: a.coachPrompt, send: true })}
+      >
+        {a.label}
+      </Button>
     );
-  }
 
   return (
-    <section
-      className="rounded-2xl mb-6 overflow-hidden relative"
-      style={{
-        background: `linear-gradient(135deg, ${step.accent} 0%, color-mix(in oklab, ${step.accent} 70%, black) 100%)`,
-        color: "#FFFFFF",
-        boxShadow: `0 12px 32px color-mix(in oklab, ${step.accent} 35%, transparent)`,
-      }}
-    >
-      <div className="px-5 py-4">
-        <div className="flex items-start gap-3">
-          <span
-            className="shrink-0 mt-0.5 h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{
-              background: "rgba(255, 255, 255, 0.20)",
-              color: "#FFFFFF",
-            }}
-          >
-            <Icon name={step.icon} size={18} strokeWidth={1.8} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div
-              className="text-[10px] uppercase tracking-wider"
-              style={{
-                opacity: 0.85,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              {step.label}
-            </div>
-            <div
-              className="text-[16px] leading-snug mt-0.5"
-              style={{ fontWeight: 700 }}
-            >
-              {step.title}
-            </div>
-            <div
-              className="text-[12.5px] mt-1 leading-relaxed"
-              style={{ opacity: 0.88 }}
-            >
-              {step.body}
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-2 mt-3 ml-12">
-          {step.primary.type === "link" && step.primary.href ? (
-            <Link
-              href={step.primary.href}
-              className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
-              style={{
-                background: "rgba(255, 255, 255, 0.96)",
-                color: `color-mix(in oklab, ${step.accent} 80%, black)`,
-                fontWeight: 700,
-              }}
-            >
-              <Icon name="check-circle" size={13} strokeWidth={2.2} />
-              {step.primary.label}
-            </Link>
-          ) : (
-            <button
-              onClick={() =>
-                step.primary.coachPrompt && fireCoach(step.primary.coachPrompt)
-              }
-              className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5"
-              style={{
-                background: "rgba(255, 255, 255, 0.96)",
-                color: `color-mix(in oklab, ${step.accent} 80%, black)`,
-                fontWeight: 700,
-              }}
-            >
-              <Icon name="sparkle" size={13} strokeWidth={2.2} />
-              {step.primary.label}
-            </button>
-          )}
-          {step.secondary &&
-            (step.secondary.type === "link" && step.secondary.href ? (
-              <Link
-                href={step.secondary.href}
-                className="text-[13px] px-3.5 py-2.5 rounded-lg"
-                style={{
-                  background: "rgba(255, 255, 255, 0.32)",
-                  color: "#FFFFFF",
-                  fontWeight: 600,
-                  border: "1px solid rgba(255, 255, 255, 0.38)",
-                  minHeight: 40,
-                  display: "inline-flex",
-                  alignItems: "center",
-                }}
-              >
-                {step.secondary.label}
-              </Link>
-            ) : (
-              <button
-                onClick={() =>
-                  step.secondary?.coachPrompt &&
-                  fireCoach(step.secondary.coachPrompt)
-                }
-                className="text-[13px] px-3.5 py-2.5 rounded-lg"
-                style={{
-                  background: "rgba(255, 255, 255, 0.32)",
-                  color: "#FFFFFF",
-                  fontWeight: 600,
-                  border: "1px solid rgba(255, 255, 255, 0.38)",
-                  minHeight: 40,
-                }}
-              >
-                {step.secondary.label}
-              </button>
-            ))}
-        </div>
-      </div>
+    <section className="mb-6">
+      <CoachNoteCard
+        icon={step.icon}
+        tone={tone}
+        eyebrow={step.label}
+        title={step.title}
+        body={step.body}
+        actions={
+          <>
+            {renderAction(step.primary, true)}
+            {step.secondary && renderAction(step.secondary, false)}
+          </>
+        }
+      />
     </section>
   );
 }

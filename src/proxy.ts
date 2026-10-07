@@ -5,12 +5,16 @@ const PUBLIC_PATHS = [
   "/signin",
   "/auth/callback",
   "/auth/confirm",
+  // /api/* is excluded by the matcher below (routes auth themselves);
+  // kept here as a belt-and-braces guard in case the matcher changes.
   "/api/cron",
   // Compliance pages — App Store + GDPR + CCPA require these be
   // reachable WITHOUT auth so prospective users + regulators can read
   // them before creating an account. Linked from /signin footer.
   "/privacy",
   "/terms",
+  // Static offline fallback served by the service worker.
+  "/offline.html",
 ];
 
 // Dev-only sign-in shortcut; the route itself 404s outside local dev.
@@ -54,21 +58,34 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the access-token JWT locally against the
+  // project's (cached) JWKS when asymmetric signing keys are enabled —
+  // no Auth-server round trip per navigation, unlike getUser(). If the
+  // token is near expiry it refreshes the session first, which flows
+  // through setAll() above so the refreshed cookies reach the browser.
+  // (Projects still on a symmetric JWT secret fall back to a server
+  // call inside getClaims — same cost as before, never worse.)
+  //
+  // This is only an optimistic redirect; pages and route handlers still
+  // authorize every data access themselves (RLS + getUser in handlers).
+  const { data } = await supabase.auth.getClaims();
+  const isAuthed = !!data?.claims?.sub;
 
   const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  // "/" is the public landing page (exact match — startsWith("/") would
+  // make everything public). Signed-in users on "/" are routed by
+  // src/app/page.tsx itself.
+  const isPublic =
+    pathname === "/" || PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
-  if (!user && !isPublic) {
+  if (!isAuthed && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/signin";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
-  if (user && pathname === "/signin") {
+  if (isAuthed && pathname === "/signin") {
     const url = request.nextUrl.clone();
     url.pathname = "/today";
     return NextResponse.redirect(url);
@@ -79,13 +96,24 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Run on every route except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico, manifest.json, icons
-     * - public svgs
-     */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|icon-.*\\.png).*)",
+    {
+      /*
+       * Run on page navigations only. Skip:
+       * - api/*          (route handlers authenticate themselves)
+       * - _next/static, _next/image
+       * - sw.js, offline.html, manifest.json / *.webmanifest
+       * - static assets by extension (png, svg, ico, jpg, webp, txt, xml…)
+       * - router prefetches (missing: …) — the real navigation that
+       *   follows still runs the proxy, so auth + cookie refresh are
+       *   unaffected; this just stops every <Link> in view from
+       *   triggering a JWT check.
+       */
+      source:
+        "/((?!api/|_next/static|_next/image|sw\\.js|offline\\.html|manifest\\.json|.*\\.(?:png|svg|ico|jpg|jpeg|gif|webp|avif|webmanifest|txt|xml|woff2?)$).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
   ],
 };

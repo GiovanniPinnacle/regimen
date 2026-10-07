@@ -5,6 +5,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { jsonError, readJson } from "@/lib/api";
 
 export const runtime = "nodejs";
 
@@ -20,15 +21,10 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
-  let body: Body;
-  try {
-    body = (await request.json()) as Body;
-  } catch {
-    return NextResponse.json({ error: "Bad request" }, { status: 400 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
+  const parsedBody = await readJson<Body>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
   if (!body.body?.trim()) {
     return NextResponse.json(
       { error: "Empty feedback" },
@@ -58,9 +54,7 @@ export async function GET() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
   const { data } = await supabase
     .from("user_feedback")
     .select("id, body, category, source_path, status, created_at")

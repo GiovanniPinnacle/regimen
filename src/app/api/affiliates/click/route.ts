@@ -23,6 +23,7 @@ import {
   wrapWithTrackingTag,
   type AffiliateNetwork,
 } from "@/lib/affiliates";
+import { jsonError, readJson } from "@/lib/api";
 
 export const runtime = "nodejs";
 
@@ -42,16 +43,11 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
-  let body: ClickBody;
-  try {
-    body = (await request.json()) as ClickBody;
-  } catch {
-    return NextResponse.json({ error: "Bad request" }, { status: 400 });
-  }
+  const parsedBody = await readJson<ClickBody>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
 
   let url: string | null = null;
   let itemName: string | null = body.itemName ?? null;

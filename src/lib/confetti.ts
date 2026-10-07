@@ -1,22 +1,21 @@
 // Confetti — CSS-only micro-celebration. No dependencies.
-// Call fireConfetti() from anywhere; it injects ~30 colored squares
-// into a fixed-position overlay and removes them after the animation.
+// Call fireConfetti() from anywhere; it injects small squares into a
+// fixed-position overlay and removes them after the animation.
+//
+// Reserved for real completion moments (Today: the whole day done).
+// Green = success in the design system, so the burst is success greens
+// + white. Skipped entirely for users who prefer reduced motion.
 
-// Palette aligned to the new design tokens (system v2):
-//   --accent  #00D680  emerald
-//   --premium #D4A645  refined gold
-//   --pro     #8B7CFC  soft violet
-// White cluster keeps the burst feeling celebratory without overpowering.
 const PALETTE = [
-  "#00D680", // accent emerald
-  "#4DEAA0", // accent light
-  "#D4A645", // premium gold
-  "#8B7CFC", // pro violet
-  "#FFFFFF", // crisp white
+  "#34C28E", // --success
+  "#5FD9A6", // --accent-soft
+  "#1F9C70", // --accent-deep
+  "#FAFAFA", // --foreground
 ];
 
 export function fireConfetti(opts: { count?: number } = {}) {
   if (typeof document === "undefined") return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
   const count = opts.count ?? 28;
 
   const burst = document.createElement("div");

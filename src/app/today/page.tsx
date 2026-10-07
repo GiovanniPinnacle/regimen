@@ -1,1494 +1,283 @@
 "use client";
 
+// /today — the daily checklist.
+//
+//   Header      date · "Today" · Coach sparkle
+//   Hero        ring (taken / due) · streak · pace vs a usual day · Oura
+//   Context     at most ONE card (safety > streak > protocol > Coach > setup)
+//   Checklist   DayStrip + slot list, done items folded away
+//   Log         water / meal / how I feel → universal capture
+//
+// Data: one load in useTodayData (no per-widget stack_log queries).
+
 import { useEffect, useMemo, useRef, useState } from "react";
-import ItemCard from "@/components/ItemCard";
-import InsightsBanner from "@/components/InsightsBanner";
-import OnboardingBanner from "@/components/OnboardingBanner";
-import SkipReasonSheet from "@/components/SkipReasonSheet";
-import SwapSheet from "@/components/SwapSheet";
-import DayStrip, { type SlotStat, SLOT_TIME } from "@/components/DayStrip";
-import PatternCard from "@/components/PatternCard";
-import VoiceMemo from "@/components/VoiceMemo";
-import IntakeTracker from "@/components/IntakeTracker";
-import ProtocolProgress from "@/components/ProtocolProgress";
+import dynamic from "next/dynamic";
+import PageHeader from "@/components/ui/PageHeader";
 import EmptyToday from "@/components/EmptyToday";
-import ProBenefits from "@/components/ProBenefits";
-import StreakCounter from "@/components/StreakCounter";
-import MetricRing from "@/components/MetricRing";
-import MetricDelta from "@/components/MetricDelta";
-import DailyScore from "@/components/DailyScore";
-import AchievementsChecker from "@/components/AchievementsChecker";
-import StreakAtRiskBanner from "@/components/StreakAtRiskBanner";
-import StackWarningsBanner from "@/components/StackWarningsBanner";
-import CoachQuickActions from "@/components/CoachQuickActions";
-import NextStep from "@/components/NextStep";
-import ProtocolCompletionModal from "@/components/ProtocolCompletionModal";
-import QuickAddInline from "@/components/QuickAddInline";
-import SmartSuggestions from "@/components/SmartSuggestions";
-import CatalogPicks from "@/components/CatalogPicks";
-import WeeklyDigestCard from "@/components/WeeklyDigestCard";
-import SymptomCorrelationCard from "@/components/SymptomCorrelationCard";
-import SectionBoundary from "@/components/SectionBoundary";
-import MilestoneCheckins from "@/components/MilestoneCheckins";
-import CoachPulse from "@/components/CoachPulse";
-import { showToast } from "@/lib/toast";
+import { SkeletonItemList, SkeletonLine } from "@/components/Skeleton";
 import { fireConfetti } from "@/lib/confetti";
 import {
-  SkeletonLine,
-  SkeletonItemList,
-  SkeletonPill,
-} from "@/components/Skeleton";
-import type { Item, ItemType, TimingSlot } from "@/lib/types";
-import {
-  getItemsByStatus,
-  getTakenMap,
-  getStackLogDetailed,
-  toggleTaken,
-  getOuraToday,
-} from "@/lib/storage";
-import {
-  DAILY_LOGGABLE_TYPES,
-  TIMING_LABELS,
-  TIMING_ORDER,
-  POSTOP_DATE_ZERO,
-  todayISO,
-} from "@/lib/constants";
-import { calcMacros, type MacroTargets } from "@/lib/macros";
-import {
   addDaysISO,
+  aggregateAdherence,
   dailyAdherence,
-  type DoseLog,
-  type SchedulableItem,
+  daysBetween,
+  isScheduledOn,
 } from "@/lib/series";
-import { createClient } from "@/lib/supabase/client";
+import type { Item, TimingSlot } from "@/lib/types";
+import TodayHero, { type Pace } from "./TodayHero";
+import TodayContextCard from "./TodayContextCard";
+import TodayChecklist from "./TodayChecklist";
+import AllDoneCard from "./AllDoneCard";
+import LogRow from "./LogRow";
+import { useTodayData } from "./useTodayData";
+import { useTodaySlots } from "./useTodaySlots";
+import { useSnoozed } from "./useSnoozed";
+import {
+  DAY_SLOTS,
+  SLOT_START_HOUR,
+  groupBySlot,
+  isCheckoffSlot,
+  ouraWithBaseline,
+  todayItems,
+  usualPaceByNow,
+} from "./model";
 
-const NON_CHECKOFF_SLOTS: TimingSlot[] = ["situational"];
-const COLLAPSE_KEY = "regimen.today.collapsed.v1";
-const ACTIVE_SLOT_KEY = "regimen.today.activeSlot.v2";
-
-// Wrapped Date.now() — the React 19 purity rule won't flag a call to
-// a regular function in a render scope, only direct Date.now()/Math.random().
-function readNow(): number {
-  return Date.now();
-}
-
-// Map timing_slot → "now or past" relative to current hour
-// Used for the time-window nag banner.
-function slotIsPast(slot: TimingSlot, hour: number): boolean {
-  if (slot === "pre_breakfast" && hour >= 9) return true;
-  if (slot === "breakfast" && hour >= 11) return true;
-  if (slot === "pre_workout" && hour >= 12) return true;
-  if (slot === "lunch" && hour >= 15) return true;
-  if (slot === "dinner" && hour >= 20) return true;
-  if (slot === "pre_bed" && hour >= 23) return true;
-  return false;
-}
-
-// Which timing slot matches the current hour?
-function slotForHour(hour: number): TimingSlot {
-  if (hour < 9) return "pre_breakfast";
-  if (hour < 11) return "breakfast";
-  if (hour < 15) return "lunch";
-  if (hour < 20) return "dinner";
-  return "pre_bed";
-}
-
-// Pick the best default slot to show: the current-hour slot if it has items,
-// otherwise the next non-empty checkoff slot (forward → backward fallback).
-function pickDefaultSlot(
-  hour: number,
-  grouped: Record<TimingSlot, Item[]>,
-): TimingSlot | "all" {
-  const order: TimingSlot[] = [
-    "pre_breakfast",
-    "breakfast",
-    "pre_workout",
-    "lunch",
-    "dinner",
-    "pre_bed",
-  ];
-  const primary = slotForHour(hour);
-  if ((grouped[primary]?.length ?? 0) > 0) return primary;
-  const idx = order.indexOf(primary);
-  for (let i = idx + 1; i < order.length; i++) {
-    if ((grouped[order[i]]?.length ?? 0) > 0) return order[i];
-  }
-  for (let i = idx - 1; i >= 0; i--) {
-    if ((grouped[order[i]]?.length ?? 0) > 0) return order[i];
-  }
-  if ((grouped.ongoing?.length ?? 0) > 0) return "ongoing";
-  if ((grouped.situational?.length ?? 0) > 0) return "situational";
-  return "all";
-}
+// Sheets and once-in-a-while modals load on demand.
+const ItemQuickActions = dynamic(() => import("@/components/ItemQuickActions"));
+const SkipReasonSheet = dynamic(() => import("@/components/SkipReasonSheet"));
+const SwapSheet = dynamic(() => import("@/components/SwapSheet"));
+const QuickAddSheet = dynamic(() => import("./QuickAddSheet"));
+const ProtocolCompletionModal = dynamic(
+  () => import("@/components/ProtocolCompletionModal"),
+  { ssr: false },
+);
+const AchievementsChecker = dynamic(
+  () => import("@/components/AchievementsChecker"),
+  { ssr: false },
+);
 
 export default function TodayPage() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [taken, setTakenState] = useState<Record<string, boolean>>({});
-  const [skipReasons, setSkipReasons] = useState<Record<string, string>>({});
-  const [skipTarget, setSkipTarget] = useState<Item | null>(null);
-  const [swapTarget, setSwapTarget] = useState<Item | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [userCollapsed, setUserCollapsed] = useState<Record<string, boolean>>(
-    () => {
-      if (typeof window === "undefined") return {};
-      try {
-        const raw = localStorage.getItem(COLLAPSE_KEY);
-        if (raw) return JSON.parse(raw);
-      } catch {}
-      return {};
-    },
-  );
-  const [activeSlot, setActiveSlot] = useState<TimingSlot | "all">("all");
-  /** Last-7-days average daily adherence (excluding today). Powers the
-   *  "today vs 7d avg" MetricDelta in the /today header so the user
-   *  sees today's progress in the context of recent history. Null
-   *  means we haven't loaded yet OR there's no prior data. */
-  const [sevenDayAvgPct, setSevenDayAvgPct] = useState<number | null>(null);
-  // Track if user explicitly chose a slot this session — if so, don't
-  // auto-shift them when the hour rolls over.
-  const [userPickedSlot, setUserPickedSlot] = useState(false);
-  // Touch start coords for swipe-between-slots gesture.
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(
+  const d = useTodayData();
+  const { today, logs, loading } = d;
+  const daily = useMemo(() => todayItems(d.items), [d.items]);
+  const grouped = useMemo(() => groupBySlot(daily), [daily]);
+  const snoozed = useSnoozed(useMemo(() => daily.map((i) => i.id), [daily]));
+  const slots = useTodaySlots({ grouped, logs, snoozed, loading, today });
+
+  const [moreItem, setMoreItem] = useState<Item | null>(null);
+  const [skipItem, setSkipItem] = useState<Item | null>(null);
+  const [swapItem, setSwapItem] = useState<Item | null>(null);
+  const [addSlot, setAddSlot] = useState<TimingSlot | null>(null);
+  const [sheet, setSheet] = useState<"more" | "skip" | "swap" | "add" | null>(
     null,
   );
-  // Tracks which slots were ALREADY complete on previous render — used to
-  // fire confetti only when a slot newly transitions to 100%.
-  const prevCompleteSlotsRef = useRef<Set<TimingSlot> | null>(null);
-  const [oura, setOura] = useState<
-    | {
-        wake_time?: string | null;
-        readiness?: number | null;
-        hrv?: number | null;
-        rhr?: number | null;
-        sleep_score?: number | null;
-      }
-    | null
-  >(null);
-  const [macros, setMacros] = useState<MacroTargets | null>(null);
-  /** profiles.water_target_oz — feeds DailyScore's water component. */
-  const [waterTargetOz, setWaterTargetOz] = useState<number | null>(null);
-  const [displayName, setDisplayName] = useState<string | null>(null);
-  const [postopDate, setPostopDate] = useState<string | null>(null);
-  const [mountNow] = useState(() => Date.now());
-  const today = todayISO();
-  // Day-counter only renders when user has explicitly set a postop_date
-  const dayPostOp = postopDate
-    ? Math.max(
-        0,
-        Math.floor(
-          (mountNow - new Date(postopDate).getTime()) / 86400000,
-        ),
-      )
-    : null;
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [now] = useState(() => new Date());
 
-  async function refreshLogs() {
-    const detailed = await getStackLogDetailed(today);
-    const skipMap: Record<string, string> = {};
-    for (const e of detailed) {
-      if (!e.taken && e.skipped_reason) skipMap[e.item_id] = e.skipped_reason;
-    }
-    setSkipReasons(skipMap);
-  }
+  // ---- numbers ---------------------------------------------------------
+  const checkoff = daily.filter((i) => isCheckoffSlot(i.timing_slot));
+  const total = checkoff.length;
+  const taken = checkoff.filter((i) => logs[i.id]?.taken).length;
+  const skipped = checkoff.filter(
+    (i) => !logs[i.id]?.taken && logs[i.id]?.skipped_reason,
+  ).length;
+  const dayComplete = total > 0 && taken > 0 && taken + skipped >= total;
 
-  // Bumped after a quick-add succeeds so the items query re-runs and the
-  // new item shows up immediately under its slot.
-  const [reloadKey, setReloadKey] = useState(0);
-  function reloadItems() {
-    setReloadKey((k) => k + 1);
-  }
-
-  // Listen for cross-component "items changed" events fired after Coach
-  // approves a proposal, after a quick-add, etc. Bumping reloadKey
-  // re-runs the items+takenMap fetch effect below so the user sees
-  // their new/updated items without manually refreshing.
-  useEffect(() => {
-    function onChange() {
-      setReloadKey((k) => k + 1);
-    }
-    window.addEventListener("regimen:items-changed", onChange);
-    return () =>
-      window.removeEventListener("regimen:items-changed", onChange);
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      const [active, map, ouraData] = await Promise.all([
-        getItemsByStatus("active"),
-        getTakenMap(today),
-        getOuraToday(today),
-      ]);
-      if (!alive) return;
-      setItems(active);
-      setTakenState(map);
-      setOura(ouraData);
-      await refreshLogs();
-      setLoading(false);
-    })();
-    return () => {
-      alive = false;
+  const pace: Pace | null = useMemo(() => {
+    const usual = usualPaceByNow(d.allItems, d.history, today, now);
+    if (!usual || usual.pct < 5) return null;
+    const due = d.items.filter((i) => isScheduledOn(i, today));
+    if (due.length === 0) return null;
+    const done = due.filter((i) => logs[i.id]?.taken).length;
+    return {
+      todayPct: Math.round((done / due.length) * 100),
+      usualPct: usual.pct,
+      days: usual.days,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [today, reloadKey]);
+  }, [d.allItems, d.items, d.history, logs, today, now]);
 
-  // 7-day rolling adherence average (excluding today) for the "today vs
-  // 7d avg" MetricDelta chip in the header. Runs once per mount /
-  // reloadKey bump — independent of the slot/items state so we don't
-  // fan out into N+1.
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const client = createClient();
-        const from = addDaysISO(today, -7);
-        const to = addDaysISO(today, -1);
-        // Denominator = doses SCHEDULED each day (series.ts), not rows
-        // logged — an untouched day is 0%, not missing.
-        const [logRes, itemRes] = await Promise.all([
-          client
-            .from("stack_log")
-            .select("item_id, date, taken")
-            .gte("date", from)
-            .lte("date", to),
-          client
-            .from("items")
-            .select(
-              "id, status, started_on, ends_on, created_at, timing_slot, item_type, schedule_rule",
-            )
-            .in("status", ["active", "retired"]),
-        ]);
-        if (logRes.error) console.error("today: 7d stack_log", logRes.error);
-        if (itemRes.error) console.error("today: 7d items", itemRes.error);
-        if (!alive || logRes.error || itemRes.error) return;
-        const dailyRates = dailyAdherence(
-          (itemRes.data ?? []) as SchedulableItem[],
-          (logRes.data ?? []) as DoseLog[],
-          from,
-          to,
-        )
-          .map((d) => d.rate)
-          .filter((r): r is number => r != null);
-        if (dailyRates.length === 0) {
-          setSevenDayAvgPct(null);
-        } else {
-          const avg =
-            dailyRates.reduce((s, v) => s + v, 0) / dailyRates.length;
-          setSevenDayAvgPct(Math.round(avg * 100));
-        }
-      } catch {
-        // silent — header just hides the comparison if it fails
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [today, reloadKey]);
+  const oura = useMemo(() => ouraWithBaseline(d.oura, today), [d.oura, today]);
 
-  useEffect(() => {
-    (async () => {
-      const client = createClient();
-      const { data: profile } = await client
-        .from("profiles")
-        .select(
-          "display_name, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, water_target_oz",
-        )
-        .maybeSingle();
-      setDisplayName(profile?.display_name ?? null);
-      setWaterTargetOz(profile?.water_target_oz ?? null);
-      setPostopDate(profile?.postop_date ?? null);
-      if (
-        profile?.weight_kg &&
-        profile.height_cm &&
-        profile.age &&
-        profile.biological_sex
-      ) {
-        const postOpDate = profile.postop_date ?? POSTOP_DATE_ZERO;
-        const postOp =
-          new Date(postOpDate).getTime() > Date.now() - 180 * 86400000;
-        setMacros(
-          calcMacros({
-            weight_kg: profile.weight_kg,
-            height_cm: profile.height_cm,
-            age: profile.age,
-            biological_sex: profile.biological_sex,
-            activity_level: profile.activity_level ?? "moderate",
-            body_goal: profile.body_goal ?? "maintain",
-            meals_per_day: profile.meals_per_day ?? 3,
-            post_op: postOp,
-          }),
-        );
-      }
-    })();
-  }, [today]);
-
-  function changeSlot(slot: TimingSlot | "all") {
-    setActiveSlot(slot);
-    setUserPickedSlot(true);
-    try {
-      localStorage.setItem(
-        ACTIVE_SLOT_KEY,
-        JSON.stringify({ date: today, slot }),
-      );
-    } catch {}
-  }
-
-  const daily = useMemo(
-    () =>
-      items.filter((i) => DAILY_LOGGABLE_TYPES.includes(i.item_type as ItemType)),
-    [items],
-  );
-
-  const grouped = useMemo(() => {
-    const map: Record<TimingSlot, Item[]> = {
-      pre_breakfast: [],
-      breakfast: [],
-      pre_workout: [],
-      lunch: [],
-      dinner: [],
-      pre_bed: [],
-      ongoing: [],
-      situational: [],
-    };
-    // Separate companions from their parents so we render them nested.
-    // Build a set of valid parent ids first so we can detect orphan
-    // companions (parent deleted) and surface them as top-level items
-    // rather than letting them silently disappear from /today.
-    const validParentIds = new Set(daily.map((d) => d.id));
-    const companionsByParent: Record<string, Item[]> = {};
-    for (const item of daily) {
-      if (item.companion_of && validParentIds.has(item.companion_of)) {
-        if (!companionsByParent[item.companion_of]) {
-          companionsByParent[item.companion_of] = [];
-        }
-        companionsByParent[item.companion_of].push(item);
-      }
-    }
-    for (const item of daily) {
-      // Push items into timing slots when they're not nested under a
-      // valid parent. Orphaned companions (companion_of points to a
-      // deleted/missing item) render as top-level so the user can see
-      // and act on them.
-      const isOrphanCompanion =
-        item.companion_of && !validParentIds.has(item.companion_of);
-      if (!item.companion_of || isOrphanCompanion) {
-        // Defensive fallback: an item with a timing_slot value outside
-        // the predefined union (e.g. Coach proposing "anytime", a
-        // hand-edited DB row) would otherwise crash the entire /today
-        // page since map[invalid] is undefined and .push throws. Route
-        // anything unexpected to "ongoing" so the user still sees it
-        // instead of a blank error screen.
-        const slot = (
-          map as unknown as Record<string, Item[]>
-        )[item.timing_slot]
-          ? item.timing_slot
-          : "ongoing";
-        if (slot !== item.timing_slot) {
-           
-          console.warn(
-            `[today] item ${item.id} (${item.name}) has unknown timing_slot ` +
-              `"${item.timing_slot}" — routing to "ongoing"`,
-          );
-        }
-        map[slot].push(item);
-      }
-    }
-    // Sort within each slot by sort_order (lower = earlier), then name.
-    // Sort companions inside each parent the same way.
-    const orderFn = (a: Item, b: Item) => {
-      const ao = a.sort_order ?? 100;
-      const bo = b.sort_order ?? 100;
-      if (ao !== bo) return ao - bo;
-      return a.name.localeCompare(b.name);
-    };
-    for (const slot of TIMING_ORDER) {
-      map[slot] = map[slot].sort(orderFn).map((parent) => ({
-        ...parent,
-        __companions: (companionsByParent[parent.id] ?? []).sort(orderFn),
-      })) as Item[];
-    }
-    return map;
-  }, [daily]);
-
-  const checkoffItems = daily.filter(
-    (i) => !NON_CHECKOFF_SLOTS.includes(i.timing_slot),
-  );
-  const totalActive = checkoffItems.length;
-  const takenCount = checkoffItems.filter((i) => taken[i.id]).length;
-
-  // Once items load, pick a default active slot. The default is now
-  // ALWAYS a specific slot (current time of day), never "all" — the user
-  // explicitly chooses "all" via DayStrip if they want the full list.
-  // If the user persisted "all" in a prior session, ignore it and reset
-  // to the time-of-day slot.
-  useEffect(() => {
-    if (loading) return;
-    const id = setTimeout(() => {
-      setActiveSlot((prev) => {
-        if (userPickedSlot) return prev;
-        try {
-          const raw = localStorage.getItem(ACTIVE_SLOT_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw) as {
-              date: string;
-              slot: TimingSlot | "all";
-            };
-            // Honor same-day restore but never restore "all" — start
-            // focused on whatever slot is current.
-            if (parsed.date === today && parsed.slot !== "all") {
-              return parsed.slot;
-            }
-          }
-        } catch {}
-        const hour = new Date().getHours();
-        return pickDefaultSlot(hour, grouped);
-      });
-    }, 0);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, grouped, today]);
-
-
-  // Snoozed items — localStorage keyed by item id, value is timestamp.
-  // We re-evaluate on each render against Date.now(); items past their
-  // expiry simply re-appear (no need to clean up entries).
-  const [snoozedTick, setSnoozedTick] = useState(0);
-  useEffect(() => {
-    // Re-render every minute so snoozed items can come back in view as
-    // their snooze period elapses without requiring a manual reload.
-    const t = setInterval(() => setSnoozedTick((n) => n + 1), 60_000);
-    // Snap re-eval whenever ItemCard or ItemQuickActions fires a
-    // snooze change — the inline Snooze popover dispatches this so
-    // /today instantly hides the snoozed item without waiting for the
-    // 60s tick.
-    function onSnoozeChange() {
-      setSnoozedTick((n) => n + 1);
-    }
-    window.addEventListener("regimen:snooze-changed", onSnoozeChange);
-    return () => {
-      clearInterval(t);
-      window.removeEventListener("regimen:snooze-changed", onSnoozeChange);
-    };
-     
-  }, [reloadKey]);
-  const snoozedIds = useMemo(() => {
-    if (typeof window === "undefined") return new Set<string>();
-    const ids = new Set<string>();
-    const now = readNow();
-    for (const id of items.map((i) => i.id)) {
-      try {
-        const raw = localStorage.getItem(`regimen.snooze.${id}`);
-        if (!raw) continue;
-        const t = parseInt(raw, 10);
-        if (Number.isFinite(t) && t > now) {
-          ids.add(id);
-        } else {
-          // Past snooze — clean up
-          localStorage.removeItem(`regimen.snooze.${id}`);
-        }
-      } catch {}
-    }
-    return ids;
-    // snoozedTick included to force re-eval each minute
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, snoozedTick]);
-
-  // Auto-advance: when the active slot's checkoff items are ALL handled
-  // (taken / skipped / snoozed), automatically move to the next non-empty
-  // slot. Doesn't fire if user explicitly picked "all" — only when they're
-  // flowing through the day in single-slot mode.
-  useEffect(() => {
-    if (loading) return;
-    if (activeSlot === "all") return;
-    if (NON_CHECKOFF_SLOTS.includes(activeSlot)) return;
-    const list = grouped[activeSlot] ?? [];
-    if (list.length === 0) return;
-    const allHandled = list.every(
-      (i) => taken[i.id] || skipReasons[i.id] || snoozedIds.has(i.id),
+  const avg14 = useMemo(() => {
+    const days = dailyAdherence(
+      d.allItems,
+      d.history,
+      addDaysISO(today, -14),
+      addDaysISO(today, -1),
     );
-    if (!allHandled) return;
-    const order: TimingSlot[] = [
-      "pre_breakfast",
-      "breakfast",
-      "pre_workout",
-      "lunch",
-      "dinner",
-      "pre_bed",
-    ];
-    const idx = order.indexOf(activeSlot);
-    let next: TimingSlot | null = null;
-    for (let i = idx + 1; i < order.length; i++) {
-      const candidate = order[i];
-      const candidateList = grouped[candidate] ?? [];
-      if (candidateList.length === 0) continue;
-      const candidateAllDone = candidateList.every((it) => taken[it.id]);
-      if (!candidateAllDone) {
-        next = candidate;
-        break;
-      }
-    }
-    if (next && next !== activeSlot) {
-      window.dispatchEvent(
-        new CustomEvent("regimen:toast", {
-          detail: {
-            kind: "success",
-            text: `${TIMING_LABELS[activeSlot]} done — on to ${TIMING_LABELS[next]}`,
-          },
-        }),
-      );
-      const nextSlot = next;
-      const id = setTimeout(() => setActiveSlot(nextSlot), 0);
-      return () => clearTimeout(id);
-    }
+    const r = aggregateAdherence(days).rate;
+    return r == null ? null : Math.round(r * 100);
+  }, [d.allItems, d.history, today]);
 
-  }, [taken, skipReasons, snoozedIds, grouped, loading, activeSlot]);
+  const tomorrow = useMemo(() => {
+    const slot = DAY_SLOTS.find((s) => grouped[s].length > 0);
+    return slot
+      ? { slot, hour: SLOT_START_HOUR[slot] ?? 6, count: grouped[slot].length }
+      : null;
+  }, [grouped]);
 
-  // Fire confetti when a slot newly transitions to 100% complete. Compares
-  // current complete-slot set vs the ref from the previous render. The ref
-  // is null on first mount so initial state never fires (no fake party
-  // on page load when stuff was already done before).
+  // Confetti only when the whole day flips to complete in this session.
+  const wasComplete = useRef<boolean | null>(null);
   useEffect(() => {
     if (loading) return;
-    const nowComplete = new Set<TimingSlot>();
-    for (const slot of TIMING_ORDER) {
-      const list = grouped[slot] ?? [];
-      if (NON_CHECKOFF_SLOTS.includes(slot)) continue;
-      if (list.length === 0) continue;
-      if (list.every((i) => taken[i.id])) {
-        nowComplete.add(slot);
-      }
+    if (wasComplete.current === false && dayComplete) {
+      fireConfetti({ count: 48 });
     }
-    if (prevCompleteSlotsRef.current !== null) {
-      const newlyComplete = [...nowComplete].filter(
-        (s) => !prevCompleteSlotsRef.current!.has(s),
-      );
-      if (newlyComplete.length > 0) {
-        const isAllDone =
-          totalActive > 0 && takenCount === totalActive;
-        fireConfetti({ count: isAllDone ? 60 : 28 });
-      }
-    }
-    prevCompleteSlotsRef.current = nowComplete;
-  }, [taken, grouped, loading, totalActive, takenCount]);
+    wasComplete.current = dayComplete;
+  }, [dayComplete, loading]);
 
-  // Build slot stats for the DayStrip — only include slots that have items.
-  const slotStats: SlotStat[] = useMemo(() => {
-    const hour = new Date().getHours();
-    const currentSlot = slotForHour(hour);
-    return TIMING_ORDER.filter((s) => (grouped[s] ?? []).length > 0).map(
-      (slot) => {
-        const list = grouped[slot];
-        const isCheckoff = !NON_CHECKOFF_SLOTS.includes(slot);
-        const total = isCheckoff ? list.length : 0;
-        const takenN = isCheckoff
-          ? list.filter((i) => taken[i.id]).length
-          : 0;
-        const skippedN = isCheckoff
-          ? list.filter((i) => !taken[i.id] && skipReasons[i.id]).length
-          : 0;
-        return {
-          slot,
-          total: isCheckoff ? total : list.length,
-          taken: takenN,
-          skipped: skippedN,
-          past: isCheckoff && slotIsPast(slot, hour),
-          current: isCheckoff && currentSlot === slot,
-          noCheckoff: !isCheckoff,
-        };
-      },
-    );
-  }, [grouped, taken, skipReasons]);
+  // After a quick-add: once the new item is in the list, scroll to it.
+  useEffect(() => {
+    if (!highlightId) return;
+    const el = document.getElementById(`today-item-${highlightId}`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    const t = setTimeout(() => setHighlightId(null), 2200);
+    return () => clearTimeout(t);
+  }, [highlightId, daily]);
 
-  async function handleToggle(id: string) {
-    const newVal = await toggleTaken(today, id);
-    setTakenState((prev) => ({ ...prev, [id]: newVal }));
-    if (newVal) {
-      // Taking it clears any prior skip reason
-      setSkipReasons((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    }
-    const item = items.find((i) => i.id === id);
-    const itemName = item?.name ?? "Item";
-    showToast(newVal ? `${itemName} ✓` : `${itemName} marked not taken`, {
-      undo: async () => {
-        const reverted = await toggleTaken(today, id);
-        setTakenState((prev) => ({ ...prev, [id]: reverted }));
-      },
-      tone: newVal ? "success" : "default",
-    });
-  }
-
-  function handleSkip(item: Item) {
-    setSkipTarget(item);
-  }
-
-  function handleSwap(item: Item) {
-    setSwapTarget(item);
-  }
-
-  function toggleCollapse(slot: TimingSlot) {
-    setUserCollapsed((prev) => {
-      const next = { ...prev, [slot]: !isCollapsed(slot, prev) };
-      try {
-        localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  }
-
-  // Auto-collapse when all items in a section are taken (unless user explicitly expanded)
-  function isCollapsed(
-    slot: TimingSlot,
-    userOverride: Record<string, boolean> = userCollapsed,
-  ): boolean {
-    if (slot in userOverride) return userOverride[slot];
-    const list = grouped[slot] ?? [];
-    if (list.length === 0) return false;
-    if (NON_CHECKOFF_SLOTS.includes(slot)) return false;
-    const allTaken = list.every((i) => taken[i.id]);
-    return allTaken;
-  }
+  const postopDay =
+    d.profile?.postopDate != null
+      ? daysBetween(d.profile.postopDate.slice(0, 10), today)
+      : null;
+  const eyebrow = [
+    now.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }),
+    postopDay != null && postopDay >= 0 ? `Day ${postopDay}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   if (loading) {
     return (
       <div className="pb-24">
-        <header className="mb-5">
-          <SkeletonLine width={120} height={12} />
-          <div className="flex items-baseline justify-between gap-2 mt-2">
-            <SkeletonLine width={120} height={32} />
-            <SkeletonLine width={56} height={24} />
-          </div>
-          <div
-            className="mt-3 h-1 rounded-full"
-            style={{ background: "var(--surface-alt)" }}
-          />
-        </header>
-        <div className="flex gap-2 mb-4 overflow-hidden">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SkeletonPill key={i} width={76} height={48} />
-          ))}
+        <PageHeader eyebrow={eyebrow} title="Today" />
+        <div className="h-[200px] animate-pulse rounded-[20px] bg-[var(--surface)]" />
+        <div className="mt-6 mb-3">
+          <SkeletonLine width={140} height={14} />
         </div>
         <SkeletonItemList count={5} />
       </div>
     );
   }
 
-  const dateLabel = new Date().toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-  const wakeStr = oura?.wake_time
-    ? new Date(oura.wake_time).toLocaleTimeString(undefined, {
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : null;
-
-  // Compact stat pills — Oura/sleep metrics only. Macros now live in
-  // the IntakeTracker section below where they get progress bars.
-  const stats: { label: string; value: string }[] = [];
-  if (wakeStr) stats.push({ label: "Wake", value: wakeStr });
-  if (oura?.sleep_score != null)
-    stats.push({ label: "Sleep", value: String(oura.sleep_score) });
-  if (oura?.readiness != null)
-    stats.push({ label: "Ready", value: String(oura.readiness) });
-  if (oura?.hrv != null) stats.push({ label: "HRV", value: String(oura.hrv) });
-
-  const progressPct =
-    totalActive > 0 ? Math.round((takenCount / totalActive) * 100) : 0;
-
   return (
     <div className="pb-24">
-      <header className="mb-5">
-        <div
-          className="text-[12px] uppercase tracking-wider"
-          style={{ color: "var(--muted)", fontWeight: 500, letterSpacing: "0.06em" }}
-        >
-          <span className="inline-flex items-center gap-3">
-            <span>
-              {dateLabel}
-              {dayPostOp != null && ` · Day ${dayPostOp}`}
-            </span>
-            <StreakCounter />
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-3 mt-1">
-          <div className="min-w-0">
-            <h1
-              className="text-[34px] leading-tight"
-              style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-            >
-              Today
-            </h1>
-            {/* Today-vs-7d-avg comparative chip — gives the ring's raw
-                progress some context. Hidden until 7-day data exists. */}
-            {totalActive > 0 && sevenDayAvgPct != null && (
-              <div className="mt-1.5">
-                <MetricDelta
-                  delta={progressPct - sevenDayAvgPct}
-                  baseline={`vs ${sevenDayAvgPct}% 7d avg`}
-                  direction="good_higher"
-                  unit="pp"
-                />
-              </div>
-            )}
-          </div>
-          {/* Adherence ring — replaces the old "5 / 10" + thin bar
-              with a single Apple-Watch-style circle. The fraction
-              still reads inside the ring; the ARC fills as the user
-              checks items off, so it doubles as the progress bar. */}
-          {totalActive > 0 ? (
-            <MetricRing
-              value={takenCount}
-              max={totalActive}
-              size={64}
-              color={
-                progressPct >= 80
-                  ? "var(--olive)"
-                  : progressPct >= 50
-                    ? "var(--warn)"
-                    : "var(--olive-light)"
-              }
-              ariaLabel={`${takenCount} of ${totalActive} taken, ${progressPct}%`}
-            >
-              <span
-                className="tabular-nums leading-none"
-                style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  letterSpacing: "-0.02em",
-                  color: "var(--foreground)",
-                }}
-              >
-                {takenCount}
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "var(--muted)",
-                    fontWeight: 600,
-                  }}
-                >
-                  /{totalActive}
-                </span>
-              </span>
-            </MetricRing>
-          ) : null}
-        </div>
-        {stats.length > 0 && (
-          <div
-            className="flex flex-wrap gap-x-5 gap-y-2 mt-4"
-            style={{ color: "var(--muted)" }}
-          >
-            {stats.map((s) => (
-              <div key={s.label} className="text-[12px] tabular-nums">
-                <span style={{ opacity: 0.7 }}>{s.label} </span>
-                <span
-                  style={{
-                    fontWeight: 600,
-                    color: "var(--foreground)",
-                  }}
-                >
-                  {s.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </header>
+      <PageHeader eyebrow={eyebrow} title="Today" />
 
-      {items.length === 0 ? (
-        <EmptyToday displayName={displayName} />
+      {daily.length === 0 ? (
+        <EmptyToday displayName={d.profile?.displayName} />
       ) : (
         <>
-      {/* === ALWAYS-VISIBLE TIER ===
-          Daily score, intake tracker — small, high-utility, used
-          daily. Stay inline above the fold.
-          MoodPing was removed 2026-05-09 — felt cheesy and low-
-          utility. Mood is still captured via the universal "+"
-          capture flow when the user actually wants to log it
-          ("feeling off today" → daily_checkins.mood). Coach context
-          reads from the same column either way. */}
+          <TodayHero
+            taken={taken}
+            total={total}
+            streak={d.streak}
+            pace={pace}
+            oura={oura}
+          />
+          {dayComplete ? (
+            <AllDoneCard
+              taken={taken}
+              skipped={skipped}
+              streak={d.streak}
+              avg14={avg14}
+              tomorrow={tomorrow}
+            />
+          ) : (
+            <TodayContextCard
+              streak={d.streak}
+              takenCount={taken}
+              totalActive={total}
+            />
+          )}
 
-      <SectionBoundary label="Achievements" silent>
-        <AchievementsChecker />
-      </SectionBoundary>
-
-      <SectionBoundary label="Daily score" silent>
-        <DailyScore
-          takenCount={takenCount}
-          totalActive={totalActive}
-          waterTargetOz={waterTargetOz}
-          proteinTargetG={macros?.protein_g ?? null}
-        />
-      </SectionBoundary>
-
-      {/* === CRITICAL TIER ===
-          Banners that fire only when something is off. They render
-          themselves null when conditions don't apply, so they're zero-
-          cost most days. Stay inline so urgent stuff never hides. */}
-      <SectionBoundary label="Streak banner" silent>
-        <StreakAtRiskBanner
-          takenCount={takenCount}
-          totalActive={totalActive}
-        />
-      </SectionBoundary>
-      <SectionBoundary label="Stack warnings">
-        <StackWarningsBanner />
-      </SectionBoundary>
-      <SectionBoundary label="Onboarding" silent>
-        <OnboardingBanner />
-      </SectionBoundary>
-
-      {/* === COACH'S PULSE ===
-          Single collapsed master card that aggregates 8 secondary
-          surfaces. Header line shows "Coach has N — bucket badges".
-          User taps to expand. Children stay mounted-but-hidden when
-          collapsed so their counts stay accurate. Pulse renders null
-          when no children have anything to show — completely invisible
-          on a clean day. */}
-      <CoachPulse>
-        <SectionBoundary label="Next step" silent>
-          <NextStep todayTakenCount={takenCount} />
-        </SectionBoundary>
-        <SectionBoundary label="Coach check-ins" silent>
-          <MilestoneCheckins />
-        </SectionBoundary>
-        <SectionBoundary label="Insights" silent>
-          <InsightsBanner />
-        </SectionBoundary>
-        <SectionBoundary label="Suggestions" silent>
-          <SmartSuggestions />
-        </SectionBoundary>
-        <SectionBoundary label="Catalog picks" silent>
-          <CatalogPicks />
-        </SectionBoundary>
-        <SectionBoundary label="Patterns" silent>
-          <PatternCard />
-        </SectionBoundary>
-        <SectionBoundary label="Symptom correlations" silent>
-          <SymptomCorrelationCard />
-        </SectionBoundary>
-        <SectionBoundary label="Weekly digest" silent>
-          <WeeklyDigestCard />
-        </SectionBoundary>
-      </CoachPulse>
-
-      {/* === ALWAYS-VISIBLE: PROTOCOL + INTAKE ===
-          Rendered after the Pulse so they sit just above the
-          checklist where they're most useful for daily logging. */}
-      <SectionBoundary label="Protocol progress" silent>
-        <ProtocolProgress />
-      </SectionBoundary>
-      <SectionBoundary label="Intake tracker">
-        <IntakeTracker
-          targets={
-            macros
-              ? {
-                  calories: macros.calories,
-                  protein_g: macros.protein_g,
-                  water_oz: 84,
-                }
-              : { water_oz: 84 }
-          }
-        />
-      </SectionBoundary>
-
-      {/* Modal trigger — renders nothing visible until a protocol
-          completes. Safe to leave anywhere in the tree. */}
-      <SectionBoundary label="Protocol completion" silent>
-        <ProtocolCompletionModal />
-      </SectionBoundary>
-
-      {(() => {
-        const hour = new Date().getHours();
-        // Find any past-window slots with un-checked, un-skipped items
-        const overdue: { slot: TimingSlot; count: number }[] = [];
-        for (const slot of TIMING_ORDER) {
-          if (NON_CHECKOFF_SLOTS.includes(slot)) continue;
-          if (!slotIsPast(slot, hour)) continue;
-          const list = grouped[slot] ?? [];
-          const missing = list.filter(
-            (i) => !taken[i.id] && !skipReasons[i.id],
-          ).length;
-          if (missing > 0) overdue.push({ slot, count: missing });
-        }
-        if (overdue.length === 0) return null;
-        const total = overdue.reduce((s, o) => s + o.count, 0);
-        return (
-          <div
-            className="rounded-2xl p-3.5 mb-5 flex items-start gap-3"
-            style={{
-              background: "rgba(194, 145, 66, 0.06)",
-              border: "1px solid rgba(194, 145, 66, 0.22)",
+          <TodayChecklist
+            activeSlot={slots.active}
+            onChangeSlot={slots.setActive}
+            slotStats={slots.stats}
+            totalTaken={taken}
+            totalAll={total}
+            grouped={grouped}
+            logs={logs}
+            adherence={d.adherence}
+            snoozed={snoozed}
+            highlightId={highlightId}
+            onToggle={d.toggle}
+            onMore={(item) => {
+              setMoreItem(item);
+              setSheet("more");
             }}
-          >
-            <span
-              className="shrink-0 mt-0.5"
-              style={{ color: "var(--warn)" }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 7v5l3 2" />
-              </svg>
-            </span>
-            <div className="flex-1">
-              <div className="text-[13px]" style={{ fontWeight: 500 }}>
-                {total} pending from earlier
-              </div>
-              <div
-                className="text-[12px] mt-0.5 leading-relaxed"
-                style={{ color: "var(--muted)" }}
-              >
-                {overdue
-                  .map((o) => `${TIMING_LABELS[o.slot]} (${o.count})`)
-                  .join(" · ")}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+            onMarkAll={(ids) => d.setTakenMany(ids, true)}
+            onUnmarkAll={(ids) => d.setTakenMany(ids, false)}
+            onAdd={(slot) => {
+              setAddSlot(slot);
+              setSheet("add");
+            }}
+          />
 
-      <div id="today-checklist" />
-      <DayStrip
-        stats={slotStats}
-        totalTaken={takenCount}
-        totalAll={totalActive}
-        active={activeSlot}
-        onChange={changeSlot}
-      />
-
-      <div
-        className="flex flex-col gap-2"
-        onTouchStart={(e) => {
-          if (activeSlot === "all") return;
-          const t = e.touches[0];
-          touchStartRef.current = {
-            x: t.clientX,
-            y: t.clientY,
-            time: Date.now(),
-          };
-        }}
-        onTouchEnd={(e) => {
-          if (activeSlot === "all" || !touchStartRef.current) return;
-          const start = touchStartRef.current;
-          touchStartRef.current = null;
-          const t = e.changedTouches[0];
-          const dx = t.clientX - start.x;
-          const dy = t.clientY - start.y;
-          const dt = Date.now() - start.time;
-          if (Math.abs(dy) > 60) return;
-          if (Math.abs(dx) < 70) return;
-          if (dt > 700) return;
-          const orderedSlots = [
-            ...TIMING_ORDER.filter((s) => (grouped[s]?.length ?? 0) > 0),
-          ];
-          const idx = orderedSlots.indexOf(activeSlot);
-          if (idx === -1) return;
-          if (dx < 0 && idx < orderedSlots.length - 1) {
-            changeSlot(orderedSlots[idx + 1]);
-          } else if (dx > 0 && idx > 0) {
-            changeSlot(orderedSlots[idx - 1]);
-          }
-        }}
-      >
-        {activeSlot === "all"
-          ? TIMING_ORDER.map((slot) => {
-              const list = grouped[slot];
-              if (list.length === 0) return null;
-              const collapsed = isCollapsed(slot);
-              const slotTaken = list.filter((i) => taken[i.id]).length;
-              const slotTotal = list.length;
-              const allDone =
-                !NON_CHECKOFF_SLOTS.includes(slot) &&
-                slotTaken === slotTotal;
-
-              return (
-                <section
-                  key={slot}
-                  className={`rounded-2xl overflow-hidden transition-all ${collapsed ? "" : "card-glass"}`}
-                  style={{
-                    background: collapsed ? "var(--surface-alt)" : undefined,
-                    border: collapsed ? "1px solid var(--border)" : undefined,
-                  }}
-                >
-                  <button
-                    onClick={() => toggleCollapse(slot)}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
-                  >
-                    <div className="flex items-baseline gap-2.5 min-w-0">
-                      <div className="min-w-0">
-                        <div
-                          className="text-[10px] uppercase tracking-wider"
-                          style={{
-                            color: "var(--muted)",
-                            fontWeight: 600,
-                            letterSpacing: "0.06em",
-                          }}
-                        >
-                          {SLOT_TIME[slot] ?? ""}
-                        </div>
-                        <div
-                          className="text-[15px] leading-none mt-0.5"
-                          style={{
-                            color: allDone
-                              ? "var(--accent)"
-                              : "var(--foreground)",
-                            fontWeight: 700,
-                            letterSpacing: "-0.01em",
-                          }}
-                        >
-                          {TIMING_LABELS[slot]}
-                        </div>
-                      </div>
-                      {!NON_CHECKOFF_SLOTS.includes(slot) && (
-                        <div
-                          className="text-[12px] tabular-nums"
-                          style={{
-                            color: allDone ? "var(--accent)" : "var(--muted)",
-                            fontWeight: allDone ? 700 : 500,
-                          }}
-                        >
-                          {allDone
-                            ? "✓ done"
-                            : `${slotTaken}/${slotTotal}`}
-                        </div>
-                      )}
-                      {NON_CHECKOFF_SLOTS.includes(slot) && (
-                        <div
-                          className="text-[12px]"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          {list.length} {list.length === 1 ? "item" : "items"}
-                        </div>
-                      )}
-                    </div>
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{
-                        color: "var(--muted)",
-                        transform: collapsed
-                          ? "rotate(0deg)"
-                          : "rotate(180deg)",
-                        transition: "transform 0.15s ease",
-                      }}
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
-                  </button>
-
-                  {!collapsed && (() => {
-                    const todo = list.filter(
-                      (i) =>
-                        !taken[i.id] &&
-                        !skipReasons[i.id] &&
-                        !snoozedIds.has(i.id),
-                    );
-                    const done = list.filter(
-                      (i) => taken[i.id] || skipReasons[i.id],
-                    );
-                    const isCheckoff = !NON_CHECKOFF_SLOTS.includes(slot);
-                    return (
-                      <div className="px-3 pb-3 flex flex-col gap-2">
-                        {(isCheckoff ? todo : list).map((item) => (
-                          <ItemCard
-                            key={item.id}
-                            item={item}
-                            taken={taken[item.id] ?? false}
-                            skipReason={skipReasons[item.id]}
-                            onToggle={isCheckoff ? handleToggle : undefined}
-                            onSkip={isCheckoff ? handleSkip : undefined}
-                            onSwap={isCheckoff ? handleSwap : undefined}
-                            showGoals={false}
-                            showTypeIcon={false}
-                            compact
-                          />
-                        ))}
-                        <QuickAddInline
-                          slot={slot}
-                          slotLabel={TIMING_LABELS[slot]}
-                          itemsInSlot={list}
-                          onAdded={reloadItems}
-                        />
-                        {isCheckoff && done.length > 0 && (
-                          <details className="mt-1">
-                            <summary
-                              className="cursor-pointer list-none px-1 py-2 flex items-center justify-between text-[11px] rounded-lg transition-colors"
-                              style={{ color: "var(--muted)" }}
-                            >
-                              <span className="flex items-center gap-1.5">
-                                <span
-                                  className="text-[14px] leading-none"
-                                  style={{ color: "var(--olive)" }}
-                                >
-                                  ✓
-                                </span>
-                                <span>Done ({done.length})</span>
-                              </span>
-                              <span className="text-[12px]">⌄</span>
-                            </summary>
-                            <div className="flex flex-col gap-2 mt-2">
-                              {done.map((item) => (
-                                <ItemCard
-                                  key={item.id}
-                                  item={item}
-                                  taken={taken[item.id] ?? false}
-                                  skipReason={skipReasons[item.id]}
-                                  onToggle={handleToggle}
-                                  onSkip={handleSkip}
-                                  showGoals={false}
-                                  showTypeIcon={false}
-                                  compact
-                                />
-                              ))}
-                            </div>
-                          </details>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </section>
-              );
-            })
-          : (() => {
-              const list = grouped[activeSlot] ?? [];
-              if (list.length === 0) {
-                return (
-                  <div
-                    className="rounded-2xl p-8 text-center text-[13px]"
-                    style={{
-                      color: "var(--muted)",
-                      border: "1px solid var(--border)",
-                      background: "var(--surface-alt)",
-                    }}
-                  >
-                    No items in {TIMING_LABELS[activeSlot]} yet.
-                  </div>
-                );
-              }
-              const isCheckoff = !NON_CHECKOFF_SLOTS.includes(activeSlot);
-              const todo = list.filter(
-                (i) =>
-                  !taken[i.id] &&
-                  !skipReasons[i.id] &&
-                  !snoozedIds.has(i.id),
-              );
-              const done = list.filter(
-                (i) => taken[i.id] || skipReasons[i.id],
-              );
-              const slotTaken = list.filter((i) => taken[i.id]).length;
-              const slotSnoozed = list.filter((i) => snoozedIds.has(i.id)).length;
-              const allDone = isCheckoff && slotTaken === list.length;
-              const slotPct =
-                list.length > 0 && isCheckoff
-                  ? (slotTaken / list.length) * 100
-                  : 0;
-              const isCurrentSlot =
-                slotForHour(new Date().getHours()) === activeSlot;
-              return (
-                <section className="rounded-2xl card-glass overflow-hidden">
-                  {/* Slot header — time range + slot name + progress bar.
-                      Cleaner hierarchy than before: time stamp at the top
-                      in caps, slot name big, then a thin progress bar
-                      below the title row that shows percent done. */}
-                  <div
-                    className="px-4 pt-3 pb-3"
-                    style={{ borderBottom: "1px solid var(--border)" }}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div
-                          className="text-[10px] uppercase tracking-wider flex items-center gap-1.5"
-                          style={{
-                            color: isCurrentSlot
-                              ? "var(--olive)"
-                              : "var(--muted)",
-                            fontWeight: 700,
-                            letterSpacing: "0.08em",
-                          }}
-                        >
-                          <span>{SLOT_TIME[activeSlot] ?? ""}</span>
-                          {isCurrentSlot && (
-                            <span
-                              className="px-1.5 py-[1px] rounded-full"
-                              style={{
-                                background: "var(--primary)",
-                                color: "var(--primary-fg)",
-                                fontSize: 9,
-                                letterSpacing: "0.06em",
-                              }}
-                            >
-                              NOW
-                            </span>
-                          )}
-                        </div>
-                        <div
-                          className="text-[20px] leading-tight mt-0.5"
-                          style={{
-                            color: allDone
-                              ? "var(--accent)"
-                              : "var(--foreground)",
-                            fontWeight: 700,
-                            letterSpacing: "-0.015em",
-                          }}
-                        >
-                          {TIMING_LABELS[activeSlot]}
-                        </div>
-                      </div>
-                      <div
-                        className="text-[13px] tabular-nums shrink-0 mt-0.5"
-                        style={{
-                          color: allDone ? "var(--accent)" : "var(--muted)",
-                          fontWeight: allDone ? 700 : 600,
-                        }}
-                      >
-                        {!isCheckoff
-                          ? `${list.length}`
-                          : allDone
-                            ? "✓ all done"
-                            : `${slotTaken}/${list.length}`}
-                      </div>
-                    </div>
-                    {/* Progress bar — same idiom as the header progress
-                        line on Today, scaled to this slot. Hidden when
-                        nothing to track. */}
-                    {isCheckoff && list.length > 0 && (
-                      <div
-                        className="mt-2 h-[3px] rounded-full overflow-hidden"
-                        style={{ background: "var(--surface-alt)" }}
-                        aria-label={`${Math.round(slotPct)}% complete`}
-                      >
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${slotPct}%`,
-                            background: allDone
-                              ? "var(--accent)"
-                              : slotPct >= 50
-                                ? "var(--olive)"
-                                : "var(--olive-light)",
-                          }}
-                        />
-                      </div>
-                    )}
-                    {slotSnoozed > 0 && (
-                      <div
-                        className="text-[11px] mt-1.5"
-                        style={{ color: "var(--muted)", opacity: 0.75 }}
-                      >
-                        {slotSnoozed} snoozed
-                      </div>
-                    )}
-                  </div>
-                  <div
-                    className="px-4 pt-3 pb-2 flex items-center justify-end"
-                    style={{ borderBottom: "1px solid var(--border)" }}
-                  >
-                    {isCheckoff && todo.length > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        {todo.length > 1 && (
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const ids = todo.map((i) => i.id);
-                              // Optimistic
-                              setTakenState((prev) => {
-                                const next = { ...prev };
-                                for (const id of ids) next[id] = true;
-                                return next;
-                              });
-                              // Fire all toggles in parallel
-                              await Promise.all(
-                                ids.map((id) => toggleTaken(today, id)),
-                              );
-                              showToast(
-                                `${ids.length} ${TIMING_LABELS[activeSlot].toLowerCase()} items ✓`,
-                                {
-                                  tone: "success",
-                                  undo: async () => {
-                                    setTakenState((prev) => {
-                                      const next = { ...prev };
-                                      for (const id of ids) next[id] = false;
-                                      return next;
-                                    });
-                                    await Promise.all(
-                                      ids.map((id) =>
-                                        toggleTaken(today, id),
-                                      ),
-                                    );
-                                  },
-                                },
-                              );
-                            }}
-                            className="text-[13px] px-3.5 py-2 rounded-lg"
-                            style={{
-                              background: "var(--primary)",
-                              color: "var(--primary-fg)",
-                              fontWeight: 700,
-                              minHeight: 36,
-                            }}
-                          >
-                            Mark all {todo.length}
-                          </button>
-                        )}
-                        {/* Slot-level Snooze — pushes everything in this
-                            slot 1 hour. Useful for "I'll get to breakfast
-                            later" without per-item taps. Undo restores. */}
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const ids = todo.map((i) => i.id);
-                            const { snoozeItem, clearSnooze } = await import(
-                              "@/lib/snooze"
-                            );
-                            for (const id of ids) snoozeItem(id, 60);
-                            setSnoozedTick((n) => n + 1);
-                            showToast(
-                              `${ids.length} ${TIMING_LABELS[
-                                activeSlot
-                              ].toLowerCase()} item${ids.length === 1 ? "" : "s"} snoozed 1h`,
-                              {
-                                duration: 4000,
-                                undo: () => {
-                                  for (const id of ids) clearSnooze(id);
-                                  setSnoozedTick((n) => n + 1);
-                                },
-                              },
-                            );
-                          }}
-                          aria-label={`Snooze all ${TIMING_LABELS[activeSlot]} items 1 hour`}
-                          className="rounded-lg flex items-center gap-1 px-2.5 py-2 text-[12px]"
-                          style={{
-                            background: "var(--surface-alt)",
-                            color: "var(--foreground-soft)",
-                            fontWeight: 600,
-                            border: "1px solid var(--border)",
-                            minHeight: 36,
-                          }}
-                        >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden
-                          >
-                            <circle cx="12" cy="12" r="9" />
-                            <path d="M12 7v5l3 2" />
-                          </svg>
-                          Snooze
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="px-3 pb-3 pt-3 flex flex-col gap-2">
-                    {(isCheckoff ? todo : list).map((item) => (
-                      <ItemCard
-                        key={item.id}
-                        item={item}
-                        taken={taken[item.id] ?? false}
-                        skipReason={skipReasons[item.id]}
-                        onToggle={isCheckoff ? handleToggle : undefined}
-                        onSkip={isCheckoff ? handleSkip : undefined}
-                        onSwap={isCheckoff ? handleSwap : undefined}
-                        onChanged={() => setSnoozedTick((n) => n + 1)}
-                        showGoals={false}
-                        showTypeIcon={false}
-                        compact
-                      />
-                    ))}
-                    <QuickAddInline
-                      slot={activeSlot}
-                      slotLabel={TIMING_LABELS[activeSlot]}
-                      itemsInSlot={list}
-                      onAdded={reloadItems}
-                    />
-                    {isCheckoff && done.length > 0 && (
-                      <details className="mt-1">
-                        <summary
-                          className="cursor-pointer list-none px-1 py-2 flex items-center justify-between text-[11px] rounded-lg"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <span
-                              className="text-[14px] leading-none"
-                              style={{ color: "var(--olive)" }}
-                            >
-                              ✓
-                            </span>
-                            <span>Done ({done.length})</span>
-                          </span>
-                          <span className="text-[12px]">⌄</span>
-                        </summary>
-                        <div className="flex flex-col gap-2 mt-2">
-                          {done.map((item) => (
-                            <ItemCard
-                              key={item.id}
-                              item={item}
-                              taken={taken[item.id] ?? false}
-                              skipReason={skipReasons[item.id]}
-                              onToggle={handleToggle}
-                              onSkip={handleSkip}
-                              showGoals={false}
-                              showTypeIcon={false}
-                              compact
-                            />
-                          ))}
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                </section>
-              );
-            })()}
-      </div>
-
-      {/* Below-checklist zone — Coach prompts + Pro benefits + extras. */}
-      <SectionBoundary label="Coach quick actions" silent>
-        <CoachQuickActions />
-      </SectionBoundary>
-      <SectionBoundary label="Pro benefits" silent>
-        <ProBenefits />
-      </SectionBoundary>
+          <LogRow
+            intake={d.intake}
+            waterTargetOz={d.profile?.waterTargetOz ?? null}
+            proteinTargetG={d.profile?.proteinTargetG ?? null}
+          />
         </>
       )}
 
-      <SkipReasonSheet
-        item={skipTarget}
-        date={today}
-        open={skipTarget !== null}
-        onClose={() => setSkipTarget(null)}
-        onSkipped={() => {
-          refreshLogs();
-        }}
-      />
+      {moreItem && (
+        <ItemQuickActions
+          item={moreItem}
+          open={sheet === "more"}
+          onClose={() => setSheet(null)}
+          onSkip={
+            isCheckoffSlot(moreItem.timing_slot) && !logs[moreItem.id]?.taken
+              ? (item) => {
+                  setSkipItem(item);
+                  setSheet("skip");
+                }
+              : undefined
+          }
+          onSwap={(item) => {
+            setSwapItem(item);
+            setSheet("swap");
+          }}
+        />
+      )}
+      {skipItem && (
+        <SkipReasonSheet
+          item={skipItem}
+          open={sheet === "skip"}
+          onClose={() => setSheet(null)}
+          onSelect={(item, reason) => void d.skip(item, reason)}
+        />
+      )}
+      {swapItem && (
+        <SwapSheet
+          item={swapItem}
+          date={today}
+          open={sheet === "swap"}
+          onClose={() => setSheet(null)}
+          onSwapped={d.reload}
+        />
+      )}
+      {addSlot && (
+        <QuickAddSheet
+          slot={addSlot}
+          open={sheet === "add"}
+          onClose={() => setSheet(null)}
+          onAdded={(id, slot) => {
+            d.reload();
+            slots.setActive(slot);
+            setHighlightId(id);
+          }}
+        />
+      )}
 
-      <SwapSheet
-        item={swapTarget}
-        date={today}
-        open={swapTarget !== null}
-        onClose={() => setSwapTarget(null)}
-        onSwapped={() => {
-          refreshLogs();
-        }}
-      />
-
-      <SectionBoundary label="Voice memo" silent>
-        <VoiceMemo />
-      </SectionBoundary>
+      <ProtocolCompletionModal />
+      <AchievementsChecker />
     </div>
   );
 }

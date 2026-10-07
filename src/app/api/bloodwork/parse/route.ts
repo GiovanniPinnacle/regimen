@@ -15,7 +15,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserToday } from "@/lib/user-date";
-import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  parseJsonResponse,
+  llmErrorResponse,
+} from "@/lib/anthropic";
+import { jsonError, readJson, internalError } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -88,15 +95,10 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
-  let body: Body;
-  try {
-    body = (await request.json()) as Body;
-  } catch {
-    return NextResponse.json({ error: "Bad request" }, { status: 400 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
+  const parsedBody = await readJson<Body>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
   if (!body.image_base64 && !body.parsed_text) {
     return NextResponse.json(
       { error: "Provide image_base64 or parsed_text" },
@@ -181,19 +183,13 @@ export async function POST(request: NextRequest) {
   try {
     const res = await anthropic.messages.create({
       ...MODEL_OPTS.vision,
-      max_tokens: 4096,
+      // Full panels (CMP + lipids + CBC + hormones) can list 60+
+      // markers; 4096 truncated those mid-JSON.
+      max_tokens: 16000,
       system: PARSE_SYSTEM,
       messages,
     });
-    const text = textOf(res);
-    if (!text) {
-      return NextResponse.json(
-        { error: "Empty parse response" },
-        { status: 500 },
-      );
-    }
-    const raw = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
-    result = JSON.parse(raw) as ParseResult;
+    result = parseJsonResponse<ParseResult>(res);
     void recordUsage(user.id, "vision", {
       route: "/api/bloodwork/parse",
       model: MODELS.vision,
@@ -201,10 +197,7 @@ export async function POST(request: NextRequest) {
       tokens_out: res.usage?.output_tokens,
     });
   } catch (e) {
-    return NextResponse.json(
-      { error: `Parse failed: ${(e as Error).message}` },
-      { status: 500 },
-    );
+    return llmErrorResponse(e) ?? internalError("/api/bloodwork/parse", e);
   }
 
   // Defaults — drawn_on falls back to today if Coach couldn't read it

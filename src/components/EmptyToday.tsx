@@ -1,251 +1,109 @@
 "use client";
 
-// EmptyToday — first-run experience for users who have no active items yet.
-// New v2 (May 2026): leads with the inline starter pack (tap-to-add
-// evidence-A items) so the user gets to a non-empty stack in 30
-// seconds without leaving the page. Three "deeper paths" stay below
-// for users who want more structure (protocol enroll, manual add,
-// scan a label).
+// EmptyToday — shown on /today when there are no active items.
+//
+// Also the first-run gate for the 6-digit-code sign-in path (which skips
+// /auth/callback): if this user hasn't been through onboarding and has
+// nothing on Today, send them to /onboard instead.
+//
+// One clear path: a starter pack for their focus, added ACTIVE in one tap.
+// Secondary: search or scan for what they already take.
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import Icon from "@/components/Icon";
+import { useRouter } from "next/navigation";
 import EmptyGlyph from "@/components/EmptyGlyph";
 import StarterPack from "@/components/StarterPack";
-import { createClient } from "@/lib/supabase/client";
+import Button, { ButtonLink } from "@/components/ui/Button";
+import Sheet from "@/components/ui/Sheet";
+import SearchAdd from "@/app/onboard/_components/SearchAdd";
+import { packsForFocus, type StarterPack as Pack } from "@/lib/onboarding/packs";
+import type { OnboardingState } from "@/lib/onboarding/state";
 
 export default function EmptyToday({
   displayName,
 }: {
   displayName?: string | null;
 }) {
-  // Pull the user's onboarding focus (if they completed /onboard) so
-  // we can bias the starter-pack toward what they care about. Falls
-  // back to "general" if no focus is set yet.
-  const [focus, setFocus] = useState<string | null>(null);
+  const router = useRouter();
+  const [pack, setPack] = useState<Pack | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
     (async () => {
+      let focus: string[] = [];
       try {
-        const client = createClient();
-        const { data } = await client
-          .from("profiles")
-          .select("about_me")
-          .maybeSingle();
-        if (!alive) return;
-        const aboutMe = (data?.about_me ?? {}) as Record<string, string>;
-        const goals = aboutMe.top_goals ?? "";
-        const m = goals.match(/Focus:\s*(\w+)/);
-        if (m) setFocus(m[1]);
-      } catch {}
+        const res = await fetch("/api/onboarding", { cache: "no-store" });
+        if (res.ok) {
+          const s = (await res.json()) as OnboardingState;
+          if (s.needsOnboarding) {
+            router.replace("/onboard");
+            return;
+          }
+          focus = s.focus;
+        }
+      } catch {
+        // Offline or API hiccup — still show the generic pack.
+      }
+      if (alive) setPack(packsForFocus(focus)[0]);
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [router]);
+
+  if (!pack) {
+    return (
+      <div className="mx-auto max-w-md pt-4" aria-busy>
+        <div className="skeleton-card h-64" />
+      </div>
+    );
+  }
 
   return (
-    <section className="pb-12">
-      <div className="text-center max-w-md mx-auto pt-2 mb-6">
-        {/* Hero glyph — visual anchor before the user has any data of
-            their own. Tinted accent block + sparkle icon reads as
-            "this is the start of something" instead of "empty list." */}
-        <div className="flex justify-center mb-4">
-          <EmptyGlyph icon="sparkle" tone="accent" size={68} />
+    <section className="mx-auto max-w-md pb-12">
+      <div className="mb-6 pt-2 text-center">
+        <div className="mb-4 flex justify-center">
+          <EmptyGlyph icon="check-circle" tone="muted" size={60} />
         </div>
-        <div
-          className="text-[11px] uppercase tracking-wider mb-2"
-          style={{
-            color: "var(--accent)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          Day 1
-        </div>
-        <h2
-          className="text-[26px] leading-tight mb-2"
-          style={{ fontWeight: 700, letterSpacing: "-0.018em" }}
-        >
-          {displayName ? `Hey ${displayName} —` : "Welcome —"} let&apos;s build
-          your stack.
+        <h2 className="text-title-2">
+          {displayName ? `${displayName}, your Today is empty` : "Your Today is empty"}
         </h2>
-        <p
-          className="text-[13.5px] leading-relaxed"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          Tap the items below you take or want to try. Coach refines from there.
+        <p className="mt-1.5 text-callout text-[var(--foreground-soft)]">
+          Start with a pack in one tap, or add what you already take.
+          Everything shows up here as a checklist.
         </p>
       </div>
 
-      {/* Inline tap-to-add picker — the fastest path from empty to a
-          working stack. After at least one add, /today re-renders with
-          actual items and EmptyToday goes away. */}
-      <div className="max-w-md mx-auto">
-        <StarterPack focus={focus} count={10} />
-      </div>
+      <StarterPack pack={pack} primary />
 
-      <div className="text-center mb-3 mt-1">
-        <span
-          className="text-[11px] uppercase tracking-wider"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-          }}
+      <div className="mt-3">
+        <Button
+          variant="ghost"
+          size="md"
+          fullWidth
+          icon="search"
+          onClick={() => setSearchOpen(true)}
         >
-          Or take a deeper path
-        </span>
+          Search or scan instead
+        </Button>
       </div>
 
-      <div className="flex flex-col gap-2 max-w-md mx-auto mb-8">
-        <PathCard
-          href="/protocols"
-          icon="award"
-          title="Enroll in a protocol"
-          subtitle="Curated regimens — recovery, sleep, fitness. Items auto-populate Today."
-          badge="Recommended"
-          primary
-        />
-        <PathCard
-          href="/items/new"
-          icon="plus"
-          title="Add a single item"
-          subtitle="Type a name, Coach classifies the rest. Magnesium, creatine, anything."
-        />
-        <PathCard
-          href="/scan"
-          icon="camera"
-          title="Scan a label"
-          subtitle="Photograph your supplement bottle and Coach extracts dose + ingredients."
-        />
-      </div>
-
-      <div className="max-w-md mx-auto">
-        <div
-          className="text-[11px] uppercase tracking-wider mb-3"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-          }}
-        >
-          What you&apos;ll have on Today
-        </div>
-        <div
-          className="rounded-2xl p-4"
-          style={{
-            background: "var(--olive-tint)",
-            border: "1px solid var(--accent-glow)",
-          }}
-        >
-          <ul
-            className="text-[12px] flex flex-col gap-1.5 leading-relaxed"
-            style={{ color: "var(--foreground)", opacity: 0.9 }}
-          >
-            <li>
-              · <strong>Time-of-day strip</strong> — what to take when, with
-              progress
-            </li>
-            <li>
-              · <strong>Intake tracker</strong> — water + meal photos +
-              auto-logged macros
-            </li>
-            <li>
-              · <strong>Voice memos</strong> — vent, log, note. Coach reads
-              them.
-            </li>
-            <li>
-              · <strong>Patterns card</strong> — once you have 7+ days, drop
-              candidates surface automatically
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function PathCard({
-  href,
-  icon,
-  title,
-  subtitle,
-  badge,
-  primary = false,
-}: {
-  href: string;
-  icon: Parameters<typeof Icon>[0]["name"];
-  title: string;
-  subtitle: string;
-  badge?: string;
-  primary?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded-2xl p-4 pressable flex items-start gap-3"
-      style={{
-        background: primary ? "var(--olive)" : "var(--surface)",
-        border: primary
-          ? "1px solid var(--olive)"
-          : "1px solid var(--border)",
-        color: primary ? "#FFFFFF" : "var(--foreground)",
-        boxShadow: primary
-          ? "0 8px 24px var(--accent-glow)"
-          : undefined,
-      }}
-    >
-      <span
-        className="shrink-0 h-10 w-10 rounded-xl flex items-center justify-center"
-        style={{
-          background: primary
-            ? "rgba(255, 255, 255, 0.18)"
-            : "var(--olive-tint)",
-          color: primary ? "#FFFFFF" : "var(--olive)",
-        }}
+      <Sheet
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        title="Add what you take"
+        description="Search, or scan a label. Items go straight onto Today."
+        footer={
+          <ButtonLink href="/scan" variant="secondary" size="md" fullWidth icon="camera">
+            Scan a label
+          </ButtonLink>
+        }
       >
-        <Icon name={icon} size={20} strokeWidth={1.7} />
-      </span>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div
-            className="text-[15px] leading-snug"
-            style={{ fontWeight: 600 }}
-          >
-            {title}
-          </div>
-          {badge && (
-            <span
-              className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-              style={{
-                background: primary
-                  ? "rgba(255, 255, 255, 0.22)"
-                  : "var(--olive-tint)",
-                color: primary ? "#FFFFFF" : "var(--olive)",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-              }}
-            >
-              {badge}
-            </span>
-          )}
+        <div className="min-h-[240px]">
+          <SearchAdd autoFocus onAdded={() => setSearchOpen(false)} />
         </div>
-        <div
-          className="text-[12px] mt-0.5 leading-relaxed"
-          style={{
-            color: primary ? "rgba(255, 255, 255, 0.82)" : "var(--muted)",
-          }}
-        >
-          {subtitle}
-        </div>
-      </div>
-      <Icon
-        name="chevron-right"
-        size={16}
-        className="shrink-0 mt-1.5 opacity-70"
-      />
-    </Link>
+      </Sheet>
+    </section>
   );
 }

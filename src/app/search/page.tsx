@@ -4,9 +4,15 @@
 // input. Debounced. Grouped results. Tap to navigate.
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import Icon from "@/components/Icon";
-import EmptyState from "@/components/EmptyState";
+import Icon, { type IconName } from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Button, { IconButton } from "@/components/ui/Button";
+import Chip, { ChipButton } from "@/components/ui/Chip";
+import { Eyebrow } from "@/components/ui/Section";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { ITEM_TYPE_ICON_NAME } from "@/lib/constants";
+import { openCoach } from "@/lib/coach-events";
 
 type Hit =
   | {
@@ -86,6 +92,9 @@ export default function SearchPage() {
     catalog?: number;
   } | null>(null);
   const [loading, setLoading] = useState(false);
+  /** The query the current `hits` answer — avoids flashing "nothing
+   *  found" while the debounce is still pending. */
+  const [answered, setAnswered] = useState("");
   // Recent searches — populated lazily on mount so SSR doesn't hit
   // localStorage. Updated whenever a non-empty query lands a hit.
   const [recent, setRecent] = useState<string[]>(() => loadRecentSearches());
@@ -114,11 +123,13 @@ export default function SearchPage() {
         if (!res.ok) {
           setHits([]);
           setCounts(null);
+          setAnswered(q.trim());
           return;
         }
         const data = await res.json();
         const newHits: Hit[] = data.hits ?? [];
         setHits(newHits);
+        setAnswered(q.trim());
         setCounts(data.counts ?? null);
         // Save the query as a "recent search" once we get at least one
         // hit — avoids polluting recents with typos. Pure local-storage
@@ -151,62 +162,44 @@ export default function SearchPage() {
   };
 
   const showEmpty =
-    !loading && q.trim().length >= 2 && hits.length === 0;
+    !loading &&
+    q.trim().length >= 2 &&
+    answered === q.trim() &&
+    hits.length === 0;
 
   return (
-    <div className="pb-24">
-      <header className="mb-5">
-        <h1
-          className="text-[32px] leading-tight"
-          style={{ fontWeight: 600, letterSpacing: "-0.02em" }}
-        >
-          Search
-        </h1>
-        <p
-          className="text-[13px] mt-1"
-          style={{ color: "var(--muted)" }}
-        >
-          Items, protocols, voice memos, recipes — all in one place.
-        </p>
-      </header>
+    <div className="pb-28">
+      <PageHeader title="Search" showCoach={false} />
 
-      <div
-        className="rounded-2xl flex items-center gap-2 px-4 py-3 mb-5"
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <Icon
-          name="search"
-          size={18}
-          className="opacity-60 shrink-0"
-        />
-        <input
-          ref={inputRef}
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search anything…"
-          className="flex-1 text-[15px] focus:outline-none"
-          style={{
-            background: "transparent",
-            color: "var(--foreground)",
-          }}
-        />
-        {q && (
-          <button
-            onClick={() => {
-              setQ("");
-              inputRef.current?.focus();
-            }}
-            className="shrink-0 leading-none px-1"
-            style={{ color: "var(--muted)" }}
-            aria-label="Clear"
-          >
-            <Icon name="plus" size={14} className="rotate-45" />
-          </button>
-        )}
+      <div className="sticky top-0 z-10 -mx-5 mb-5 bg-[var(--background)] px-5 pb-2 pt-1">
+        <div className="flex min-h-[48px] items-center gap-2 rounded-[14px] border border-[var(--border-input)] bg-[var(--surface)] pl-3.5 pr-1 focus-within:border-[var(--border-strong)]">
+          <Icon name="search" size={18} className="shrink-0 text-[var(--muted)]" />
+          <input
+            ref={inputRef}
+            type="text"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Items, protocols, recipes, notes…"
+            aria-label="Search"
+            className="min-w-0 flex-1 bg-transparent text-body text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus-visible:shadow-none"
+          />
+          {q && (
+            <IconButton
+              icon="x"
+              label="Clear search"
+              tone="plain"
+              size={36}
+              iconSize={16}
+              onClick={() => {
+                setQ("");
+                inputRef.current?.focus();
+              }}
+            />
+          )}
+        </div>
       </div>
 
       {q.trim().length < 2 && (
@@ -223,20 +216,27 @@ export default function SearchPage() {
       )}
 
       {loading && q.trim().length >= 2 && (
-        <div
-          className="text-[12px] text-center py-6"
-          style={{ color: "var(--muted)" }}
-        >
+        <p className="py-6 text-center text-footnote text-[var(--muted)]">
           Searching…
-        </div>
+        </p>
       )}
 
       {showEmpty && (
-        <EmptyState
-          icon="🔎"
-          title={`Nothing matching "${q}"`}
-          body="Try a shorter keyword or check the spelling."
-        />
+        <Card padding="lg" className="text-center">
+          <div className="text-title-3">Nothing for &ldquo;{q.trim()}&rdquo;</div>
+          <p className="mt-1 text-callout text-[var(--muted)]">
+            Try a shorter word, or ask Coach instead.
+          </p>
+          <div className="mt-4 flex justify-center">
+            <Button
+              variant="coach"
+              icon="sparkle"
+              onClick={() => openCoach({ text: q.trim() })}
+            >
+              Ask Coach
+            </Button>
+          </div>
+        </Card>
       )}
 
       {!loading && hits.length > 0 && (
@@ -250,7 +250,7 @@ export default function SearchPage() {
                 <ResultRow
                   key={`i-${h.id}`}
                   href={h.href}
-                  icon="check-circle"
+                  icon={(ITEM_TYPE_ICON_NAME as Record<string, IconName>)[h.item_type] ?? "pill"}
                   primary={h.name}
                   secondary={[h.brand, h.item_type].filter(Boolean).join(" · ")}
                   badge={h.status === "active" ? null : h.status}
@@ -314,7 +314,7 @@ export default function SearchPage() {
 
           {groups.memo.length > 0 && (
             <ResultGroup
-              title="Voice memos"
+              title="Notes"
               count={counts?.memos ?? groups.memo.length}
             >
               {groups.memo.map((h) => {
@@ -326,7 +326,7 @@ export default function SearchPage() {
                   <ResultRow
                     key={`m-${h.id}`}
                     href={h.href}
-                    icon="sparkle"
+                    icon="mic"
                     primary={
                       h.transcript.slice(0, 80) +
                       (h.transcript.length > 80 ? "…" : "")
@@ -352,85 +352,39 @@ function SearchSuggestions({
   onPick: (q: string) => void;
   onClear: () => void;
 }) {
-  // Always show some good defaults; surface the user's recent searches
-  // FIRST when they exist so the most-likely next query is one tap away.
-  const STARTERS = [
-    "Magnesium",
-    "FUE recovery",
-    "Sleep",
-    "Tongkat",
-    "Bone broth",
-    "Vitamin D",
-  ];
+  const STARTERS = ["Magnesium", "Sleep", "Protein", "Vitamin D", "Creatine", "Recovery"];
   return (
-    <section className="flex flex-col gap-5">
+    <section className="flex flex-col gap-6">
       {recent.length > 0 && (
         <div>
-          <div className="flex items-baseline justify-between mb-2">
-            <h2
-              className="text-[11px] uppercase tracking-wider"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-              }}
-            >
-              Recent
-            </h2>
+          <div className="mb-2.5 flex items-center justify-between px-1">
+            <Eyebrow>Recent</Eyebrow>
             <button
+              type="button"
               onClick={onClear}
-              className="text-[11px]"
-              style={{ color: "var(--muted)" }}
+              className="-my-3 min-h-[44px] px-2 text-footnote font-medium text-[var(--foreground-soft)]"
             >
               Clear
             </button>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {recent.map((t) => (
-              <button
-                key={t}
-                onClick={() => onPick(t)}
-                className="text-[12px] px-3 py-1.5 rounded-full inline-flex items-center gap-1.5"
-                style={{
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                  fontWeight: 500,
-                }}
-              >
-                <Icon name="clock" size={11} className="opacity-50" />
+              <ChipButton key={t} icon="clock" onClick={() => onPick(t)}>
                 {t}
-              </button>
+              </ChipButton>
             ))}
           </div>
         </div>
       )}
-
       <div>
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-2"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-          }}
-        >
-          {recent.length > 0 ? "Or try" : "Try searching for"}
-        </h2>
-        <div className="flex flex-wrap gap-1.5">
+        <Eyebrow className="mb-2.5 px-1">
+          {recent.length > 0 ? "Or try" : "Try"}
+        </Eyebrow>
+        <div className="flex flex-wrap gap-2">
           {STARTERS.map((t) => (
-            <button
-              key={t}
-              onClick={() => onPick(t)}
-              className="text-[12px] px-3 py-1.5 rounded-full"
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--muted)",
-              }}
-            >
+            <ChipButton key={t} onClick={() => onPick(t)}>
               {t}
-            </button>
+            </ChipButton>
           ))}
         </div>
       </div>
@@ -449,25 +403,11 @@ function ResultGroup({
 }) {
   return (
     <section>
-      <div className="flex items-baseline justify-between mb-2">
-        <h2
-          className="text-[11px] uppercase tracking-wider"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-          }}
-        >
-          {title}
-        </h2>
-        <span
-          className="text-[11px]"
-          style={{ color: "var(--muted)" }}
-        >
-          {count}
-        </span>
+      <div className="mb-2.5 flex items-baseline justify-between px-1">
+        <Eyebrow>{title}</Eyebrow>
+        <span className="text-caption tabular-nums text-[var(--muted)]">{count}</span>
       </div>
-      <div className="rounded-2xl card-glass overflow-hidden">{children}</div>
+      <ListGroup>{children}</ListGroup>
     </section>
   );
 }
@@ -480,60 +420,18 @@ function ResultRow({
   badge,
 }: {
   href: string;
-  icon: Parameters<typeof Icon>[0]["name"];
+  icon: IconName;
   primary: string;
   secondary?: string | null;
   badge?: string | null;
 }) {
   return (
-    <Link
+    <ListRow
       href={href}
-      className="flex items-center gap-3 px-4 py-3"
-      style={{ borderBottom: "1px solid var(--border)" }}
-    >
-      <span
-        className="shrink-0 h-8 w-8 rounded-lg flex items-center justify-center"
-        style={{
-          background: "var(--olive-tint)",
-          color: "var(--olive)",
-        }}
-      >
-        <Icon name={icon} size={15} strokeWidth={1.7} />
-      </span>
-      <div className="flex-1 min-w-0">
-        <div
-          className="text-[14px] truncate"
-          style={{ fontWeight: 500 }}
-        >
-          {primary}
-        </div>
-        {secondary && (
-          <div
-            className="text-[12px] truncate"
-            style={{ color: "var(--muted)" }}
-          >
-            {secondary}
-          </div>
-        )}
-      </div>
-      {badge && (
-        <span
-          className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0"
-          style={{
-            background: "var(--surface-alt)",
-            color: "var(--muted)",
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-          }}
-        >
-          {badge}
-        </span>
-      )}
-      <Icon
-        name="chevron-right"
-        size={14}
-        className="shrink-0 opacity-40"
-      />
-    </Link>
+      icon={icon}
+      title={primary}
+      subtitle={secondary || undefined}
+      trailing={badge ? <Chip size="sm">{badge}</Chip> : undefined}
+    />
   );
 }

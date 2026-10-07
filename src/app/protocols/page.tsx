@@ -1,7 +1,7 @@
 "use client";
 
-// /protocols — browse + manage. Enrolled protocols get hero treatment;
-// the rest live in a Discover grid.
+// /protocols — browse + manage. Enrolled protocols show progress up top;
+// the rest live in a Discover list.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import {
   listProtocols,
   formatDuration,
   isProtocolEnrollable,
+  protocolIcon,
   PROTOCOL_CATEGORY_LABELS,
 } from "@/lib/protocols";
 import { getEnrollments } from "@/lib/storage";
@@ -16,15 +17,10 @@ import type { Protocol, ProtocolCategory } from "@/lib/types";
 import Icon from "@/components/Icon";
 import EmptyState from "@/components/EmptyState";
 import { SkeletonCard } from "@/components/Skeleton";
-
-const CATEGORIES: ("all" | ProtocolCategory)[] = [
-  "all",
-  "recovery",
-  "fitness",
-  "posture",
-  "sleep",
-  "metabolic",
-];
+import PageHeader from "@/components/ui/PageHeader";
+import Card, { cardClass } from "@/components/ui/Card";
+import Chip, { ChipButton } from "@/components/ui/Chip";
+import { SectionHeader } from "@/components/ui/Section";
 
 type EnrollmentSummary = {
   protocol_slug: string;
@@ -38,292 +34,191 @@ export default function ProtocolsBrowsePage() {
     null,
   );
   const [filter, setFilter] = useState<"all" | ProtocolCategory>("all");
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
-    (async () => {
-      try {
-        const list = await getEnrollments();
-        setEnrollments(list);
-      } catch {
-        setEnrollments([]);
-      }
-    })();
+    getEnrollments()
+      .then(setEnrollments)
+      .catch(() => setEnrollments([]));
   }, []);
 
-  const enrolledMap = useMemo(() => {
-    return new Map(
-      (enrollments ?? [])
-        .filter((e) => e.status === "active")
-        .map((e) => [e.protocol_slug, e]),
-    );
-  }, [enrollments]);
+  const enrolledMap = useMemo(
+    () =>
+      new Map(
+        (enrollments ?? [])
+          .filter((e) => e.status === "active")
+          .map((e) => [e.protocol_slug, e]),
+      ),
+    [enrollments],
+  );
+
+  // Only offer filters for categories that actually have protocols.
+  const categories = useMemo(() => {
+    const seen = new Set<ProtocolCategory>();
+    protocols.forEach((p) => seen.add(p.category));
+    return ["all", ...seen] as ("all" | ProtocolCategory)[];
+  }, [protocols]);
 
   const enrolledProtocols = protocols.filter((p) => enrolledMap.has(p.slug));
-
   const discoverProtocols = protocols
     .filter((p) => !enrolledMap.has(p.slug))
-    .filter((p) => filter === "all" || p.category === filter);
+    .filter((p) => filter === "all" || p.category === filter)
+    // Enrollable first, "coming soon" last.
+    .sort(
+      (a, b) =>
+        Number(isProtocolEnrollable(b)) - Number(isProtocolEnrollable(a)),
+    );
 
   return (
     <div className="pb-24">
-      <header className="mb-7">
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Protocols
-        </h1>
-        <p
-          className="text-[14px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Prebuilt regimens, refined to you. Enroll once and items
-          auto-populate Today as their day arrives.
-        </p>
-      </header>
+      <PageHeader
+        title="Protocols"
+        subtitle="Day-by-day plans. Start one and its items appear on Today as each day arrives."
+      />
 
-      {/* Enrolled — hero treatment */}
       {enrollments === null ? (
-        <section className="mb-7">
-          <SectionHeader title="Your protocols" />
-          <SkeletonCard height={140} />
+        <section className="mb-2">
+          <SkeletonCard height={120} />
         </section>
       ) : enrolledProtocols.length > 0 ? (
-        <section className="mb-7">
-          <SectionHeader
-            title="Your protocols"
-            subtitle={`${enrolledProtocols.length} active`}
-          />
+        <section>
+          <SectionHeader title="Following" className="!mt-0" />
           <div className="flex flex-col gap-3">
             {enrolledProtocols.map((p) => (
-              <HeroEnrolledCard
+              <EnrolledCard
                 key={p.slug}
                 protocol={p}
                 startDate={enrolledMap.get(p.slug)!.start_date}
+                now={now}
               />
             ))}
           </div>
         </section>
       ) : null}
 
-      {/* Filter chips */}
-      <section className="mb-3">
-        <SectionHeader
-          title={enrolledProtocols.length > 0 ? "Discover more" : "Discover"}
-        />
-        <div className="-mx-4">
-          <div
-            className="flex gap-2 px-4 overflow-x-auto pb-1"
-            style={{
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-              WebkitOverflowScrolling: "touch",
-            }}
-          >
-            {CATEGORIES.map((c) => {
-              const active = filter === c;
-              return (
-                <button
-                  key={c}
-                  onClick={() => setFilter(c)}
-                  className="shrink-0 text-[12px] px-3.5 py-2 rounded-full transition-all"
-                  style={{
-                    background: active ? "var(--olive)" : "var(--surface)",
-                    color: active ? "#FFFFFF" : "var(--foreground)",
-                    border: active
-                      ? "1px solid var(--olive)"
-                      : "1px solid var(--border)",
-                    fontWeight: active ? 600 : 500,
-                    minHeight: "32px",
-                  }}
-                >
-                  {c === "all" ? "All" : PROTOCOL_CATEGORY_LABELS[c] ?? c}
-                </button>
-              );
-            })}
-          </div>
+      <SectionHeader
+        title={enrolledProtocols.length > 0 ? "Discover more" : "Discover"}
+        className={enrolledProtocols.length > 0 ? "" : "!mt-0"}
+      />
+      <div className="-mx-5 mb-4 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex gap-2 py-1.5">
+          {categories.map((c) => (
+            <ChipButton
+              key={c}
+              selected={filter === c}
+              onClick={() => setFilter(c)}
+              className="shrink-0"
+            >
+              {c === "all" ? "All" : (PROTOCOL_CATEGORY_LABELS[c] ?? c)}
+            </ChipButton>
+          ))}
         </div>
-      </section>
+      </div>
 
-      {/* Discover grid */}
       {enrollments === null ? (
         <div className="flex flex-col gap-2">
-          <SkeletonCard height={88} />
-          <SkeletonCard height={88} />
-          <SkeletonCard height={88} />
+          <SkeletonCard height={96} />
+          <SkeletonCard height={96} />
         </div>
       ) : discoverProtocols.length > 0 ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {discoverProtocols.map((p) => (
             <DiscoverCard key={p.slug} protocol={p} />
           ))}
         </div>
       ) : (
         <EmptyState
-          icon="🔎"
-          title="Nothing matching."
-          body="Try a different category or check back soon — new protocols ship regularly."
+          glyph="search"
+          title="Nothing here yet"
+          body="Try another category. New protocols are on the way."
         />
       )}
 
-      {/* How it works — small, low key */}
-      <section
-        className="mt-8 rounded-2xl p-5"
-        style={{
-          background: "var(--olive-tint)",
-          border: "1px solid var(--accent-glow)",
-        }}
-      >
-        <SectionHeader title="How protocols work" />
-        <ul
-          className="text-[13px] flex flex-col gap-1.5 leading-relaxed"
-          style={{ color: "var(--foreground)", opacity: 0.85 }}
-        >
-          <li>
-            <strong>Day-gated.</strong> Items appear on /today when their day
-            opens (e.g., minoxidil unlocks Day 14, microneedling Day 30).
-          </li>
-          <li>
-            <strong>Research-backed.</strong> Each item cites why and when it
-            should help. No vibes.
-          </li>
-          <li>
-            <strong>Refinement-first.</strong> Coach reads your skips +
-            reactions and recommends drops as you go.
-          </li>
-          <li>
-            <strong>Stackable.</strong> Enroll in multiple. They merge cleanly
-            on /today.
-          </li>
+      <SectionHeader title="How protocols work" />
+      <Card padding="md">
+        <ul className="flex flex-col gap-3">
+          {[
+            ["calendar", "Day by day", "Items show up on Today when their day arrives."],
+            ["book", "Explained", "Each item says why it's there and when it should help."],
+            ["trend-down", "Trimmed as you go", "Coach reads your skips and suggests what to drop."],
+            ["list-ordered", "Stackable", "Follow more than one; they merge on Today."],
+          ].map(([icon, title, body]) => (
+            <li key={title} className="flex items-start gap-3">
+              <Icon
+                name={icon as Parameters<typeof Icon>[0]["name"]}
+                size={18}
+                strokeWidth={1.8}
+                className="mt-0.5 shrink-0 text-[var(--muted)]"
+              />
+              <div>
+                <div className="text-callout font-semibold">{title}</div>
+                <div className="text-footnote text-[var(--muted)]">{body}</div>
+              </div>
+            </li>
+          ))}
         </ul>
-      </section>
+      </Card>
     </div>
   );
 }
 
-function SectionHeader({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle?: string;
-}) {
+function CoverTile({ protocol, size = 44 }: { protocol: Protocol; size?: number }) {
   return (
-    <div className="mb-3 flex items-baseline justify-between gap-2">
-      <h2
-        className="text-[11px] uppercase tracking-wider"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 600,
-          letterSpacing: "0.06em",
-        }}
-      >
-        {title}
-      </h2>
-      {subtitle && (
-        <span
-          className="text-[11px]"
-          style={{ color: "var(--muted)" }}
-        >
-          {subtitle}
-        </span>
-      )}
-    </div>
+    <span
+      aria-hidden
+      className="flex shrink-0 items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--surface-alt)] text-[var(--foreground-soft)]"
+      style={{ width: size, height: size }}
+    >
+      <Icon name={protocolIcon(protocol)} size={Math.round(size * 0.46)} strokeWidth={1.8} />
+    </span>
   );
 }
 
-function HeroEnrolledCard({
+function EnrolledCard({
   protocol,
   startDate,
+  now,
 }: {
   protocol: Protocol;
   startDate: string;
+  now: number;
 }) {
-  const start = new Date(startDate);
-  const dayN = Math.max(
-    0,
-    Math.floor((Date.now() - start.getTime()) / 86400000),
-  ) + 1;
-  const totalDays = protocol.duration_days;
-  const progress = Math.min(100, Math.round((dayN / totalDays) * 100));
+  const dayN =
+    Math.max(0, Math.floor((now - new Date(startDate).getTime()) / 86400000)) + 1;
+  const total = protocol.duration_days;
+  const progress = Math.min(100, Math.round((dayN / total) * 100));
+  const left = total - dayN;
 
   return (
     <Link
       href={`/protocols/${protocol.slug}`}
-      className="block rounded-3xl p-5 pressable relative overflow-hidden"
-      style={{
-        background:
-          "linear-gradient(135deg, var(--olive) 0%, var(--olive-deep) 100%)",
-        color: "#FFFFFF",
-        boxShadow: "0 12px 36px var(--accent-glow)",
-      }}
+      className={cardClass({ variant: "raised", padding: "lg", interactive: true, className: "block" })}
     >
-      <div className="flex items-start gap-3 mb-4 relative">
-        <div
-          className="text-[36px] leading-none shrink-0"
-          aria-hidden
-          style={{
-            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.15))",
-          }}
-        >
-          {protocol.cover_emoji ?? "📋"}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span
-              className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
-              style={{
-                background: "rgba(255, 255, 255, 0.18)",
-                color: "#FFFFFF",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-              }}
-            >
-              Active · Day {dayN} / {totalDays}
-            </span>
-          </div>
-          <div
-            className="text-[19px] leading-tight"
-            style={{ fontWeight: 600, letterSpacing: "-0.01em" }}
-          >
-            {protocol.name}
-          </div>
-          <div
-            className="text-[13px] mt-1 leading-snug"
-            style={{ opacity: 0.82 }}
-          >
-            {protocol.tagline}
+      <div className="flex items-start gap-3">
+        <CoverTile protocol={protocol} />
+        <div className="min-w-0 flex-1">
+          <div className="text-body font-semibold">{protocol.name}</div>
+          <div className="mt-0.5 text-footnote text-[var(--muted)]">
+            Day {Math.min(dayN, total)} of {total}
           </div>
         </div>
+        <Icon name="chevron-right" size={18} strokeWidth={2} className="mt-1 shrink-0 text-[var(--muted)]" />
       </div>
-
-      {/* Progress bar */}
       <div
-        className="h-1.5 rounded-full overflow-hidden"
-        style={{ background: "rgba(255, 255, 255, 0.18)" }}
-        aria-label={`${progress}% complete`}
+        className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--border)]"
+        role="progressbar"
+        aria-valuenow={progress}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${protocol.name} progress`}
       >
         <div
-          className="h-full rounded-full"
-          style={{
-            width: `${progress}%`,
-            background: "rgba(255, 255, 255, 0.85)",
-          }}
+          className={`h-full rounded-full ${left > 0 ? "bg-[var(--foreground)]" : "bg-[var(--success)]"}`}
+          style={{ width: `${progress}%` }}
         />
       </div>
-      <div
-        className="text-[11px] mt-2 flex items-center justify-between"
-        style={{ opacity: 0.78 }}
-      >
-        <span>
-          {totalDays - dayN > 0
-            ? `${totalDays - dayN} days remaining`
-            : "Protocol complete"}
-        </span>
-        <span className="flex items-center gap-1">
-          View
-          <Icon name="chevron-right" size={12} strokeWidth={2} />
-        </span>
+      <div className="mt-2 text-caption text-[var(--muted)]">
+        {left > 0 ? `${left} days to go` : "Complete"}
       </div>
     </Link>
   );
@@ -331,103 +226,46 @@ function HeroEnrolledCard({
 
 function DiscoverCard({ protocol }: { protocol: Protocol }) {
   const enrollable = isProtocolEnrollable(protocol);
-  // Non-enrollable protocols can't be tapped through to a dead detail
-  // page. Render as a plain div with reduced opacity instead.
-  // (Inlined the conditional rather than building a Wrapper component
-  // mid-render — React 19's rules-of-hooks linter flags the latter.)
   const inner = (
     <>
-      <div
-        className="text-[26px] leading-none shrink-0 h-12 w-12 rounded-xl flex items-center justify-center"
-        style={{
-          background: enrollable ? "var(--olive-tint)" : "var(--surface-alt)",
-        }}
-        aria-hidden
-      >
-        {protocol.cover_emoji ?? "📋"}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-          <span
-            className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-            style={{
-              background: "var(--olive-tint)",
-              color: "var(--olive)",
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-            }}
-          >
-            {PROTOCOL_CATEGORY_LABELS[protocol.category] ?? protocol.category}
-          </span>
-          <span
-            className="text-[11px]"
-            style={{ color: "var(--muted)" }}
-          >
-            {formatDuration(protocol.duration_days)}
-          </span>
-          {protocol.pricing_cents > 0 && (
-            <span
-              className="text-[11px] px-1.5 py-0.5 rounded-full"
-              style={{
-                background: "var(--pro-tint)",
-                color: "var(--purple)",
-                fontWeight: 600,
-              }}
-            >
-              ${(protocol.pricing_cents / 100).toFixed(0)}
-            </span>
-          )}
-        </div>
-        <div
-          className="text-[15px] leading-snug"
-          style={{ fontWeight: 500 }}
-        >
-          {protocol.name}
-        </div>
-        <div
-          className="text-[12px] mt-0.5 leading-snug line-clamp-2"
-          style={{ color: "var(--muted)" }}
-        >
+      <CoverTile protocol={protocol} />
+      <div className="min-w-0 flex-1">
+        <div className="text-body font-semibold">{protocol.name}</div>
+        <p className="mt-0.5 line-clamp-2 text-footnote text-[var(--muted)]">
           {protocol.tagline}
-        </div>
-        <div className="flex items-center gap-2 mt-1.5">
-          {enrollable ? (
-            <span
-              className="text-[11px] flex items-center gap-1"
-              style={{ color: "var(--olive)", fontWeight: 600 }}
-            >
-              {protocol.items.length} items
-              <Icon name="chevron-right" size={11} strokeWidth={2} />
-            </span>
-          ) : (
-            <span
-              className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
-              style={{
-                background: "var(--surface-alt)",
-                color: "var(--muted)",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-              }}
-            >
-              Coming soon
-            </span>
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <Chip>
+            {PROTOCOL_CATEGORY_LABELS[protocol.category] ?? protocol.category}
+          </Chip>
+          <span className="text-caption text-[var(--muted)]">
+            {formatDuration(protocol.duration_days)}
+            {enrollable && ` · ${protocol.items.length} items`}
+          </span>
+          {!enrollable && <Chip>Coming soon</Chip>}
+          {protocol.pricing_cents > 0 && (
+            <Chip tone="premium">
+              ${(protocol.pricing_cents / 100).toFixed(0)}
+            </Chip>
           )}
         </div>
       </div>
+      {enrollable && (
+        <Icon name="chevron-right" size={18} strokeWidth={2} className="mt-1 shrink-0 text-[var(--muted)]" />
+      )}
     </>
   );
 
   return enrollable ? (
     <Link
       href={`/protocols/${protocol.slug}`}
-      className="rounded-2xl card-glass p-3.5 flex gap-3 items-start pressable"
+      className={cardClass({ padding: "md", interactive: true, className: "flex items-start gap-3" })}
     >
       {inner}
     </Link>
   ) : (
     <div
-      className="rounded-2xl card-glass p-3.5 flex gap-3 items-start"
-      style={{ opacity: 0.7 }}
+      className={cardClass({ padding: "md", className: "flex items-start gap-3 opacity-60" })}
       aria-disabled
     >
       {inner}

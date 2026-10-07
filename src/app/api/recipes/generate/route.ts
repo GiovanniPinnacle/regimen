@@ -5,11 +5,19 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  extractJson,
+  assertCompleted,
+  llmErrorResponse,
+} from "@/lib/anthropic";
+import { jsonError, readJson, internalError } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
-  buildContextForCurrentUser,
-  contextToSystemPrompt,
+  buildContextForUser,
+  contextToCachedSystem,
 } from "@/lib/context";
 import type { Goal } from "@/lib/types";
 
@@ -44,9 +52,11 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
-  const body = (await request.json()) as GenerateBody;
+  const parsedBody = await readJson<GenerateBody>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
   if (!body.fridge?.trim()) {
     return NextResponse.json({ error: "Missing fridge contents" }, { status: 400 });
   }
@@ -54,17 +64,16 @@ export async function POST(request: NextRequest) {
   const limited = await rateLimitOrError(user.id, "enrich");
   if (limited) return limited;
 
-  const ctx = await buildContextForCurrentUser();
-  const baseSystem = contextToSystemPrompt(ctx);
+  const ctx = await buildContextForUser(user.id);
 
   const perMeal = ctx.macros?.per_meal;
   const targetLine = perMeal
     ? `Target macros for this single serving: ~${perMeal.calories} kcal · ${perMeal.protein_g}g protein · ${perMeal.fat_g}g fat · ${perMeal.carbs_g}g carbs.`
     : `No macro targets set — use reasonable portions (~500–700 kcal, ~35–50g protein).`;
 
-  const system = `${baseSystem}
-
-# RECIPE GENERATION MODE
+  const system = contextToCachedSystem(
+    ctx,
+    `# RECIPE GENERATION MODE
 You are generating a single recipe. Respond with VALID JSON ONLY — no markdown fences, no commentary.
 
 ${targetLine}
@@ -90,7 +99,8 @@ Required JSON shape:
   "instructions": "1. step one\\n2. step two\\n…",
   "tags": ["..."],
   "goals": ["..."]
-}`;
+}`,
+  );
 
   const userMsg = `Style: ${body.style ?? "bowl"}
 Meal: ${body.meal_type ?? "lunch"}
@@ -105,7 +115,7 @@ Generate one recipe. JSON only.`;
   try {
     const res = await anthropic.messages.create({
       ...MODEL_OPTS.chat,
-      max_tokens: 2048,
+      max_tokens: 4096,
       system,
       messages: [{ role: "user", content: userMsg }],
     });
@@ -118,12 +128,9 @@ Generate one recipe. JSON only.`;
       tokens_in: res.usage?.input_tokens,
       tokens_out: res.usage?.output_tokens,
     });
+    assertCompleted(res);
   } catch (err) {
-    console.error("recipes/generate claude error", err);
-    return NextResponse.json(
-      { error: `Coach error: ${(err as Error).message}` },
-      { status: 500 },
-    );
+    return llmErrorResponse(err) ?? internalError("/api/recipes/generate", err);
   }
 
   // Extract JSON — Coach sometimes wraps in fences despite instructions
@@ -133,10 +140,7 @@ Generate one recipe. JSON only.`;
     parsed = JSON.parse(jsonText);
   } catch {
     console.error("recipes/generate JSON parse failed, raw:", raw);
-    return NextResponse.json(
-      { error: "Coach did not return valid JSON. Try again." },
-      { status: 500 },
-    );
+    return jsonError("bad_llm_json", "Coach did not return valid JSON. Try again.", 502);
   }
 
   const name = String(parsed.name ?? "Untitled recipe").slice(0, 120);
@@ -206,16 +210,6 @@ Generate one recipe. JSON only.`;
   return NextResponse.json({ id: inserted.id });
 }
 
-function extractJson(raw: string): string {
-  // Strip ```json fences if present
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fenced) return fenced[1].trim();
-  // Otherwise return content between first { and last }
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start >= 0 && end > start) return raw.slice(start, end + 1);
-  return raw.trim();
-}
 
 function toInt(v: unknown, fallback: number | null): number | null {
   if (v == null) return fallback;

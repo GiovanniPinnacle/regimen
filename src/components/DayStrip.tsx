@@ -11,6 +11,7 @@
 import { useEffect, useRef } from "react";
 import type { TimingSlot } from "@/lib/types";
 import { TIMING_LABELS } from "@/lib/constants";
+import Icon from "@/components/Icon";
 
 export type SlotStat = {
   slot: TimingSlot;
@@ -33,16 +34,16 @@ type Props = {
   onChange: (slot: TimingSlot | "all") => void;
 };
 
-// Compact labels for the horizontal strip — full labels are too wide.
-const SLOT_SHORT: Record<TimingSlot, string> = {
-  pre_breakfast: "Pre-AM",
+// Strip labels — same words as the slot headers below the strip.
+export const SLOT_SHORT: Record<TimingSlot, string> = {
+  pre_breakfast: "Pre-breakfast",
   breakfast: "Breakfast",
-  pre_workout: "Pre-WO",
+  pre_workout: "Pre-workout",
   lunch: "Lunch",
   dinner: "Dinner",
   pre_bed: "Pre-bed",
-  ongoing: "Ongoing",
-  situational: "PRN",
+  ongoing: "All day",
+  situational: "As needed",
 };
 
 // Time ranges that match slotIsPast() / slotForHour() in /today/page.tsx.
@@ -85,10 +86,10 @@ export default function DayStrip({
   const allDone = totalAll > 0 && totalTaken === totalAll;
 
   return (
-    <div className="-mx-4 mb-4">
+    <div className="-mx-5 mb-3">
       <div
         ref={containerRef}
-        className="flex gap-2 px-4 overflow-x-auto pb-3 pt-1"
+        className="flex gap-2 overflow-x-auto px-5 pt-1 pb-2"
         style={{
           scrollbarWidth: "none",
           msOverflowStyle: "none",
@@ -98,7 +99,7 @@ export default function DayStrip({
         <Pill
           label="All"
           time="day"
-          sub={allDone ? "✓" : `${totalTaken}/${totalAll}`}
+          sub={allDone ? "done" : `${totalTaken}/${totalAll}`}
           active={active === "all"}
           done={allDone}
           onClick={() => onChange("all")}
@@ -112,7 +113,7 @@ export default function DayStrip({
             : s.noCheckoff
               ? `${s.total}`
               : done
-                ? "✓"
+                ? "done"
                 : `${s.taken}/${s.total}`;
           return (
             <Pill
@@ -156,89 +157,47 @@ function Pill({
   dim?: boolean;
   onClick: () => void;
 }) {
-  // Active pill is bigger + raised. Now (current time) gets a left
-  // accent stripe even when not active so the user can spot "where
-  // they are" while looking at a different slot.
-  const bg = active
-    ? "var(--olive)"
+  // Selection is neutral (inverted white). Green only marks a finished
+  // slot. "Now" gets a stronger outline so you can spot it while
+  // looking at another slot.
+  const shell = active
+    ? "bg-[var(--primary)] text-[var(--primary-fg)] border-[var(--primary)]"
     : done
-      ? "var(--olive-tint)"
+      ? "bg-[var(--success-tint)] border-transparent"
       : now
-        ? "var(--surface)"
-        : "transparent";
-  const border = active
-    ? "1px solid var(--olive)"
+        ? "bg-[var(--surface)] border-[var(--border-strong)]"
+        : "bg-transparent border-[var(--border)]";
+  const soft = active ? "text-[var(--primary-fg)]/70" : "text-[var(--muted)]";
+  const main = active
+    ? "text-[var(--primary-fg)]"
     : done
-      ? "1px solid transparent"
-      : now
-        ? "1px solid var(--olive)"
-        : "1px solid var(--border)";
-  const subColor = active
-    ? "#FFFFFF"
-    : done
-      ? "var(--olive)"
-      : dim
-        ? "var(--muted)"
-        : "var(--foreground)";
+      ? "text-[var(--success)]"
+      : "text-[var(--foreground)]";
 
   return (
     <button
+      type="button"
       data-active={active ? "true" : "false"}
       onClick={onClick}
-      className="shrink-0 rounded-2xl transition-all relative flex flex-col items-center justify-center text-center"
-      style={{
-        background: bg,
-        border,
-        boxShadow: active
-          ? "0 6px 18px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.18)"
-          : now
-            ? "0 2px 8px rgba(0, 0, 0, 0.32)"
-            : undefined,
-        minWidth: active ? 96 : 84,
-        padding: active ? "10px 14px" : "9px 12px",
-        opacity: dim && !active ? 0.55 : 1,
-        transform: active ? "translateY(-1px)" : undefined,
-      }}
       aria-pressed={active}
+      aria-label={`${label}, ${time}, ${sub === "done" ? "done" : sub}${now ? ", now" : ""}${past ? ", items left" : ""}`}
+      className={`relative flex min-h-[60px] min-w-[76px] shrink-0 flex-col items-center justify-center rounded-[16px] border px-3 py-2 text-center transition-colors ${shell} ${dim && !active ? "opacity-55" : ""}`}
     >
-      <div
-        className="text-[10px] uppercase tracking-wider"
-        style={{
-          color: active
-            ? "rgba(255, 255, 255, 0.82)"
-            : now
-              ? "var(--olive)"
-              : "var(--muted)",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
-        {time}
-      </div>
-      <div
-        className="text-[12px] mt-0.5 leading-none"
-        style={{
-          color: active
-            ? "#FFFFFF"
-            : now
-              ? "var(--olive)"
-              : "var(--foreground-soft)",
-          fontWeight: now || active ? 700 : 600,
-        }}
-      >
+      <span className={`text-eyebrow uppercase ${soft}`}>
+        {now && !active ? "Now" : time}
+      </span>
+      <span className={`mt-0.5 text-caption font-semibold leading-none ${main}`}>
         {label}
-      </div>
-      <div
-        className="text-[14px] mt-1 leading-none tabular-nums"
-        style={{ color: subColor, fontWeight: 700 }}
+      </span>
+      <span
+        className={`mt-1 flex h-4 items-center text-footnote font-semibold leading-none tabular-nums ${main}`}
       >
-        {sub}
-      </div>
+        {sub === "done" ? <Icon name="check" size={15} strokeWidth={2.6} /> : sub}
+      </span>
       {past && !active && (
         <span
-          className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full"
-          style={{ background: "var(--warn)" }}
-          aria-label="overdue"
+          aria-hidden
+          className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[var(--warn)]"
         />
       )}
     </button>

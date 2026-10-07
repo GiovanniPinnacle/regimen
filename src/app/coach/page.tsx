@@ -1,71 +1,29 @@
 "use client";
 
-// /coach — the destination tab for the AI coach. Three zones:
-//   1. Pulse summary — what Coach has noticed today (insights,
-//      milestone check-ins, suggestions, patterns)
-//   2. Lenses — focused prompts ("What should I drop?", "What's
-//      slowing me down?") that fire Coach with structured context
-//   3. Recent conversations — the last 8 chats Coach has had with
-//      the user, tap to resume
-//
-// Tapping anywhere "ask" opens the same Coach overlay that the FAB
-// triggers — single conversation surface, multiple entry points.
+// /coach — Coach's notes and history. Not a tab any more: reached from
+// You and from Today's "Coach has N notes" row. Chat itself is the
+// Coach overlay (openCoach); this page is the hub around it:
+//   1. Today's notes — check-ins, notes, ideas, picks, patterns. One
+//      "all caught up" state when every surface is empty.
+//   2. Suggested questions — one stage-aware set.
+//   3. Recent conversations — tap to read the thread in history.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Card from "@/components/ui/Card";
+import { SectionHeader } from "@/components/ui/Section";
+import { ListGroup } from "@/components/ui/ListRow";
 import Icon from "@/components/Icon";
 import InsightsBanner from "@/components/InsightsBanner";
 import MilestoneCheckins from "@/components/MilestoneCheckins";
 import PatternCard from "@/components/PatternCard";
 import SmartSuggestions from "@/components/SmartSuggestions";
 import CatalogPicks from "@/components/CatalogPicks";
+import CoachQuickActions from "@/components/CoachQuickActions";
 import { createClient } from "@/lib/supabase/client";
-
-type IconName = Parameters<typeof Icon>[0]["name"];
-
-const LENSES: Array<{
-  label: string;
-  icon: IconName;
-  accent: string;
-  prompt: string;
-}> = [
-  {
-    label: "What should I drop?",
-    icon: "trend-down",
-    accent: "var(--error)",
-    prompt:
-      "Audit my stack for items I should drop. Focus on items where I've reacted 'no change' 5+ times, 'worse' 2+ times, or skipped them entirely for 14+ days. Emit each drop as a one-tap proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: retire.",
-  },
-  {
-    label: "What's slowing me down?",
-    icon: "alert",
-    accent: "var(--warn)",
-    prompt:
-      "Look at my last 14 days of skips, reactions, voice memos. What's the single biggest blocker right now? Give me ONE concrete fix and emit it as a proposal in <<<PROPOSAL ... PROPOSAL>>> format.",
-  },
-  {
-    label: "What should I add?",
-    icon: "sparkle",
-    accent: "var(--pro)",
-    prompt:
-      "Based on my goals, current stack, and recent reactions — what's the single most-impactful item to add right now? Emit as a proposal in <<<PROPOSAL ... PROPOSAL>>> format with action: add.",
-  },
-  {
-    label: "How am I tracking?",
-    icon: "graph",
-    accent: "var(--accent)",
-    prompt:
-      "Walk me through my last 30 days. Adherence trends, what helped, what I dropped, what's slipping. End with one focused recommendation.",
-  },
-];
-
-type RecentChat = {
-  id: string;
-  first_message: string | null;
-  last_message: string | null;
-  message_count: number;
-  updated_at: string;
-};
+import { openCoach } from "@/lib/coach-events";
 
 type ConversationRow = {
   id: string;
@@ -73,8 +31,9 @@ type ConversationRow = {
   messages_json: { user?: unknown; assistant?: unknown } | null;
 };
 
-/** Flatten a stored message (plain string or Anthropic content blocks)
- *  to display text. Mirrors userTextFromJson in /coach-history. */
+type RecentChat = { id: string; question: string; answer: string; at: string };
+
+/** Flatten a stored message (plain string or content blocks) to text. */
 function messageText(j: unknown): string {
   if (typeof j === "string") return j;
   if (Array.isArray(j)) {
@@ -86,211 +45,185 @@ function messageText(j: unknown): string {
   return "";
 }
 
-function toRecentChat(row: ConversationRow): RecentChat {
-  const userText = messageText(row.messages_json?.user).trim();
-  const assistantText = messageText(row.messages_json?.assistant).trim();
-  return {
-    id: row.id,
-    first_message: userText || null,
-    last_message: assistantText || null,
-    message_count: (userText ? 1 : 0) + (assistantText ? 1 : 0),
-    updated_at: row.created_at,
-  };
+/** Strip markdown + proposal blocks for a one-line preview. */
+function preview(t: string): string {
+  return t
+    .replace(/<<<PROPOSAL[\s\S]*?PROPOSAL>>>/g, "")
+    .replace(/[*_#`>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function relTime(iso: string): string {
+  const d = new Date(iso);
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days < 1)
+    return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (days < 7) return d.toLocaleDateString(undefined, { weekday: "short" });
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** Sum the pulse counts every note surface broadcasts, so the page can
+ *  show one "all caught up" state instead of five empty sections. */
+function useNoteCount(): { total: number; settled: boolean } {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    function onCount(e: Event) {
+      const d = (e as CustomEvent<{ bucket: string; count: number }>).detail;
+      if (!d) return;
+      setCounts((prev) =>
+        prev[d.bucket] === d.count ? prev : { ...prev, [d.bucket]: d.count },
+      );
+    }
+    window.addEventListener("regimen:pulse-count", onCount);
+    // Surfaces fetch independently; give them a moment before declaring
+    // the inbox empty.
+    const t = setTimeout(() => setSettled(true), 2500);
+    return () => {
+      window.removeEventListener("regimen:pulse-count", onCount);
+      clearTimeout(t);
+    };
+  }, []);
+  const total = Object.entries(counts)
+    .filter(([k]) => k !== "next_step")
+    .reduce((s, [, v]) => s + v, 0);
+  return { total, settled };
 }
 
 export default function CoachPage() {
   const [recent, setRecent] = useState<RecentChat[] | null>(null);
+  const notes = useNoteCount();
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const client = createClient();
-      // claude_conversations stores one row per turn:
-      // messages_json = { user: string | content-blocks, assistant: string }
-      // (see persistTurn in /api/ask). Derive the preview + count here.
-      const { data, error } = await client
+      // One row per turn: messages_json = { user, assistant }.
+      const { data, error } = await createClient()
         .from("claude_conversations")
         .select("id, created_at, messages_json")
         .order("created_at", { ascending: false })
-        .limit(8);
+        .limit(6);
       if (error) console.error("coach: claude_conversations", error);
-      if (alive) setRecent(((data ?? []) as ConversationRow[]).map(toRecentChat));
+      if (!alive) return;
+      setRecent(
+        ((data ?? []) as ConversationRow[])
+          .map((r) => ({
+            id: r.id,
+            question: preview(messageText(r.messages_json?.user)),
+            answer: preview(messageText(r.messages_json?.assistant)),
+            at: r.created_at,
+          }))
+          .filter((c) => c.question || c.answer),
+      );
     })();
     return () => {
       alive = false;
     };
   }, []);
 
-  function fireLens(prompt: string) {
-    window.dispatchEvent(
-      new CustomEvent("regimen:ask", {
-        detail: { text: prompt, send: true },
-      }),
-    );
-  }
-
-  function startNewChat() {
-    window.dispatchEvent(
-      new CustomEvent("regimen:ask", {
-        detail: { text: "", send: false },
-      }),
-    );
-  }
-
   return (
-    <div className="pb-24">
-      <header className="mb-5 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1
-            className="text-[34px] leading-tight"
-            style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
+    <div className="pb-28">
+      <PageHeader
+        back="/you"
+        backLabel="You"
+        title="Coach"
+        subtitle="Knows your stack and your data. Proposes — you approve."
+        showCoach={false}
+        actions={
+          <Button
+            variant="coach"
+            size="md"
+            icon="sparkle"
+            onClick={() => openCoach({ newChat: true })}
           >
-            Coach
-          </h1>
-          <p
-            className="text-[13px] mt-1 leading-relaxed"
-            style={{ color: "var(--foreground-soft)" }}
-          >
-            Knows your stack. Proposes — you approve.
-          </p>
-        </div>
-        <button
-          onClick={startNewChat}
-          aria-label="New chat with Coach"
-          className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl no-truncate"
-          style={{
-            background:
-              "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
-            color: "#FFFFFF",
-            fontWeight: 700,
-            minHeight: 40,
-            padding: "10px 14px",
-            fontSize: 13,
-            whiteSpace: "nowrap",
-            boxShadow:
-              "0 6px 18px rgba(139, 124, 252, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
-          }}
-        >
-          <Icon name="sparkle" size={12} strokeWidth={2.4} />
-          New chat
-        </button>
-      </header>
+            New chat
+          </Button>
+        }
+      />
 
-      {/* Lenses — focused prompts, one tap fires Coach with full
-          context. The fastest path from "I have a question" to "Coach
-          is answering with my data in context." */}
-      <section className="mb-6">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-2 px-0.5"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          Ask Coach
-        </h2>
-        <div className="grid grid-cols-2 gap-2">
-          {LENSES.map((l) => (
-            <button
-              key={l.label}
-              onClick={() => fireLens(l.prompt)}
-              className="rounded-2xl card-glass p-3.5 text-left flex flex-col gap-1.5"
-              style={{ minHeight: 88 }}
-            >
-              <span
-                className="h-7 w-7 rounded-lg flex items-center justify-center"
-                style={{
-                  background: `${l.accent}1F`,
-                  color: l.accent,
-                }}
-              >
-                <Icon name={l.icon} size={14} strokeWidth={1.8} />
-              </span>
-              <span
-                className="text-[13px] leading-snug"
-                style={{ fontWeight: 600 }}
-              >
-                {l.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Coach's notes today — same surfaces from the old CoachPulse
-          but now first-class on the Coach tab. Each renders as
-          one-at-a-time deck-of-cards. Returns null when nothing fresh. */}
-      <section className="mb-6">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-2 px-0.5"
-          style={{
-            color: "var(--muted)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          Today&apos;s notes
-        </h2>
+      <SectionHeader
+        className="mt-2"
+        title="Today's notes"
+        action={
+          notes.total > 0 ? (
+            <span className="text-footnote tabular-nums text-[var(--muted)]">
+              {notes.total} {notes.total === 1 ? "note" : "notes"}
+            </span>
+          ) : undefined
+        }
+      />
+      <div>
         <MilestoneCheckins />
         <InsightsBanner />
         <SmartSuggestions />
         <CatalogPicks />
         <PatternCard />
-      </section>
+      </div>
+      {notes.total === 0 && (
+        <Card padding="lg" className="text-center">
+          {notes.settled ? (
+            <>
+              <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[14px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+                <Icon name="check" size={20} strokeWidth={2} />
+              </span>
+              <div className="text-title-3">You&apos;re all caught up</div>
+              <p className="mx-auto mt-1 max-w-[280px] text-callout text-[var(--muted)]">
+                Coach will leave a note here when something in your data is
+                worth acting on.
+              </p>
+            </>
+          ) : (
+            <p className="text-callout text-[var(--muted)]">Checking for notes…</p>
+          )}
+        </Card>
+      )}
 
-      {/* Recent conversations — last 8 chats. Tap to resume. */}
-      {recent && recent.length > 0 && (
-        <section className="mb-6">
-          <div className="flex items-baseline justify-between mb-2 px-0.5">
-            <h2
-              className="text-[11px] uppercase tracking-wider"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Recent · {recent.length}
-            </h2>
+      <CoachQuickActions title="Ask Coach" layout="list" />
+
+      <SectionHeader
+        title="Recent conversations"
+        href={recent && recent.length > 0 ? "/coach-history" : undefined}
+        hrefLabel="All"
+      />
+      {recent == null ? (
+        <Card className="h-[160px] animate-pulse" />
+      ) : recent.length === 0 ? (
+        <Card padding="lg">
+          <p className="text-callout text-[var(--muted)]">
+            No conversations yet. Ask anything about your stack, sleep or
+            labs — every answer is saved here.
+          </p>
+        </Card>
+      ) : (
+        <ListGroup>
+          {recent.map((c) => (
             <Link
-              href="/coach-history"
-              className="text-[11px]"
-              style={{ color: "var(--accent)" }}
+              key={c.id}
+              href={`/coach-history#t-${c.id}`}
+              className="flex min-h-[64px] items-start gap-3 px-4 py-3 transition-colors active:bg-[var(--surface-alt)]"
             >
-              All →
-            </Link>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {recent.map((c) => (
-              <Link
-                key={c.id}
-                href={`/coach-history?id=${c.id}`}
-                className="rounded-xl card-glass px-3 py-2.5"
-              >
-                <div
-                  className="text-[13px] leading-snug line-clamp-2"
-                  style={{ fontWeight: 500 }}
-                >
-                  {c.first_message ?? "(empty)"}
-                </div>
-                <div
-                  className="flex items-baseline gap-2 mt-1 text-[11px]"
-                  style={{ color: "var(--muted)" }}
-                >
-                  <span className="tabular-nums">
-                    {new Date(c.updated_at).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                    })}
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--pro-tint)] text-[var(--pro-soft)]">
+                <Icon name="message" size={16} strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-callout font-semibold">
+                    {c.question || "Coach note"}
                   </span>
-                  <span>·</span>
-                  <span>{c.message_count} messages</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
+                  <span className="shrink-0 text-caption tabular-nums text-[var(--muted)]">
+                    {relTime(c.at)}
+                  </span>
+                </span>
+                {c.answer && (
+                  <span className="mt-0.5 line-clamp-2 text-footnote text-[var(--muted)]">
+                    {c.answer}
+                  </span>
+                )}
+              </span>
+            </Link>
+          ))}
+        </ListGroup>
       )}
     </div>
   );

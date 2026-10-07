@@ -1,247 +1,195 @@
-// /tests — all tests (active, queued, situational, retired) in one place.
-// Lives in /more so bloodwork doesn't pollute the daily Today/Stack flow.
-// Once a test is checked off, it sits here until time to retest.
+// /tests — Labs. Biomarkers grouped by range status (out of range
+// first), each with trend, reference range and range-aware change vs
+// the previous draw. Scheduled tests (items of type "test") below.
 
-import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Item } from "@/lib/types";
-import Icon from "@/components/Icon";
+import { daysBetween } from "@/lib/series";
+import {
+  biomarkerTrajectories,
+  type BiomarkerRow as BiomarkerDbRow,
+  type BiomarkerTrajectory,
+  type RangeStatus,
+} from "@/lib/insights/biomarkers";
+import { fetchAllRows } from "@/lib/insights/load";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import { SectionHeader, Stat } from "@/components/ui/Section";
+import ListRow, { ListGroup } from "@/components/ui/ListRow";
+import { ButtonLink } from "@/components/ui/Button";
 import BloodworkSection from "@/components/BloodworkSection";
+import BiomarkerRow, { markerHref } from "@/components/insights/BiomarkerRow";
+import { fmtShortDate } from "@/components/insights/WorkingItemCard";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_META: Record<
-  string,
-  { label: string; accent: string }
-> = {
-  active: { label: "Active / scheduled", accent: "var(--accent)" },
-  queued: { label: "Queued", accent: "var(--pro)" },
-  backburner: { label: "Backburner", accent: "var(--muted)" },
-  retired: { label: "Done / archived", accent: "var(--muted)" },
+type TestItem = {
+  id: string;
+  name: string;
+  brand: string | null;
+  status: string;
+  review_trigger: string | null;
 };
 
-const STATUS_ORDER = ["queued", "active", "backburner", "retired"];
+const GROUPS: { status: RangeStatus; title: string; eyebrow: string }[] = [
+  { status: "out", title: "Out of range", eyebrow: "Needs attention" },
+  { status: "near", title: "Borderline", eyebrow: "Inside range, close to the edge" },
+  { status: "in", title: "In range", eyebrow: "Comfortably inside" },
+  { status: "unknown", title: "No reference range", eyebrow: "Couldn't read a range" },
+];
 
-export default async function TestsPage() {
+const TEST_STATUS: Record<string, string> = {
+  queued: "Queued",
+  active: "Scheduled",
+  backburner: "Backburner",
+  retired: "Done",
+};
+
+export default async function TestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const sp = await searchParams;
+  const marker = typeof sp.marker === "string" ? sp.marker : null;
+  if (marker) redirect(markerHref(marker)); // legacy ?marker= links
+
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("items")
-    .select("*")
-    .eq("item_type", "test")
-    .order("status")
-    .order("name");
+  const [rows, testsRes] = await Promise.all([
+    fetchAllRows<BiomarkerDbRow>(
+      (a, b) =>
+        supabase
+          .from("biomarkers")
+          .select("name, display_name, value, unit, reference_range, flag, drawn_on, panel")
+          .order("drawn_on", { ascending: false })
+          .order("name")
+          .range(a, b),
+      "biomarkers",
+    ),
+    supabase
+      .from("items")
+      .select("id, name, brand, status, review_trigger")
+      .eq("item_type", "test")
+      .order("status")
+      .order("name"),
+  ]);
+  const tests = (testsRes.data ?? []) as TestItem[];
+  const markers = biomarkerTrajectories(rows);
 
-  const tests = (data ?? []) as Item[];
-  const grouped: Record<string, Item[]> = {};
-  for (const t of tests) {
-    if (!grouped[t.status]) grouped[t.status] = [];
-    grouped[t.status].push(t);
+  const drawDates = [...new Set(rows.map((r) => r.drawn_on.slice(0, 10)))].sort();
+  const latestDraw = drawDates[drawDates.length - 1] ?? null;
+  const prevDraw = drawDates.length > 1 ? drawDates[drawDates.length - 2] : null;
+  const onLatest = markers.filter((m) => m.latest.date === latestDraw);
+  const outCount = markers.filter((m) => m.status === "out").length;
+  const compared = markers.filter((m) => m.change != null && m.change !== "same");
+  const better = compared.filter((m) => m.change === "better").length;
+  const worse = compared.filter((m) => m.change === "worse").length;
+
+  const byStatus = new Map<RangeStatus, BiomarkerTrajectory[]>();
+  for (const m of markers) {
+    if (!byStatus.has(m.status)) byStatus.set(m.status, []);
+    byStatus.get(m.status)!.push(m);
   }
 
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            You
-          </Link>
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Bloodwork & tests
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          {tests.length} total · panels, scans, follow-ups. Hidden from Today +
-          Queued so they don&apos;t crowd daily flow.
-        </p>
-      </header>
+      <PageHeader
+        back="/you"
+        backLabel="You"
+        eyebrow="Bloodwork"
+        title="Labs"
+        subtitle={
+          latestDraw
+            ? `${markers.length} markers · ${drawDates.length} draw${drawDates.length === 1 ? "" : "s"} · latest ${fmtShortDate(latestDraw)}`
+            : "Upload a panel to track markers against their reference range."
+        }
+      />
 
-      {/* Bloodwork upload + recent biomarkers — Coach can read these
-          values for grounded recommendations once we wire the
-          biomarker context next round. */}
-      <BloodworkSection />
-
-      {tests.length > 0 && (
-        <div className="flex gap-2 mb-6">
-          <Link
-            href="/items/new"
-            className="text-[12.5px] px-3 py-2 rounded-xl flex items-center gap-1.5"
-            style={{
-              background: "var(--pro)",
-              color: "#FFFFFF",
-              fontWeight: 700,
-            }}
-          >
-            <Icon name="plus" size={12} strokeWidth={2.4} />
-            Add test
-          </Link>
-          <Link
-            href="/data"
-            className="text-[12.5px] px-3 py-2 rounded-xl flex items-center gap-1.5"
-            style={{
-              background: "var(--surface-alt)",
-              color: "var(--foreground-soft)",
-              fontWeight: 600,
-            }}
-          >
-            <Icon name="download" size={12} strokeWidth={2} />
-            Import results
-          </Link>
-        </div>
+      {markers.length > 0 && latestDraw && (
+        <Card padding="lg" className="mb-4">
+          <div className="grid grid-cols-3 gap-3">
+            <Stat label="Flagged" value={outCount} sub={`out of range, of ${markers.length}`} />
+            <Stat
+              label="Improved"
+              value={prevDraw ? better : "—"}
+              sub={prevDraw ? `${worse} worse` : "1 draw so far"}
+            />
+            <Stat
+              label="Latest"
+              value={fmtShortDate(latestDraw).split(" ")[1]}
+              unit={fmtShortDate(latestDraw).split(" ")[0]}
+              sub={`${onLatest.length} markers`}
+            />
+          </div>
+          {prevDraw && (
+            <p className="mt-3 border-t border-[var(--border)] pt-3 text-caption text-[var(--muted)]">
+              Change vs the previous draw ({fmtShortDate(prevDraw)}, {daysBetween(prevDraw, latestDraw)} days
+              earlier). “Improved” means moved toward or further inside the reference range;
+              {" "}
+              {compared.length < markers.length
+                ? `${markers.length - compared.length} stayed about the same or have one draw.`
+                : "every marker moved."}
+            </p>
+          )}
+        </Card>
       )}
 
-      {STATUS_ORDER.map((status) => {
-        const list = grouped[status];
-        if (!list || list.length === 0) return null;
-        const meta = STATUS_META[status] ?? STATUS_META.active;
+      <BloodworkSection />
+
+      {GROUPS.map(({ status, title, eyebrow }) => {
+        const list = byStatus.get(status);
+        if (!list?.length) return null;
         return (
-          <section key={status} className="mb-7">
-            <div className="flex items-baseline justify-between mb-2.5">
-              <h2
-                className="text-[11px] uppercase tracking-wider"
-                style={{
-                  color: meta.accent,
-                  fontWeight: 700,
-                  letterSpacing: "0.08em",
-                }}
-              >
-                {meta.label}
-              </h2>
-              <span
-                className="text-[12px] tabular-nums"
-                style={{ color: "var(--muted)" }}
-              >
-                {list.length}
-              </span>
-            </div>
-            <div className="flex flex-col gap-2">
+          <section key={status}>
+            <SectionHeader
+              eyebrow={eyebrow}
+              title={`${title} · ${list.length}`}
+              className="!mt-6"
+            />
+            <ListGroup>
               {list.map((t) => (
-                <Link
-                  key={t.id}
-                  href={`/items/${t.id}`}
-                  className="rounded-2xl card-glass p-3.5 block active:scale-[0.99] transition-transform"
-                  style={{
-                    opacity: status === "retired" ? 0.65 : 1,
-                  }}
-                >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className="shrink-0 mt-0.5 h-9 w-9 rounded-xl flex items-center justify-center"
-                      style={{
-                        background: `${meta.accent}1F`,
-                        color: meta.accent,
-                      }}
-                    >
-                      <Icon name="test-tube" size={16} strokeWidth={1.7} />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <div
-                          className="text-[14.5px] leading-snug"
-                          style={{ fontWeight: 600 }}
-                        >
-                          {t.name}
-                        </div>
-                        {t.brand && (
-                          <div
-                            className="text-[11px]"
-                            style={{ color: "var(--muted)" }}
-                          >
-                            {t.brand}
-                          </div>
-                        )}
-                      </div>
-                      {t.review_trigger && (
-                        <div
-                          className="text-[12px] mt-1 inline-flex items-center gap-1"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          <Icon
-                            name="calendar"
-                            size={11}
-                            strokeWidth={1.8}
-                          />
-                          {t.review_trigger}
-                        </div>
-                      )}
-                      {t.notes && (
-                        <div
-                          className="text-[11px] mt-1 line-clamp-2"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          {t.notes}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Link>
+                <BiomarkerRow key={t.name} t={t} />
               ))}
-            </div>
+            </ListGroup>
           </section>
         );
       })}
 
-      {tests.length === 0 && (
-        <div className="rounded-2xl card-glass p-8 text-center">
-          <span
-            className="inline-flex h-12 w-12 rounded-2xl items-center justify-center mb-3"
-            style={{
-              background: "var(--pro-tint)",
-              color: "var(--pro)",
-            }}
-          >
-            <Icon name="test-tube" size={22} strokeWidth={1.7} />
-          </span>
-          <div
-            className="text-[15px] leading-snug"
-            style={{ fontWeight: 600 }}
-          >
-            No tests tracked yet
-          </div>
-          <div
-            className="text-[12.5px] mt-1 leading-relaxed"
-            style={{ color: "var(--muted)" }}
-          >
-            Add bloodwork panels, scans, or follow-ups so Coach can flag when
-            results are due.
-          </div>
-          <div className="flex gap-2 justify-center mt-4">
-            <Link
-              href="/items/new"
-              className="text-[13px] px-4 py-2 rounded-xl flex items-center gap-1.5"
-              style={{
-                background: "var(--pro)",
-                color: "#FFFFFF",
-                fontWeight: 700,
-              }}
-            >
-              <Icon name="plus" size={12} strokeWidth={2.4} />
-              Add first test
-            </Link>
-            <Link
-              href="/data"
-              className="text-[13px] px-3 py-2 rounded-xl"
-              style={{
-                background: "var(--surface-alt)",
-                color: "var(--foreground-soft)",
-                fontWeight: 600,
-              }}
-            >
-              Import PDF
-            </Link>
-          </div>
-        </div>
+      <SectionHeader
+        title="Tests & panels"
+        className="!mt-8"
+        action={
+          <ButtonLink href="/items/new" variant="secondary" size="sm" icon="plus">
+            Add test
+          </ButtonLink>
+        }
+      />
+      {tests.length > 0 ? (
+        <ListGroup>
+          {tests.map((t) => (
+            <ListRow
+              key={t.id}
+              href={`/items/${t.id}`}
+              icon="test-tube"
+              iconTone={t.status === "queued" ? "warn" : "neutral"}
+              title={t.name}
+              subtitle={t.review_trigger ?? t.brand ?? undefined}
+              trailing={TEST_STATUS[t.status] ?? t.status}
+            />
+          ))}
+        </ListGroup>
+      ) : (
+        <Card padding="lg">
+          <p className="text-callout text-[var(--foreground-soft)]">
+            Track panels, scans and follow-ups so Coach can flag when a retest is due.
+          </p>
+        </Card>
       )}
+      <div className="mt-3">
+        <ButtonLink href="/data" variant="ghost" size="sm" icon="download">
+          Import results
+        </ButtonLink>
+      </div>
     </div>
   );
 }

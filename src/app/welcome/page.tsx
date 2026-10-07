@@ -5,9 +5,13 @@
 // running the same /api/refine pipeline that powers the weekly audit, but
 // framed as an onboarding reveal. This is the activation event.
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Icon from "@/components/Icon";
+import Card from "@/components/ui/Card";
+import Button, { ButtonLink } from "@/components/ui/Button";
+import PageHeader from "@/components/ui/PageHeader";
+import EmptyState from "@/components/EmptyState";
 
 type Stage =
   | "intro"
@@ -81,273 +85,140 @@ export default function WelcomePage() {
     }
   }
 
-  useEffect(() => {
-    // No autostart — let the user see the framing first
-  }, []);
-
   return (
-    <div className="pb-24 max-w-2xl mx-auto">
+    <div className="mx-auto max-w-xl pb-24">
       {stage === "intro" && (
-        <section className="text-center pt-8">
-          <div
-            className="text-[11px] uppercase tracking-wider mb-3"
-            style={{ color: "var(--muted)", fontWeight: 500 }}
-          >
-            Welcome to Regimen
-          </div>
-          <h1
-            className="text-[36px] leading-tight mb-4"
-            style={{ fontWeight: 700, letterSpacing: "-0.025em" }}
-          >
-            We&apos;re not a tracker.
-          </h1>
-          <h2
-            className="text-[22px] leading-tight mb-6"
-            style={{
-              background:
-                "linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              fontWeight: 600,
-            }}
-          >
-            We help you take less, not more.
-          </h2>
-          <p
-            className="text-[15px] leading-relaxed mb-8 max-w-md mx-auto"
-            style={{ color: "var(--muted)" }}
-          >
-            Every other app's loop is{" "}
-            <span style={{ fontWeight: 600 }}>
-              add → log → keep adding
-            </span>
-            . Ours is{" "}
-            <span style={{ fontWeight: 600, color: "var(--olive)" }}>
-              add → challenge → drop
-            </span>
-            . The biggest feature is permission to take less.
-          </p>
-
-          <div
-            className="rounded-2xl p-5 mb-8 card-glass text-left"
-            style={{ background: "var(--olive-tint)" }}
-          >
-            <div
-              className="text-[11px] uppercase tracking-wider mb-2"
-              style={{ color: "var(--olive)", fontWeight: 600 }}
-            >
-              Right now Coach will:
-            </div>
-            <ul
-              className="text-[13px] flex flex-col gap-1.5 leading-relaxed"
-              style={{ color: "var(--foreground)", opacity: 0.9 }}
-            >
-              <li>· Read your active stack</li>
-              <li>· Read your last 7 days of logs + skip reasons</li>
-              <li>· Read your daily check-ins</li>
-              <li>· Read your about-me + biomarkers if any</li>
-              <li>
-                · Recommend{" "}
-                <strong>specific items to drop, swap, or simplify</strong>{" "}
-                — citing the data, not vibes
-              </li>
+        <section className="pt-6">
+          <PageHeader
+            back="/today"
+            backLabel="Today"
+            title="Find what you can drop"
+            subtitle="Coach reviews your routine and suggests what to cut, swap or simplify, citing your own data."
+            showCoach={false}
+          />
+          <Card padding="lg">
+            <h2 className="text-callout font-semibold">What Coach looks at</h2>
+            <ul className="mt-3 flex flex-col gap-2.5">
+              {[
+                "Everything active on your Today",
+                "The last 7 days of check-offs and skip reasons",
+                "Your daily check-ins",
+                "Your About me notes and any lab results",
+              ].map((l) => (
+                <li key={l} className="flex items-start gap-2.5 text-footnote text-[var(--foreground-soft)]">
+                  <Icon name="check" size={15} strokeWidth={2} className="mt-0.5 shrink-0 text-[var(--muted)]" />
+                  {l}
+                </li>
+              ))}
             </ul>
-          </div>
-
-          <button
-            onClick={startScan}
-            className="text-[15px] px-6 py-3 rounded-2xl"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 500,
-              boxShadow: "0 4px 14px var(--accent-glow)",
-            }}
-          >
-            Refine my stack →
-          </button>
-          <div
-            className="text-[11px] mt-4"
-            style={{ color: "var(--muted)" }}
-          >
-            Takes ~15 seconds.
+          </Card>
+          <div className="mt-6">
+            <Button size="lg" fullWidth onClick={startScan}>
+              Review my routine
+            </Button>
+            <p className="mt-2 text-center text-caption text-[var(--muted)]">
+              Takes about 15 seconds. Nothing changes until you approve it.
+            </p>
           </div>
         </section>
       )}
 
       {stage === "scanning" && (
-        <section className="text-center pt-12">
-          <div
-            className="text-[20px] mb-2 animate-pulse"
-            style={{ fontWeight: 500 }}
-          >
-            Reading your data…
-          </div>
+        <section className="pt-16 text-center" aria-live="polite">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--foreground)]" />
+          <h1 className="mt-5 text-title-3">Reading your data…</h1>
           {signalCounts && (
-            <div
-              className="rounded-2xl p-5 mt-6 max-w-md mx-auto card-glass text-left"
-            >
+            <Card padding="none" className="mx-auto mt-6 max-w-sm px-4 text-left">
               <SignalRow label="Active items" value={signalCounts.items} />
               <SignalRow label="Daily logs" value={signalCounts.logs} />
-              <SignalRow label="Skip-with-reasons" value={signalCounts.skips} />
-              <SignalRow
-                label="Check-ins"
-                value={signalCounts.checkins}
-                last
-              />
-            </div>
+              <SignalRow label="Skips with a reason" value={signalCounts.skips} />
+              <SignalRow label="Check-ins" value={signalCounts.checkins} last />
+            </Card>
           )}
-          <div
-            className="text-[12px] mt-6"
-            style={{ color: "var(--muted)" }}
-          >
-            Coach is now looking for redundancy, dose-stacking risk, and
-            patterns in your skip reasons…
-          </div>
+          <p className="mx-auto mt-6 max-w-sm text-footnote text-[var(--muted)]">
+            Looking for overlap, doubled-up doses and patterns in what you skip.
+          </p>
         </section>
       )}
 
       {stage === "no-data" && (
-        <section className="pt-8 max-w-xl mx-auto">
-          <div
-            className="text-[11px] uppercase tracking-wider mb-3"
-            style={{ color: "var(--muted)", fontWeight: 500 }}
-          >
-            Not quite ready
-          </div>
-          <h1
-            className="text-[26px] leading-tight mb-4"
-            style={{ fontWeight: 500 }}
-          >
-            Need a few days of data first.
-          </h1>
-          <p
-            className="text-[14px] leading-relaxed mb-6"
-            style={{ color: "var(--muted)" }}
-          >
-            Refinement runs on patterns. With{" "}
-            <strong>{signalCounts?.items ?? 0} items</strong> and{" "}
-            <strong>{signalCounts?.logs ?? 0} logs</strong>, there's not
-            enough signal yet for Coach to recommend drops with confidence.
-          </p>
-          <div
-            className="rounded-2xl p-5 mb-6 card-glass"
-            style={{ background: "var(--olive-tint)" }}
-          >
-            <div
-              className="text-[12px] uppercase tracking-wider mb-2"
-              style={{ color: "var(--olive)", fontWeight: 600 }}
-            >
-              Do this for 3 days
-            </div>
-            <ul
-              className="text-[13px] flex flex-col gap-1.5 leading-relaxed"
-              style={{ color: "var(--foreground)", opacity: 0.85 }}
-            >
-              <li>· Check off items as you take them</li>
-              <li>· Tap "Skip with reason" when you don't (this is the gold)</li>
-              <li>· Quick check-in (sleep, energy, mood)</li>
-              <li>· Photograph any meal you swap (auto-extracts ingredients)</li>
+        <section className="pt-6">
+          <PageHeader
+            back="/today"
+            backLabel="Today"
+            title="A few more days first"
+            subtitle={`Suggestions come from patterns. With ${signalCounts?.items ?? 0} items and ${signalCounts?.logs ?? 0} check-offs so far, there isn't enough to go on yet.`}
+            showCoach={false}
+          />
+          <Card padding="lg">
+            <h2 className="text-callout font-semibold">For the next 3 days</h2>
+            <ul className="mt-3 flex flex-col gap-2.5">
+              {[
+                "Check things off as you take them",
+                "When you skip something, add a quick reason",
+                "Do the short daily check-in",
+              ].map((l) => (
+                <li key={l} className="flex items-start gap-2.5 text-footnote text-[var(--foreground-soft)]">
+                  <Icon name="check" size={15} strokeWidth={2} className="mt-0.5 shrink-0 text-[var(--muted)]" />
+                  {l}
+                </li>
+              ))}
             </ul>
+          </Card>
+          <div className="mt-6">
+            <ButtonLink href="/today" size="lg" fullWidth>
+              Back to Today
+            </ButtonLink>
           </div>
-          <Link
-            href="/today"
-            className="text-[14px] px-5 py-2.5 rounded-2xl inline-block"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 500,
-            }}
-          >
-            Go to Today →
-          </Link>
         </section>
       )}
 
       {stage === "result" && memo && (
-        <section className="pt-4">
-          <div
-            className="text-[11px] uppercase tracking-wider mb-2"
-            style={{ color: "var(--muted)", fontWeight: 500 }}
-          >
-            Your first refinement
-          </div>
-          <h1
-            className="text-[26px] leading-tight mb-2"
-            style={{ fontWeight: 500 }}
-          >
-            Here's what we'd drop.
-          </h1>
-          <p
-            className="text-[13px] leading-relaxed mb-6"
-            style={{ color: "var(--muted)" }}
-          >
-            Specific items, with the data citing why. You decide.
-          </p>
-
-          <article
-            className="rounded-2xl p-5 mb-6 card-glass prose prose-sm max-w-none"
-            style={{
-              fontSize: "14px",
-              lineHeight: "1.6",
-              color: "var(--foreground)",
-            }}
-          >
-            <RenderMemo memo={memo} />
-          </article>
-
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/today"
-              className="text-[14px] px-5 py-2.5 rounded-2xl"
-              style={{
-                background: "var(--primary)",
-                color: "var(--primary-fg)",
-                fontWeight: 500,
-              }}
-            >
-              Go act on these →
-            </Link>
-            <button
+        <section className="pt-6">
+          <PageHeader
+            back="/today"
+            backLabel="Today"
+            title="Here's what we'd change"
+            subtitle="Specific suggestions, with the data behind each. You decide."
+            showCoach={false}
+          />
+          <Card padding="lg">
+            <article className="text-callout leading-relaxed">
+              <RenderMemo memo={memo} />
+            </article>
+          </Card>
+          <div className="mt-6 flex flex-col gap-2">
+            <ButtonLink href="/today" size="lg" fullWidth>
+              Back to Today
+            </ButtonLink>
+            <Button
+              variant="ghost"
+              fullWidth
               onClick={() => {
                 setMemo(null);
                 setStage("intro");
               }}
-              className="text-[14px] px-5 py-2.5 rounded-2xl border-hair"
-              style={{ color: "var(--muted)" }}
             >
               Run again
-            </button>
+            </Button>
           </div>
         </section>
       )}
 
       {stage === "error" && (
-        <section className="pt-8 max-w-md mx-auto text-center">
-          <div className="text-[20px] mb-2" style={{ fontWeight: 500 }}>
-            Something went wrong.
-          </div>
-          <div
-            className="text-[13px] mb-4"
-            style={{ color: "var(--muted)" }}
-          >
-            {err}
-          </div>
-          <button
-            onClick={() => {
-              setStage("intro");
-              setErr(null);
+        <section className="pt-12">
+          <EmptyState
+            glyph="alert"
+            title="Something went wrong"
+            body={err ?? undefined}
+            primary={{
+              label: "Try again",
+              onClick: () => {
+                setStage("intro");
+                setErr(null);
+              },
             }}
-            className="text-[14px] px-5 py-2.5 rounded-2xl"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 500,
-            }}
-          >
-            Try again
-          </button>
+          />
         </section>
       )}
     </div>
@@ -365,20 +236,10 @@ function SignalRow({
 }) {
   return (
     <div
-      className="flex items-center justify-between py-2"
-      style={{
-        borderBottom: last ? undefined : "1px solid var(--border)",
-      }}
+      className={`flex min-h-[44px] items-center justify-between ${last ? "" : "border-b border-[var(--border)]"}`}
     >
-      <span className="text-[13px]" style={{ color: "var(--muted)" }}>
-        {label}
-      </span>
-      <span
-        className="text-[16px] tabular-nums"
-        style={{ color: "var(--olive)", fontWeight: 600 }}
-      >
-        {value}
-      </span>
+      <span className="text-footnote text-[var(--muted)]">{label}</span>
+      <span className="text-body font-semibold tabular-nums">{value}</span>
     </div>
   );
 }
@@ -403,8 +264,12 @@ function RenderMemo({ memo }: { memo: string }) {
   }
 
   function inline(s: string): string {
-    // **bold** → <strong>
+    // Escape first — the memo is model output — then **bold** → <strong>
     return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/`(.+?)`/g, "<code>$1</code>");
   }
@@ -414,22 +279,14 @@ function RenderMemo({ memo }: { memo: string }) {
     if (line.startsWith("## ")) {
       flushList(`h-${i}`);
       blocks.push(
-        <h3
-          key={`h-${i}`}
-          className="text-[15px] mt-5 mb-2"
-          style={{ fontWeight: 600, color: "var(--olive)" }}
-        >
+        <h3 key={`h-${i}`} className="mt-5 mb-2 text-body font-semibold">
           {line.slice(3)}
         </h3>,
       );
     } else if (line.startsWith("# ")) {
       flushList(`h-${i}`);
       blocks.push(
-        <h2
-          key={`h-${i}`}
-          className="text-[18px] mt-5 mb-2"
-          style={{ fontWeight: 600 }}
-        >
+        <h2 key={`h-${i}`} className="mt-5 mb-2 text-title-3">
           {line.slice(2)}
         </h2>,
       );

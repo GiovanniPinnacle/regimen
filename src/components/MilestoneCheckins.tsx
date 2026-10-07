@@ -18,11 +18,10 @@ import { showToast } from "@/lib/toast";
 import { usePulseCount } from "@/components/CoachPulse";
 import StepIndicator from "@/components/StepIndicator";
 import CoachCardStack from "@/components/CoachCardStack";
-import {
-  REACTION_EMOJI,
-  REACTION_LABELS,
-  type ReactionType,
-} from "@/lib/types";
+import { CoachNoteCard } from "@/components/CoachCardStack";
+import Button from "@/components/ui/Button";
+import { openCoach } from "@/lib/coach-events";
+import { REACTION_LABELS, type ReactionType } from "@/lib/types";
 
 type Checkin = {
   item_id: string;
@@ -38,6 +37,7 @@ type Checkin = {
 };
 
 const REACTIONS: ReactionType[] = ["helped", "no_change", "worse"];
+
 
 export default function MilestoneCheckins() {
   const [checkins, setCheckins] = useState<Checkin[] | null>(null);
@@ -79,7 +79,7 @@ export default function MilestoneCheckins() {
     setActed((prev) => new Set(prev).add(c.item_id));
     try {
       await setReaction(c.item_id, r);
-      showToast(`${c.item_name}: ${REACTION_LABELS[r].toLowerCase()} ✓`, {
+      showToast(`${c.item_name}: ${REACTION_LABELS[r].toLowerCase()}`, {
         tone: r === "worse" ? "warn" : "success",
         duration: 2000,
       });
@@ -91,11 +91,7 @@ export default function MilestoneCheckins() {
           `${c.item_name} (started ${c.days_since_start} days ago) — I just logged it as making things worse. ` +
           `What could be the issue? Look at my stack for interactions, dose, or timing problems and propose a fix. ` +
           `Use <<<PROPOSAL>>> blocks if you want to suggest a swap or dose change.`;
-        window.dispatchEvent(
-          new CustomEvent("regimen:ask", {
-            detail: { text: prompt, send: true },
-          }),
-        );
+        openCoach({ text: prompt, send: true });
       }
       // Small delay before advancing so the user sees their tap
       // confirmed (the picked button stays highlighted briefly) before
@@ -120,11 +116,7 @@ export default function MilestoneCheckins() {
     const prompt =
       `Day-${c.milestone} check-in for **${c.item_name}**. I started it on ${c.started_on} (${c.days_since_start} days ago). ${prevContext}\n\n` +
       `Walk me through what to look for at this milestone. What changes should I notice if it's working? What if it isn't? Should I keep going, adjust dose, or try something else?`;
-    window.dispatchEvent(
-      new CustomEvent("regimen:ask", {
-        detail: { text: prompt },
-      }),
-    );
+    openCoach({ text: prompt });
   }
 
   // Pulse badge counts only the checkins still pending response.
@@ -145,125 +137,61 @@ export default function MilestoneCheckins() {
         ? `Day ${c.milestone} +${c.offset}`
         : `Day ${c.milestone} −${Math.abs(c.offset)}`;
   const userReacted = acted.has(c.item_id);
+  const lastSaid =
+    c.last_reaction && REACTION_LABELS[c.last_reaction as ReactionType]
+      ? ` · last: ${REACTION_LABELS[c.last_reaction as ReactionType].toLowerCase()}`
+      : "";
 
   return (
-    <section className="mb-5">
-      <div className="flex items-baseline justify-between mb-2 px-0.5">
-        <h2
-          className="text-[11px] uppercase tracking-wider"
-          style={{
-            color: "var(--accent)",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-          }}
-        >
-          Coach&apos;s memory
-        </h2>
-        {total > 1 && (
-          <div className="flex items-center gap-2">
-            <StepIndicator current={cursor} total={total} />
-            <span
-              className="text-[10px]"
-              style={{ color: "var(--muted)", opacity: 0.7 }}
-            >
-              swipe ↤
-            </span>
-          </div>
-        )}
-      </div>
+    <section className="mb-4">
       <CoachCardStack
         current={cursor}
         total={total}
         onAdvance={advance}
-        accent="var(--accent)"
         swipeDisabled={userReacted}
       >
-      <div
-        className="rounded-2xl card-glass p-3.5"
-        style={{
-          borderLeft: "3px solid var(--accent)",
-          opacity: userReacted ? 0.7 : 1,
-        }}
-      >
-        <div className="flex items-baseline justify-between gap-2 mb-1">
-          <div
-            className="text-[10px] uppercase tracking-wider"
-            style={{
-              color: "var(--accent)",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-            }}
-          >
-            {dayLabel} · check-in
-          </div>
-          {c.last_reaction && (
-            <span
-              className="text-[10px]"
-              style={{ color: "var(--muted)" }}
-            >
-              last said {REACTION_EMOJI[c.last_reaction as ReactionType] ?? ""}
-            </span>
-          )}
-        </div>
-        <div
-          className="text-[14.5px] leading-snug"
-          style={{ fontWeight: 600 }}
-        >
-          How&apos;s{" "}
-          <span style={{ color: "var(--foreground)" }}>{c.item_name}</span>{" "}
-          going?
-        </div>
-        {c.brand && (
-          <div
-            className="text-[11.5px] mt-0.5"
-            style={{ color: "var(--muted)" }}
-          >
-            {c.brand}
-          </div>
-        )}
-        <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-          {REACTIONS.map((r) => (
-            <button
-              key={r}
-              onClick={() => react(c, r)}
-              disabled={userReacted}
-              className="text-[12.5px] px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all"
-              style={{
-                background: "var(--surface-alt)",
-                color: "var(--foreground)",
-                border: "1px solid var(--border)",
-                fontWeight: 600,
-                minHeight: 32,
-                opacity: userReacted ? 0.4 : 1,
-              }}
-            >
-              <span className="leading-none">{REACTION_EMOJI[r]}</span>
-              <span>{REACTION_LABELS[r]}</span>
-            </button>
-          ))}
-          <button
-            onClick={() => tellCoachMore(c)}
-            className="text-[11.5px] underline ml-auto"
-            style={{ color: "var(--muted)" }}
-          >
-            Tell Coach
-          </button>
-        </div>
-        {/* Skip without committing — moves to next without storing a
-            reaction. Useful when the answer is "I don't know yet" and
-            the user wants to revisit later. Same as swipe-left. */}
-        {total > 1 && !userReacted && (
-          <button
-            onClick={advance}
-            className="text-[11px] mt-3 underline"
-            style={{ color: "var(--muted)" }}
-          >
-            Not sure — skip
-          </button>
-        )}
-      </div>
+        <CoachNoteCard
+          icon="calendar"
+          tone="neutral"
+          eyebrow={`${dayLabel} check-in${lastSaid}`}
+          meta={<StepIndicator current={cursor} total={total} />}
+          title={<>How&apos;s {c.item_name} going?</>}
+          body={
+            c.brand
+              ? `${c.brand} · started ${c.days_since_start} days ago`
+              : `Started ${c.days_since_start} days ago`
+          }
+          dimmed={userReacted}
+          onDismiss={total > 1 && !userReacted ? advance : undefined}
+          dismissLabel="Not sure yet — skip"
+          actionsFull
+          actions={
+            <div className="w-full">
+              <div className="grid grid-cols-3 gap-2">
+                {REACTIONS.map((r) => (
+                  <Button
+                    key={r}
+                    size="md"
+                    variant="secondary"
+                    disabled={userReacted}
+                    onClick={() => react(c, r)}
+                    className="px-2!"
+                  >
+                    {REACTION_LABELS[r]}
+                  </Button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => tellCoachMore(c)}
+                className="mt-1 inline-flex min-h-[44px] items-center gap-1 text-footnote font-medium text-[var(--pro-soft)]"
+              >
+                What should I look for at day {c.milestone}?
+              </button>
+            </div>
+          }
+        />
       </CoachCardStack>
     </section>
   );
 }
-

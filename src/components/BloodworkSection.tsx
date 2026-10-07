@@ -1,19 +1,17 @@
 "use client";
 
-// BloodworkSection — client island that bundles the upload affordance
-// + recent-biomarkers list. Saves on the upload trigger a refreshKey
-// bump so the recent list re-fetches automatically.
+// BloodworkSection — upload affordance for /tests. The biomarker list is
+// server-rendered by the page, so a successful save just refreshes the
+// route to pull the new draw.
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import BloodworkUpload from "@/components/BloodworkUpload";
-import RecentBiomarkers from "@/components/RecentBiomarkers";
 
 export default function BloodworkSection() {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const router = useRouter();
   return (
-    <div className="mb-6">
-      <BloodworkUpload onSaved={() => setRefreshKey((k) => k + 1)} />
-      <RecentBiomarkers refreshKey={refreshKey} />
+    <div className="mb-2">
+      <BloodworkUpload onSaved={() => router.refresh()} />
     </div>
   );
 }

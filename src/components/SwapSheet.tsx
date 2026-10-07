@@ -42,7 +42,14 @@ export default function SwapSheet({
     if (!item || !value.trim()) return;
     setBusy(true);
     setStage("saving");
-    await logSwap(date, item.id, value.trim());
+    try {
+      await logSwap(date, item.id, value.trim());
+    } catch {
+      setBusy(false);
+      setStage("idle");
+      setErr("Couldn't save that. Try again.");
+      return;
+    }
 
     // Also write to intake_log so the swap counts toward today's macro
     // totals. Photo-flow already wrote via /api/analyze (analyzed != null),

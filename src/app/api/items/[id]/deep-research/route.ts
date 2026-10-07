@@ -4,10 +4,17 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  MODELS,
+  MODEL_OPTS,
+  assertCompleted,
+  llmErrorResponse,
+} from "@/lib/anthropic";
+import { jsonError, internalError } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import {
-  buildContextForCurrentUser,
+  buildContextForUser,
   contextToSystemPrompt,
 } from "@/lib/context";
 import type { Item } from "@/lib/types";
@@ -24,7 +31,7 @@ export async function POST(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
 
   // Deep research is the most expensive single call (Opus, ~$0.50).
   // Cap at 5/24h per user.
@@ -33,15 +40,18 @@ export async function POST(
 
   const { data: itemRow } = await supabase
     .from("items")
-    .select("*")
+    .select("id, name, brand, dose, item_type, timing_slot, goals, status, notes, review_trigger, usage_notes")
     .eq("id", id)
     .maybeSingle();
   if (!itemRow) {
     return NextResponse.json({ error: "Item not found" }, { status: 404 });
   }
-  const item = itemRow as Item;
+  const item = itemRow as unknown as Item;
 
-  const ctx = await buildContextForCurrentUser();
+  // No cache breakpoints here: this is a one-off Opus call and Opus has
+  // its own cache namespace, so a cache write would cost +25% on the
+  // prefix with nothing to read it back.
+  const ctx = await buildContextForUser(user.id);
   const baseSystem = contextToSystemPrompt(ctx);
 
   const system = `${baseSystem}
@@ -92,12 +102,17 @@ Write the deep research memo. Markdown only.`;
   const anthropic = getAnthropic();
   let memo = "";
   try {
-    const res = await anthropic.messages.create({
-      ...MODEL_OPTS.deep,
-      max_tokens: 16000,
-      system,
-      messages: [{ role: "user", content: userMsg }],
-    });
+    // Streaming + finalMessage(): high-effort Opus thinking shares the
+    // max_tokens budget with the memo, so give it headroom; streaming
+    // keeps a long generation clear of HTTP timeouts.
+    const res = await anthropic.messages
+      .stream({
+        ...MODEL_OPTS.deep,
+        max_tokens: 32000,
+        system,
+        messages: [{ role: "user", content: userMsg }],
+      })
+      .finalMessage();
     for (const block of res.content) {
       if (block.type === "text") memo += block.text;
     }
@@ -107,19 +122,13 @@ Write the deep research memo. Markdown only.`;
       tokens_in: res.usage?.input_tokens,
       tokens_out: res.usage?.output_tokens,
     });
+    assertCompleted(res);
   } catch (err) {
-    console.error("deep-research/POST claude error", err);
-    return NextResponse.json(
-      { error: `Coach error: ${(err as Error).message}` },
-      { status: 500 },
-    );
+    return llmErrorResponse(err) ?? internalError("/api/items/[id]/deep-research", err);
   }
 
   if (!memo.trim()) {
-    return NextResponse.json(
-      { error: "Empty response from Coach. Try again." },
-      { status: 500 },
-    );
+    return jsonError("bad_llm_response", "Empty response from Coach. Try again.", 502);
   }
 
   const { error } = await supabase

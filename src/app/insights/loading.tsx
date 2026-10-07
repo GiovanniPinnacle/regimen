@@ -1,5 +1,5 @@
 import PageSkeleton from "@/components/PageSkeleton";
 
 export default function InsightsLoading() {
-  return <PageSkeleton title="Insights" rows={5} />;
+  return <PageSkeleton title="What's working" rows={5} />;
 }

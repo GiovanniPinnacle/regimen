@@ -129,10 +129,11 @@ export default function StackWarningsBanner({
     >
       <div className="px-4 py-3.5 flex items-start gap-3">
         <span
-          className="shrink-0 mt-0.5 h-9 w-9 rounded-lg flex items-center justify-center text-[18px]"
-          style={{ background: style.chip }}
+          className="shrink-0 mt-0.5 h-9 w-9 rounded-lg flex items-center justify-center"
+          style={{ background: style.chip, color: style.chipText }}
+          aria-hidden
         >
-          ⚠️
+          <Icon name="alert" size={18} strokeWidth={1.8} />
         </span>
         <div className="flex-1 min-w-0">
           <div

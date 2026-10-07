@@ -22,7 +22,17 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
+import {
+  getAnthropic,
+  jsonSchemaFormat,
+  llmErrorResponse,
+  LLMJsonError,
+  LLMStopError,
+  MODELS,
+  MODEL_OPTS,
+  parseJsonResponse,
+} from "@/lib/anthropic";
+import { internalError, jsonError, readJson } from "@/lib/api";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 import { getUserToday } from "@/lib/user-date";
 
@@ -103,7 +113,7 @@ async function classify(
     : `What the user said/wrote: ${text}`;
   const res = await anthropic.messages.create({
     ...MODEL_OPTS.chat,
-    max_tokens: 256,
+    max_tokens: 1024,
     system: CLASSIFY_SYSTEM,
     messages: [{ role: "user", content: userMsg }],
   });
@@ -113,26 +123,31 @@ async function classify(
     tokens_in: res.usage?.input_tokens,
     tokens_out: res.usage?.output_tokens,
   });
-  const text0 = textOf(res);
-  if (!text0) {
-    return {
-      intent: "chat",
-      subject: text,
-      confirmation: "Opening Coach…",
-    };
-  }
-  // Trim possible code-fence wrapping
-  const raw = text0.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
   try {
-    return JSON.parse(raw) as ClassifyResult;
-  } catch {
-    return {
-      intent: "chat",
-      subject: text,
-      confirmation: "Opening Coach…",
-    };
+    const parsed = parseJsonResponse<ClassifyResult>(res);
+    if (!parsed || typeof parsed.intent !== "string") throw new LLMJsonError("no intent", "");
+    return parsed;
+  } catch (err) {
+    // Truncated / refused / malformed → let Coach handle it as chat.
+    if (err instanceof LLMStopError || err instanceof LLMJsonError) {
+      return { intent: "chat", subject: text, confirmation: "Opening Coach…" };
+    }
+    throw err;
   }
 }
+
+const MACRO_SCHEMA = {
+  type: "object",
+  properties: {
+    calories: { type: "integer" },
+    protein_g: { type: "number" },
+    fat_g: { type: "number" },
+    carbs_g: { type: "number" },
+    serving: { type: "string" },
+  },
+  required: ["calories", "protein_g", "fat_g", "carbs_g", "serving"],
+  additionalProperties: false,
+};
 
 /** daily_checkins scale columns (1-5) the classifier may target. Common
  *  synonyms map onto them; everything else is kept as jsonb extras. */
@@ -167,19 +182,22 @@ function splitSymptomFields(fields: ClassifyResult["fields"]): {
 }
 
 export async function POST(request: NextRequest) {
+  try {
+    return await handle(request);
+  } catch (err) {
+    return llmErrorResponse(err) ?? internalError("/api/capture", err);
+  }
+}
+
+async function handle(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
-  let body: Body;
-  try {
-    body = (await request.json()) as Body;
-  } catch {
-    return NextResponse.json({ error: "Bad request" }, { status: 400 });
-  }
+  if (!user) return jsonError("unauthorized", "Not signed in", 401);
+  const parsedBody = await readJson<Body>(request);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
 
   // Photo path: punt to the existing /api/analyze for now. Coach's
   // vision pipeline already handles food + label OCR. We re-classify
@@ -188,7 +206,7 @@ export async function POST(request: NextRequest) {
 
   const text = body.text?.trim() ?? "";
   if (!text && body.kind !== "photo") {
-    return NextResponse.json({ error: "Empty capture" }, { status: 400 });
+    return jsonError("bad_request", "Empty capture", 400);
   }
 
   const limited = await rateLimitOrError(user.id, "coach");
@@ -264,18 +282,22 @@ export async function POST(request: NextRequest) {
     // Hand off to /api/intake with analyze=true so Claude infers macros.
     // Inline the call rather than fetching ourselves to keep auth.
     const anthropic = getAnthropic();
-    const macroSystem = `Estimate macros for the meal description. Reply JSON only: {"calories": int, "protein_g": num, "fat_g": num, "carbs_g": num, "serving": "..."}`;
-    let macros: {
+    const macroSystem = `Estimate macros for the meal description: calories (int), protein_g, fat_g, carbs_g, and a short serving description.`;
+    type Macros = {
       calories: number;
       protein_g: number;
       fat_g: number;
       carbs_g: number;
       serving: string;
-    } | null = null;
+    };
+    let macros: Macros | null = null;
     try {
       const r = await anthropic.messages.create({
         ...MODEL_OPTS.chat,
-        max_tokens: 200,
+        max_tokens: 1024,
+        // Structured outputs: the response is guaranteed to match the
+        // schema, so no fence-stripping / partial-JSON guessing.
+        output_config: jsonSchemaFormat(MACRO_SCHEMA),
         system: macroSystem,
         messages: [{ role: "user", content: intent.subject }],
       });
@@ -285,13 +307,10 @@ export async function POST(request: NextRequest) {
         tokens_in: r.usage?.input_tokens,
         tokens_out: r.usage?.output_tokens,
       });
-      const t = textOf(r);
-      if (t) {
-        const raw = t.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
-        macros = JSON.parse(raw);
-      }
-    } catch {
-      // Macros failed — log without them
+      macros = parseJsonResponse<Macros>(r);
+    } catch (err) {
+      // Macros failed — log the meal without them.
+      console.warn("capture: macro estimate failed", err);
     }
     const { error: intakeErr } = await supabase.from("intake_log").insert({
       user_id: user.id,

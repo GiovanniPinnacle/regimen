@@ -14,18 +14,17 @@ type IconName = ComponentProps<typeof Icon>["name"];
 
 type Tone = "accent" | "pro" | "premium" | "muted" | "warn";
 
+// "accent" is kept as a prop value for existing callers but renders
+// neutral: green is reserved for success, and an empty state isn't one.
 const TONE_MAP: Record<Tone, { bg: string; color: string }> = {
-  accent: { bg: "var(--accent-tint)", color: "var(--accent)" },
+  accent: { bg: "var(--surface-alt)", color: "var(--foreground-soft)" },
   pro: { bg: "var(--pro-tint)", color: "var(--pro)" },
   premium: { bg: "var(--premium-tint)", color: "var(--premium)" },
   muted: {
     bg: "var(--surface-alt)",
     color: "var(--foreground-soft)",
   },
-  warn: {
-    bg: "rgba(232, 181, 71, 0.10)",
-    color: "var(--warn)",
-  },
+  warn: { bg: "var(--warn-tint)", color: "var(--warn)" },
 };
 
 type Props = {
@@ -56,7 +55,7 @@ export default function EmptyGlyph({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.04)",
+        border: "1px solid var(--border)",
       }}
     >
       <Icon name={icon} size={iconSize} strokeWidth={1.7} />

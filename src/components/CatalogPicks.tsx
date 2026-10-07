@@ -18,7 +18,9 @@
 // before adding more).
 
 import { useEffect, useState } from "react";
-import Icon from "@/components/Icon";
+import Button from "@/components/ui/Button";
+import { CoachNoteCard } from "@/components/CoachCardStack";
+import { openCoach } from "@/lib/coach-events";
 import SwipeDismiss from "@/components/SwipeDismiss";
 import { usePulseCount } from "@/components/CoachPulse";
 import StepIndicator from "@/components/StepIndicator";
@@ -118,11 +120,7 @@ export default function CatalogPicks() {
     ]
       .filter(Boolean)
       .join("\n\n");
-    window.dispatchEvent(
-      new CustomEvent("regimen:ask", {
-        detail: { text: prompt, send: true },
-      }),
-    );
+    openCoach({ text: prompt, send: true });
     // After firing, dismiss locally so this pick doesn't re-render
     dismiss(p);
     setPendingId(null);
@@ -134,11 +132,7 @@ export default function CatalogPicks() {
     // context (e.g. "but I have seb derm — does that matter?") before
     // tapping send. Closes the "doesn't let me tell more" gap.
     const prompt = `Should I add "${p.name}"${p.brand ? ` (${p.brand})` : ""} to my stack? Give me the case for AND against, given my goals + what I already take.`;
-    window.dispatchEvent(
-      new CustomEvent("regimen:ask", {
-        detail: { text: prompt },
-      }),
-    );
+    openCoach({ text: prompt });
   }
 
   usePulseCount("picks", visible ? 1 : 0);
@@ -146,118 +140,55 @@ export default function CatalogPicks() {
   if (!visible) return null; // nothing to show
 
   const grade = visible.evidence_grade ?? "B";
-  const gradeColor =
-    grade === "A" ? "var(--accent)" : "var(--premium)";
+  // First sentence of the summary keeps the card scannable; "Why
+  // this?" opens the full case in Coach.
+  const summary = visible.coach_summary?.match(/^[^.!?]+[.!?]/)?.[0] ?? visible.coach_summary;
+  const body = [
+    summary,
+    visible.best_timing ? `Best taken: ${visible.best_timing}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return (
-    <SwipeDismiss onDismiss={() => dismiss(visible)}>
-    <section
-      className="rounded-2xl card-glass mb-5 overflow-hidden"
-      style={{ borderColor: gradeColor + "33" }}
-    >
-      <div className="px-4 py-3.5">
-        <div className="flex items-start gap-3">
-          <span
-            className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
-            style={{
-              background: `${gradeColor}1F`,
-              color: gradeColor,
-            }}
-          >
-            <Icon name="sparkle" size={13} strokeWidth={2} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <span
-                className="text-[10px] uppercase tracking-wider"
-                style={{
-                  color: gradeColor,
-                  fontWeight: 700,
-                  letterSpacing: "0.08em",
-                }}
-              >
-                Coach pick · Grade {grade}
-              </span>
-              {(picks?.length ?? 0) > 1 && (
-                <StepIndicator
-                  current={0}
-                  total={picks?.length ?? 0}
-                  color={gradeColor}
-                />
-              )}
-            </div>
-            <div
-              className="text-[15px] leading-snug mt-0.5"
-              style={{ fontWeight: 600 }}
-            >
+    <section className="mb-4">
+      <SwipeDismiss onDismiss={() => dismiss(visible)}>
+        <CoachNoteCard
+          icon="plus"
+          tone="coach"
+          eyebrow={`Worth adding · Grade ${grade}`}
+          meta={<StepIndicator current={0} total={picks.length} />}
+          title={
+            <>
               {visible.name}
               {visible.brand ? (
-                <span
-                  className="text-[13px] ml-1.5"
-                  style={{ color: "var(--muted)", fontWeight: 400 }}
-                >
+                <span className="font-normal text-[var(--muted)]">
+                  {" "}
                   · {visible.brand}
                 </span>
               ) : null}
-            </div>
-            {visible.coach_summary ? (
-              <p
-                className="text-[12.5px] mt-1 leading-relaxed"
-                style={{ color: "var(--muted)" }}
+            </>
+          }
+          body={body || undefined}
+          onDismiss={() => dismiss(visible)}
+          dismissLabel="Not for me"
+          actions={
+            <>
+              <Button
+                size="md"
+                variant="primary"
+                onClick={() => queueIt(visible)}
+                loading={pendingId === visible.catalog_item_id}
               >
-                {visible.coach_summary}
-              </p>
-            ) : null}
-            {visible.best_timing ? (
-              <div
-                className="text-[11px] mt-1.5 inline-flex items-center gap-1"
-                style={{ color: "var(--foreground-soft)" }}
-              >
-                <Icon name="clock" size={10} strokeWidth={2} />
-                {visible.best_timing}
-              </div>
-            ) : null}
-          </div>
-          <button
-            onClick={() => dismiss(visible)}
-            className="shrink-0 leading-none px-1 -mr-1 -mt-0.5"
-            style={{ color: "var(--muted)" }}
-            aria-label="Not for me"
-          >
-            <Icon name="plus" size={14} className="rotate-45" />
-          </button>
-        </div>
-        <div className="flex gap-2 mt-3" style={{ paddingLeft: 40 }}>
-          <button
-            onClick={() => queueIt(visible)}
-            disabled={pendingId === visible.catalog_item_id}
-            className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5 active:scale-[0.98] transition-transform"
-            style={{
-              background: gradeColor,
-              color: "#FFFFFF",
-              fontWeight: 700,
-              opacity: pendingId === visible.catalog_item_id ? 0.6 : 1,
-              minHeight: 36,
-            }}
-          >
-            <Icon name="check-circle" size={13} strokeWidth={2.2} />
-            Queue it
-          </button>
-          <button
-            onClick={() => tellMeWhy(visible)}
-            className="text-[13px] px-3.5 py-2 rounded-lg"
-            style={{
-              background: "var(--surface-alt)",
-              color: "var(--foreground)",
-              fontWeight: 600,
-              minHeight: 36,
-            }}
-          >
-            Tell me why
-          </button>
-        </div>
-      </div>
+                Queue it
+              </Button>
+              <Button size="md" variant="secondary" onClick={() => tellMeWhy(visible)}>
+                Why this?
+              </Button>
+            </>
+          }
+        />
+      </SwipeDismiss>
     </section>
-    </SwipeDismiss>
   );
 }

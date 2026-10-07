@@ -13,14 +13,16 @@ import {
 } from "@/lib/scheduled-tasks";
 import { sendPushToUser } from "@/lib/push-server";
 import { syncOuraForUser } from "@/lib/oura-sync";
+import { isAuthorizedCron } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
-  // Auth: Vercel Cron sends Authorization: Bearer <CRON_SECRET>
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Auth: Vercel Cron sends Authorization: Bearer <CRON_SECRET>.
+  // isAuthorizedCron fails closed when CRON_SECRET is unset (the old
+  // inline check accepted the literal header "Bearer undefined").
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

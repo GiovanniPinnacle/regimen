@@ -1,13 +1,20 @@
 "use client";
 
-// IntakeTracker — the lazy-tracking surface on /today.
-// Tap-to-add water, photo/voice/text quick-log meals, running daily totals
-// vs targets, recent entries. Designed for the "society is lazy" UX
-// principle: one tap should be the maximum effort to log most things.
+// IntakeTracker — today's water / protein / calories vs targets, one-tap
+// water, and today's entries. Used on /fuel and /today.
+//
+// Logging a meal goes through the one universal capture sheet (photo,
+// voice or text) via the `regimen:capture` event with hint "meal" — no
+// second meal flow lives here any more.
+//
+// Undo everywhere: water taps can be undone (deletes the row we just
+// created) and entry deletes are deferred until the undo toast expires.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Icon from "@/components/Icon";
-import { uploadPhoto } from "@/lib/photo";
+import Button, { IconButton } from "@/components/ui/Button";
+import { createClient } from "@/lib/supabase/client";
+import { showToast } from "@/lib/toast";
 
 type IntakeEntry = {
   id: string;
@@ -20,8 +27,6 @@ type IntakeEntry = {
   fat_g?: number | null;
   carbs_g?: number | null;
   water_oz?: number | null;
-  photo_url?: string | null;
-  analyzed_by?: string | null;
 };
 
 type Totals = {
@@ -34,43 +39,65 @@ type Totals = {
 };
 
 type Props = {
-  /** Daily targets — passed from Today (computed from profile). */
+  /** Daily targets. When `water_oz` is omitted the tracker reads
+   *  profiles.water_target_oz itself (default 84 oz). */
   targets?: {
     calories?: number;
     protein_g?: number;
     water_oz?: number;
   };
+  /** Hide the entries list (e.g. a compact /today variant). */
+  showEntries?: boolean;
 };
 
-const WATER_TAPS = [
-  { oz: 8, label: "8 oz" },
-  { oz: 12, label: "12 oz" },
-  { oz: 16, label: "16 oz" },
-];
+export const DEFAULT_WATER_TARGET_OZ = 84;
+const WATER_TAPS = [8, 12, 16];
+const UNDO_MS = 5000;
+const EMPTY: Totals = {
+  calories: 0,
+  protein_g: 0,
+  fat_g: 0,
+  carbs_g: 0,
+  water_oz: 0,
+  meal_count: 0,
+};
 
-export default function IntakeTracker({ targets }: Props) {
+function totalsOf(entries: IntakeEntry[]): Totals {
+  const t = { ...EMPTY };
+  for (const e of entries) {
+    t.calories += Number(e.calories ?? 0);
+    t.protein_g += Number(e.protein_g ?? 0);
+    t.fat_g += Number(e.fat_g ?? 0);
+    t.carbs_g += Number(e.carbs_g ?? 0);
+    t.water_oz += Number(e.water_oz ?? 0);
+    if (e.kind === "meal") t.meal_count++;
+  }
+  return t;
+}
+
+export function openMealCapture() {
+  window.dispatchEvent(
+    new CustomEvent("regimen:capture", { detail: { hint: "meal" } }),
+  );
+}
+
+export default function IntakeTracker({ targets, showEntries = true }: Props) {
   const [entries, setEntries] = useState<IntakeEntry[]>([]);
-  const [totals, setTotals] = useState<Totals>({
-    calories: 0,
-    protein_g: 0,
-    fat_g: 0,
-    carbs_g: 0,
-    water_oz: 0,
-    meal_count: 0,
-  });
-  const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [logSheet, setLogSheet] = useState<"meal" | null>(null);
+  /** Entries hidden while their undo window is open. */
+  const [pendingDelete, setPendingDelete] = useState<Set<string>>(new Set());
+  const [profileWater, setProfileWater] = useState<number | null>(null);
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const tempSeq = useRef(0);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/intake");
+      const res = await fetch("/api/intake", { credentials: "include" });
       if (!res.ok) return;
-      const data = await res.json();
+      const data = (await res.json()) as { entries?: IntakeEntry[] };
       setEntries(data.entries ?? []);
-      setTotals((prev) => data.totals ?? prev);
     } catch {
-      // ignore
+      // offline — keep what we have
     } finally {
       setLoading(false);
     }
@@ -78,12 +105,67 @@ export default function IntakeTracker({ targets }: Props) {
 
   useEffect(() => {
     const id = setTimeout(() => void load(), 0);
-    return () => clearTimeout(id);
+    const onChange = () => void load();
+    window.addEventListener("regimen:items-changed", onChange);
+    window.addEventListener("regimen:intake-changed", onChange);
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener("regimen:items-changed", onChange);
+      window.removeEventListener("regimen:intake-changed", onChange);
+    };
   }, [load]);
 
+  // Water target: caller wins; otherwise the profile's own target.
+  const needsProfileWater = targets?.water_oz == null;
+  useEffect(() => {
+    if (!needsProfileWater) return;
+    let alive = true;
+    (async () => {
+      const { data } = await createClient()
+        .from("profiles")
+        .select("water_target_oz")
+        .maybeSingle();
+      if (alive) setProfileWater((data?.water_target_oz as number | null) ?? null);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [needsProfileWater]);
+
+  // Flush deferred deletes if the user navigates away mid-undo window.
+  useEffect(() => {
+    const map = timers.current;
+    return () => {
+      for (const [id, t] of map) {
+        clearTimeout(t);
+        void fetch(`/api/intake?id=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          keepalive: true,
+        });
+      }
+      map.clear();
+    };
+  }, []);
+
+  const visible = entries.filter((e) => !pendingDelete.has(e.id));
+  const totals = totalsOf(visible);
+
+  const waterTarget =
+    targets?.water_oz ?? profileWater ?? DEFAULT_WATER_TARGET_OZ;
+  const protTarget = targets?.protein_g ?? null;
+  const calTarget = targets?.calories ?? null;
+
   async function addWater(oz: number) {
-    // Optimistic
-    setTotals((t) => ({ ...t, water_oz: t.water_oz + oz }));
+    tempSeq.current += 1;
+    const tempId = `tmp-${tempSeq.current}`;
+    const optimistic: IntakeEntry = {
+      id: tempId,
+      logged_at: new Date().toISOString(),
+      kind: "water",
+      content: `${oz} oz water`,
+      water_oz: oz,
+    };
+    setEntries((prev) => [optimistic, ...prev]);
     try {
       const res = await fetch("/api/intake", {
         method: "POST",
@@ -94,238 +176,234 @@ export default function IntakeTracker({ targets }: Props) {
           water_oz: oz,
         }),
       });
-      if (!res.ok) throw new Error("save failed");
-      await load();
+      const j = (await res.json().catch(() => ({}))) as {
+        entry?: IntakeEntry;
+        error?: string;
+      };
+      if (!res.ok || !j.entry) throw new Error(j.error ?? "save failed");
+      const saved = j.entry;
+      setEntries((prev) => prev.map((e) => (e.id === tempId ? saved : e)));
+      showToast(`Added ${oz} oz water`, {
+        duration: UNDO_MS,
+        undo: async () => {
+          setEntries((prev) => prev.filter((e) => e.id !== saved.id));
+          await fetch(`/api/intake?id=${encodeURIComponent(saved.id)}`, {
+            method: "DELETE",
+          });
+          window.dispatchEvent(new CustomEvent("regimen:intake-changed"));
+        },
+      });
+      window.dispatchEvent(new CustomEvent("regimen:intake-changed"));
     } catch {
-      // Rollback
-      setTotals((t) => ({ ...t, water_oz: Math.max(0, t.water_oz - oz) }));
+      setEntries((prev) => prev.filter((e) => e.id !== tempId));
+      showToast("Couldn't save that — check your connection", {
+        tone: "error",
+      });
     }
   }
 
-  const waterTarget = targets?.water_oz ?? 84;
-  const protTarget = targets?.protein_g ?? null;
-  const calTarget = targets?.calories ?? null;
+  function removeEntry(entry: IntakeEntry) {
+    setPendingDelete((s) => new Set(s).add(entry.id));
+    const t = setTimeout(async () => {
+      timers.current.delete(entry.id);
+      const res = await fetch(
+        `/api/intake?id=${encodeURIComponent(entry.id)}`,
+        { method: "DELETE" },
+      ).catch(() => null);
+      if (!res || !res.ok) {
+        setPendingDelete((s) => {
+          const n = new Set(s);
+          n.delete(entry.id);
+          return n;
+        });
+        showToast("Couldn't delete that entry", { tone: "error" });
+        return;
+      }
+      setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+      setPendingDelete((s) => {
+        const n = new Set(s);
+        n.delete(entry.id);
+        return n;
+      });
+      window.dispatchEvent(new CustomEvent("regimen:intake-changed"));
+    }, UNDO_MS);
+    timers.current.set(entry.id, t);
+    showToast(`Removed ${entry.content}`, {
+      duration: UNDO_MS,
+      undo: () => {
+        const pending = timers.current.get(entry.id);
+        if (pending) clearTimeout(pending);
+        timers.current.delete(entry.id);
+        setPendingDelete((s) => {
+          const n = new Set(s);
+          n.delete(entry.id);
+          return n;
+        });
+      },
+    });
+  }
 
   return (
-    <>
-      <section className="mb-6">
-        <div className="flex items-baseline justify-between mb-3">
-          <h2
-            className="text-[11px] uppercase tracking-wider"
-            style={{
-              color: "var(--muted)",
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-            }}
-          >
-            Intake
-          </h2>
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className="text-[11px] flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            {totals.meal_count > 0 ? `${totals.meal_count} logged` : "—"}
-            <Icon
-              name="chevron-down"
-              size={12}
-              className="transition-transform"
-            />
-          </button>
-        </div>
-
-        {/* Progress rows — clean, no card chrome */}
-        <div className="flex flex-col gap-3 mb-4">
+    <section aria-label="Today's intake">
+      <div className="rounded-[20px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)]">
+        <div className="flex flex-col gap-4">
           <ProgressRow
+            icon="droplet"
             label="Water"
             value={totals.water_oz}
             target={waterTarget}
             unit="oz"
-            color="var(--purple)"
           />
           {protTarget != null && (
             <ProgressRow
+              icon="dumbbell"
               label="Protein"
-              value={Math.round(totals.protein_g)}
+              value={totals.protein_g}
               target={protTarget}
               unit="g"
-              color="var(--olive)"
             />
           )}
           {calTarget != null && (
             <ProgressRow
+              icon="flame"
               label="Calories"
               value={totals.calories}
               target={calTarget}
-              unit=""
-              color="var(--foreground-soft)"
+              unit="kcal"
+              overIsWarn
             />
+          )}
+          {protTarget == null && calTarget == null && !loading && (
+            <p className="text-footnote text-[var(--muted)]">
+              Add your weight, height and age in Profile to get protein and
+              calorie targets.
+            </p>
           )}
         </div>
 
-        {/* Quick add — minimal pill row */}
-        <div className="flex gap-1.5 flex-wrap">
-          {WATER_TAPS.map((t) => (
-            <button
-              key={t.oz}
-              onClick={() => addWater(t.oz)}
-              className="text-[12px] px-3 py-2 rounded-full flex items-center gap-1.5 transition-all"
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--foreground)",
-                fontWeight: 500,
-                minHeight: "32px",
-              }}
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {WATER_TAPS.map((oz) => (
+            <Button
+              key={oz}
+              variant="secondary"
+              size="md"
+              onClick={() => addWater(oz)}
+              aria-label={`Add ${oz} ounces of water`}
             >
-              <Icon
-                name="droplet"
-                size={12}
-                strokeWidth={1.8}
-                className="opacity-70"
-              />
-              {t.label}
-            </button>
+              +{oz} oz
+            </Button>
           ))}
-          <button
-            onClick={() => setLogSheet("meal")}
-            className="text-[12px] px-3 py-2 rounded-full flex items-center gap-1.5 transition-all"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 500,
-              minHeight: "32px",
-            }}
-          >
-            <Icon name="plus" size={12} strokeWidth={2.4} />
-            Log meal
-          </button>
         </div>
+        <Button
+          variant="primary"
+          size="md"
+          icon="plus"
+          fullWidth
+          className="mt-2"
+          onClick={openMealCapture}
+        >
+          Log a meal
+        </Button>
+      </div>
 
-        {/* Recent entries — expandable, hairline list */}
-        {expanded && (
-          <div
-            className="mt-4 pt-3"
-            style={{ borderTop: "1px solid var(--border)" }}
-          >
-            {loading ? (
-              <div
-                className="text-[12px]"
-                style={{ color: "var(--muted)" }}
-              >
-                Loading…
-              </div>
-            ) : entries.length === 0 ? (
-              <div
-                className="text-[12px] py-1"
-                style={{ color: "var(--muted)" }}
-              >
-                Nothing logged yet today.
-              </div>
-            ) : (
-              <div className="flex flex-col">
-                {entries.slice(0, 10).map((e, i) => (
-                  <IntakeRow
-                    key={e.id}
-                    entry={e}
-                    onDelete={load}
-                    isFirst={i === 0}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      {logSheet === "meal" && (
-        <MealLogSheet
-          onClose={() => setLogSheet(null)}
-          onLogged={() => {
-            setLogSheet(null);
-            void load();
-          }}
-        />
+      {showEntries && (
+        <div className="mt-3">
+          {loading ? null : visible.length === 0 ? (
+            <p className="px-1 py-2 text-footnote text-[var(--muted)]">
+              Nothing logged yet today. Snap a photo or say what you ate —
+              Coach estimates the macros.
+            </p>
+          ) : (
+            <div className="overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)] divide-y divide-[var(--border)]">
+              {visible.slice(0, 12).map((e) => (
+                <IntakeRow key={e.id} entry={e} onDelete={() => removeEntry(e)} />
+              ))}
+            </div>
+          )}
+        </div>
       )}
-    </>
+    </section>
   );
 }
 
 function ProgressRow({
+  icon,
   label,
   value,
   target,
   unit,
-  color,
+  overIsWarn,
 }: {
+  icon: "droplet" | "dumbbell" | "flame";
   label: string;
   value: number;
   target: number;
   unit: string;
-  color: string;
+  /** Calories: going well past target is a warning, not a win. */
+  overIsWarn?: boolean;
 }) {
-  const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
-  // Surface "X% to target" as a small uppercase label and color the
-  // value if the user has hit at least 80% of target. Below 80% reads
-  // as muted neutral so users aren't shamed mid-day.
-  const hitMost = pct >= 80;
-  const valueColor = hitMost ? color : "var(--foreground)";
+  const ratio = target > 0 ? value / target : 0;
+  const pct = Math.round(ratio * 100);
+  const hit = overIsWarn ? ratio >= 0.9 && ratio <= 1.1 : ratio >= 1;
+  const over = overIsWarn && ratio > 1.1;
+  const fill = hit
+    ? "var(--success)"
+    : over
+      ? "var(--warn)"
+      : "var(--foreground)";
+  const left = Math.max(0, Math.round(target - value));
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-2 mb-1.5">
-        <span
-          className="text-[13px]"
-          style={{
-            color: "var(--foreground)",
-            fontWeight: 600,
-            letterSpacing: "-0.005em",
-          }}
-        >
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <span className="flex items-center gap-2 text-callout font-semibold">
+          <Icon
+            name={icon}
+            size={15}
+            strokeWidth={1.8}
+            className="text-[var(--muted)]"
+          />
           {label}
         </span>
-        <span className="text-[13px] tabular-nums inline-flex items-baseline gap-1.5">
-          <span
-            style={{
-              fontWeight: 700,
-              color: valueColor,
-              letterSpacing: "-0.005em",
-            }}
-          >
-            {Math.round(value)}
-          </span>
-          <span style={{ color: "var(--muted)", fontWeight: 600 }}>
-            / {target}
-            {unit && ` ${unit}`}
+        <span className="flex items-baseline gap-1.5 tabular-nums">
+          <span className="text-body font-bold">{Math.round(value)}</span>
+          <span className="text-footnote text-[var(--muted)]">
+            / {Math.round(target)} {unit}
           </span>
           <span
-            className="text-[10px] uppercase tracking-wider"
-            style={{
-              color: hitMost ? color : "var(--muted)",
-              fontWeight: 700,
-              letterSpacing: "0.06em",
-              opacity: hitMost ? 1 : 0.7,
-            }}
+            className={`ml-1 min-w-[38px] text-right text-caption font-semibold ${
+              hit
+                ? "text-[var(--success)]"
+                : over
+                  ? "text-[var(--warn)]"
+                  : "text-[var(--foreground-soft)]"
+            }`}
           >
-            {Math.round(pct)}%
+            {pct}%
           </span>
         </span>
       </div>
       <div
-        className="h-1.5 rounded-full overflow-hidden"
-        style={{ background: "var(--surface-alt)" }}
+        className="h-2 overflow-hidden rounded-full bg-[var(--surface-alt)]"
+        role="progressbar"
+        aria-label={`${label}: ${Math.round(value)} of ${Math.round(target)} ${unit}`}
+        aria-valuenow={Math.min(100, pct)}
+        aria-valuemin={0}
+        aria-valuemax={100}
       >
         <div
-          className="h-full rounded-full transition-all"
+          className="h-full rounded-full transition-[width] duration-300"
           style={{
-            width: `${pct}%`,
-            background: color,
-            boxShadow:
-              pct > 0
-                ? "inset 0 1px 0 rgba(255, 255, 255, 0.18)"
-                : undefined,
+            width: `${Math.min(100, ratio * 100)}%`,
+            background: fill,
+            opacity: hit || over ? 1 : 0.85,
           }}
         />
       </div>
+      {!hit && !over && value > 0 && (
+        <div className="mt-1 text-caption text-[var(--muted)]">
+          {left} {unit} to go
+        </div>
+      )}
     </div>
   );
 }
@@ -333,452 +411,41 @@ function ProgressRow({
 function IntakeRow({
   entry,
   onDelete,
-  isFirst,
 }: {
   entry: IntakeEntry;
   onDelete: () => void;
-  isFirst?: boolean;
 }) {
-  const [deleting, setDeleting] = useState(false);
   const time = new Date(entry.logged_at).toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
   });
-
-  async function remove() {
-    setDeleting(true);
-    try {
-      await fetch(`/api/intake?id=${entry.id}`, { method: "DELETE" });
-      onDelete();
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  const iconName: "droplet" | "utensils" =
-    entry.kind === "water" || entry.kind === "beverage"
-      ? "droplet"
-      : "utensils";
-
+  const isWater = entry.kind === "water" || entry.kind === "beverage";
+  const macros = [
+    entry.calories != null && !isWater ? `${entry.calories} kcal` : null,
+    entry.protein_g != null && !isWater
+      ? `${Math.round(Number(entry.protein_g))}g protein`
+      : null,
+  ].filter(Boolean);
   return (
-    <div
-      className="flex items-center gap-3 py-2.5"
-      style={{
-        opacity: deleting ? 0.4 : 1,
-        borderTop: isFirst ? undefined : "1px solid var(--border)",
-      }}
-    >
-      <Icon
-        name={iconName}
-        size={14}
-        className="shrink-0 opacity-50"
-      />
-      <span
-        className="text-[11px] tabular-nums shrink-0"
-        style={{ color: "var(--muted)", minWidth: "44px" }}
-      >
-        {time}
+    <div className="flex min-h-[56px] items-center gap-3 py-1.5 pl-4 pr-1.5">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+        <Icon name={isWater ? "droplet" : "utensils"} size={16} strokeWidth={1.8} />
       </span>
-      <div className="flex-1 min-w-0">
-        <div
-          className="text-[13px] truncate"
-          style={{ color: "var(--foreground)" }}
-        >
-          {entry.content}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-callout font-medium">{entry.content}</div>
+        <div className="truncate text-caption text-[var(--muted)] tabular-nums">
+          {time}
+          {macros.length > 0 && ` · ${macros.join(" · ")}`}
         </div>
-        {entry.kind !== "water" && (entry.calories || entry.protein_g) && (
-          <div
-            className="text-[11px] flex gap-2 mt-0.5"
-            style={{ color: "var(--muted)" }}
-          >
-            {entry.calories != null && <span>{entry.calories} kcal</span>}
-            {entry.protein_g != null && (
-              <span>{Math.round(Number(entry.protein_g))}g P</span>
-            )}
-          </div>
-        )}
       </div>
-      <button
-        onClick={remove}
-        className="px-1 shrink-0"
-        style={{ color: "var(--muted)" }}
-        aria-label="Delete entry"
-        disabled={deleting}
-      >
-        <Icon name="trash" size={13} />
-      </button>
-    </div>
-  );
-}
-
-// ============== Meal log sheet ==============
-type FrequentMeal = {
-  content: string;
-  kind: "meal" | "snack";
-  calories: number | null;
-  protein_g: number | null;
-  fat_g: number | null;
-  carbs_g: number | null;
-  serving: string | null;
-  occurrences: number;
-  last_logged: string;
-};
-
-function MealLogSheet({
-  onClose,
-  onLogged,
-}: {
-  onClose: () => void;
-  onLogged: () => void;
-}) {
-  const [mode, setMode] = useState<"photo" | "text">("text");
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [stage, setStage] = useState<"idle" | "uploading" | "analyzing" | "saving">("idle");
-  const [err, setErr] = useState<string | null>(null);
-  const [frequent, setFrequent] = useState<FrequentMeal[]>([]);
-  const [quickLogId, setQuickLogId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/intake/frequent", {
-          credentials: "include",
-        });
-        if (!r.ok) return;
-        const j = (await r.json()) as { meals?: FrequentMeal[] };
-        if (alive) setFrequent(j.meals ?? []);
-      } catch {
-        // silent — frequent is a nice-to-have, not required
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  /** One-tap re-log: posts the chosen meal's macros directly without
-   *  re-analyzing. Faster than typing or photo for repeated meals. */
-  async function quickLog(meal: FrequentMeal) {
-    setQuickLogId(meal.content);
-    setBusy(true);
-    setErr(null);
-    try {
-      const res = await fetch("/api/intake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: meal.kind,
-          content: meal.content,
-          analyze: false,
-          calories: meal.calories ?? undefined,
-          protein_g: meal.protein_g ?? undefined,
-          fat_g: meal.fat_g ?? undefined,
-          carbs_g: meal.carbs_g ?? undefined,
-          serving: meal.serving ?? undefined,
-        }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error ?? `Error ${res.status}`);
-      }
-      onLogged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-      setQuickLogId(null);
-    }
-  }
-
-  async function logText() {
-    if (!text.trim()) return;
-    setBusy(true);
-    setStage("saving");
-    setErr(null);
-    try {
-      const res = await fetch("/api/intake", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "meal",
-          content: text.trim(),
-          analyze: true,
-        }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error ?? `Error ${res.status}`);
-      }
-      onLogged();
-    } catch (e) {
-      setErr((e as Error).message);
-      setStage("idle");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setBusy(true);
-    setErr(null);
-    setStage("uploading");
-    try {
-      const upload = await uploadPhoto(file, "meal-photos");
-      if ("error" in upload) throw new Error(upload.error);
-      setStage("analyzing");
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "food",
-          imageUrl: upload.publicUrl,
-          path: upload.path,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
-      // /api/analyze writes to intake_log directly, so just close
-      onLogged();
-    } catch (e) {
-      setErr((e as Error).message);
-      setStage("idle");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{
-        background: "rgba(0, 0, 0, 0.6)",
-        backdropFilter: "blur(4px)",
-        WebkitBackdropFilter: "blur(4px)",
-      }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-t-3xl p-5 pb-8 glass-strong"
-        style={{
-          paddingBottom: "calc(env(safe-area-inset-bottom, 0) + 1.5rem)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-baseline justify-between gap-2 mb-4">
-          <div>
-            <div
-              className="text-[11px] uppercase tracking-wider"
-              style={{ color: "var(--muted)", fontWeight: 500, letterSpacing: "0.06em" }}
-            >
-              Log meal
-            </div>
-            <div className="text-[16px] mt-1" style={{ fontWeight: 500 }}>
-              Photo or describe — Coach estimates macros.
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-[20px] leading-none px-2"
-            style={{ color: "var(--muted)" }}
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
-
-        {/* Frequent meals — one-tap re-log row. Hidden when the user has
-            no history yet. Tapping a chip re-logs the meal with stored
-            macros, no LLM call. */}
-        {frequent.length > 0 && (
-          <div className="mb-4">
-            <div
-              className="text-[10px] uppercase tracking-wider mb-2"
-              style={{
-                color: "var(--muted)",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-              }}
-            >
-              Quick re-log
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {frequent.map((m) => {
-                const macro =
-                  m.calories != null
-                    ? `${m.calories}kc${m.protein_g != null ? ` · ${Math.round(m.protein_g)}g P` : ""}`
-                    : null;
-                const isPending = quickLogId === m.content;
-                return (
-                  <button
-                    key={m.content}
-                    onClick={() => quickLog(m)}
-                    disabled={busy}
-                    className="text-left rounded-xl px-3 py-2 active:scale-[0.98] transition-transform"
-                    style={{
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      opacity: busy && !isPending ? 0.5 : 1,
-                      maxWidth: "100%",
-                    }}
-                  >
-                    <div
-                      className="text-[12.5px] leading-snug"
-                      style={{
-                        fontWeight: 600,
-                        color: "var(--foreground)",
-                        maxWidth: 220,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {m.content}
-                    </div>
-                    <div
-                      className="text-[10.5px] mt-0.5 flex items-center gap-1.5"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {isPending ? (
-                        <span>Logging…</span>
-                      ) : (
-                        <>
-                          {macro ? <span>{macro}</span> : null}
-                          {macro ? (
-                            <span aria-hidden style={{ color: "var(--border)" }}>
-                              ·
-                            </span>
-                          ) : null}
-                          <span>×{m.occurrences}</span>
-                        </>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <div
-          className="grid grid-cols-2 gap-1 p-1 rounded-2xl mb-4"
-          style={{ background: "var(--surface-alt)" }}
-        >
-          {(["photo", "text"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className="rounded-xl py-2 text-[13px]"
-              style={{
-                background: mode === m ? "var(--surface)" : "transparent",
-                color: mode === m ? "var(--foreground)" : "var(--muted)",
-                fontWeight: mode === m ? 600 : 500,
-                boxShadow:
-                  mode === m
-                    ? "0 1px 4px rgba(0, 0, 0, 0.24)"
-                    : undefined,
-              }}
-            >
-              {m === "photo" ? "Photo" : "Type"}
-            </button>
-          ))}
-        </div>
-
-        {mode === "photo" && (
-          <div>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handlePhoto}
-              className="hidden"
-              id="meal-photo-input"
-            />
-            <label
-              htmlFor="meal-photo-input"
-              className="block w-full rounded-2xl px-4 py-8 text-center cursor-pointer"
-              style={{
-                background: "var(--primary)",
-                color: "var(--primary-fg)",
-                fontWeight: 500,
-                opacity: busy ? 0.5 : 1,
-              }}
-            >
-              <div className="flex justify-center mb-2">
-                <span aria-hidden>
-                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                    <circle cx="12" cy="13" r="4" />
-                  </svg>
-                </span>
-              </div>
-              <div className="text-[14px]">
-                {stage === "uploading"
-                  ? "Uploading…"
-                  : stage === "analyzing"
-                    ? "Coach analyzing…"
-                    : "Take or upload a photo"}
-              </div>
-              <div className="text-[11px] mt-1" style={{ opacity: 0.8 }}>
-                Macros + ingredients auto-extracted
-              </div>
-            </label>
-          </div>
-        )}
-
-        {mode === "text" && (
-          <div className="flex flex-col gap-3">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder='e.g. "4 eggs scrambled, half avocado, slice of sourdough"'
-              rows={4}
-              autoFocus
-              disabled={busy}
-              className="w-full rounded-xl p-3 text-[14px] resize-none"
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--foreground)",
-              }}
-            />
-            <button
-              onClick={logText}
-              disabled={busy || !text.trim()}
-              className="w-full rounded-xl px-4 py-3 text-[14px]"
-              style={{
-                background: "var(--primary)",
-                color: "var(--primary-fg)",
-                fontWeight: 500,
-                opacity: busy || !text.trim() ? 0.5 : 1,
-              }}
-            >
-              {stage === "saving"
-                ? "Estimating macros…"
-                : "Log meal"}
-            </button>
-            <div
-              className="text-[11px] leading-relaxed"
-              style={{ color: "var(--muted)" }}
-            >
-              Coach estimates calories, protein, fat, carbs from your
-              description. Be specific about portions for better accuracy.
-            </div>
-          </div>
-        )}
-
-        {err && (
-          <div
-            className="mt-3 text-[12px] p-2 rounded-lg"
-            style={{ color: "var(--error)" }}
-          >
-            {err}
-          </div>
-        )}
-      </div>
+      <IconButton
+        icon="trash"
+        label={`Delete ${entry.content}`}
+        tone="plain"
+        size={44}
+        iconSize={17}
+        onClick={onDelete}
+      />
     </div>
   );
 }

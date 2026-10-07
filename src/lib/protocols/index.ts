@@ -4,6 +4,7 @@
 // "official" set.
 
 import type { Protocol } from "@/lib/types";
+import type { IconName } from "@/components/Icon";
 import { FUE_RECOVERY_90 } from "./fue-recovery-90";
 import { SLEEP_RESTORATION_21 } from "./sleep-restoration-21";
 import { BEGINNER_STRENGTH_8W } from "./beginner-strength-8w";
@@ -88,14 +89,29 @@ export const PROTOCOL_CATEGORY_LABELS: Record<string, string> = {
   longevity: "Longevity",
 };
 
-export const PROTOCOL_CATEGORY_EMOJI: Record<string, string> = {
-  recovery: "🌱",
-  fitness: "🏋️",
-  posture: "🧍",
-  sleep: "😴",
-  hair: "🌾",
-  skin: "✨",
-  metabolic: "🌅",
-  mind: "🧠",
-  longevity: "⏳",
+
+/** Icon-based protocol covers (replaces cover_emoji in the UI). Keyed by
+ *  slug first, then category. */
+const PROTOCOL_ICONS: Record<string, IconName> = {
+  "fue-recovery-90": "shield",
+  "sleep-restoration-21": "moon",
+  "beginner-strength-8w": "dumbbell",
+  "posture-reset-28": "user",
+  "cortisol-reset-42": "sun",
 };
+
+export const PROTOCOL_CATEGORY_ICONS: Record<string, IconName> = {
+  recovery: "shield",
+  fitness: "dumbbell",
+  posture: "user",
+  sleep: "moon",
+  hair: "leaf",
+  skin: "sun",
+  metabolic: "flame",
+  mind: "brain",
+  longevity: "heart",
+};
+
+export function protocolIcon(p: Pick<Protocol, "slug" | "category">): IconName {
+  return PROTOCOL_ICONS[p.slug] ?? PROTOCOL_CATEGORY_ICONS[p.category] ?? "book";
+}

@@ -18,6 +18,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateMediaUrls } from "@/lib/tutorials/validate";
+import { isAuthorizedCron } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -67,8 +68,10 @@ async function sweep(
 }
 
 export async function GET(request: NextRequest) {
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Auth: Vercel Cron sends Authorization: Bearer <CRON_SECRET>.
+  // isAuthorizedCron fails closed when CRON_SECRET is unset (the old
+  // inline check accepted the literal header "Bearer undefined").
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
