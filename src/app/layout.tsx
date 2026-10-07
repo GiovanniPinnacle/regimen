@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import TabNav from "@/components/TabNav";
 // Heavy / non-critical surfaces are lazy — see CoachLazy.tsx and
@@ -8,6 +9,14 @@ import CoachLazy from "@/components/CoachLazy";
 import FabsLazy from "@/components/FabsLazy";
 import SessionKeeper from "@/components/SessionKeeper";
 import ToastHost from "@/components/ToastHost";
+
+// iOS/macOS keep SF Pro (first in the stack); everyone else gets Inter
+// instead of falling through to Roboto / Segoe.
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "Regimen",
@@ -34,11 +43,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0A0B0D",
+  themeColor: "#0E1014",
+  colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -47,7 +56,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className={`h-full ${inter.variable}`}>
       <body className="min-h-full flex flex-col antialiased pb-20">
         <SessionKeeper />
         <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-8">

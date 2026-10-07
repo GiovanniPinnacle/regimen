@@ -2,7 +2,7 @@
 // Use instead of emoji for menu items, status chips, and primary affordances.
 // All icons are 24×24 viewBox, 1.6px stroke, rounded caps + joins.
 
-type IconName =
+export type IconName =
   | "plus"
   | "minus"
   | "x"
