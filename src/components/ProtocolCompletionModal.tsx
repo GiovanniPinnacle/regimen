@@ -3,7 +3,7 @@
 // ProtocolCompletionModal — peak dopamine moment.
 //
 // Fires once per protocol completion (tracked via localStorage key
-// "regimen.protocol.celebrated.v1.<slug>"). Renders a full-screen modal
+// "regimen.protocol.celebrated.v1.<slug>"). Renders a bottom Sheet
 // with confetti, headline, two clear actions:
 //   1. "Apply learnings" → fires Coach with a focused prompt to keep/
 //      drop/cycle each protocol item, emitting one-tap proposals
@@ -17,6 +17,9 @@
 import { useEffect, useState } from "react";
 import { fireConfetti } from "@/lib/confetti";
 import Icon from "@/components/Icon";
+import Sheet from "@/components/ui/Sheet";
+import Button from "@/components/ui/Button";
+import { Eyebrow } from "@/components/ui/Section";
 import type { UserSignals } from "@/lib/context";
 
 const STORAGE_KEY = "regimen.protocol.celebrated.v1";
@@ -79,106 +82,41 @@ export default function ProtocolCompletionModal() {
     close();
   }
 
-  if (!active) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-5"
-      style={{ background: "rgba(0, 0, 0, 0.72)" }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Protocol complete"
+    <Sheet
+      open={!!active}
+      onClose={close}
+      footer={
+        <div className="flex flex-col gap-2">
+          <Button variant="coach" size="lg" icon="sparkle" fullWidth onClick={applyLearnings}>
+            Apply learnings now
+          </Button>
+          <Button variant="ghost" size="md" fullWidth onClick={close}>
+            I&apos;ll decide later
+          </Button>
+        </div>
+      }
     >
-      <div
-        className="rounded-3xl max-w-md w-full overflow-hidden relative"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--premium) 0%, var(--premium-deep) 100%)",
-          color: "#FFFFFF",
-          boxShadow: "0 24px 48px var(--premium-glow)",
-        }}
-      >
-        {/* Close X */}
-        <button
-          onClick={close}
-          className="absolute top-3 right-3 leading-none p-1.5 rounded-full"
-          style={{
-            background: "rgba(0, 0, 0, 0.18)",
-            color: "#FFFFFF",
-          }}
-          aria-label="Close"
-        >
-          <Icon name="plus" size={16} className="rotate-45" />
-        </button>
-
-        <div className="px-6 pt-7 pb-6">
-          <div className="flex items-center justify-center mb-3">
-            <span
-              className="h-16 w-16 rounded-2xl flex items-center justify-center"
-              style={{
-                background: "rgba(255, 255, 255, 0.18)",
-                color: "#FFFFFF",
-              }}
-            >
+      {active && (
+        <div className="pt-2 pb-2 text-center">
+          <div className="mb-3 flex justify-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-[var(--success-tint)] text-[var(--success)]">
               <Icon name="award" size={32} strokeWidth={1.6} />
             </span>
           </div>
-          <div
-            className="text-[10px] uppercase tracking-wider text-center"
-            style={{
-              opacity: 0.85,
-              fontWeight: 700,
-              letterSpacing: "0.12em",
-            }}
-          >
-            Protocol complete
-          </div>
-          <h2
-            className="text-[28px] leading-tight text-center mt-1.5"
-            style={{ fontWeight: 700, letterSpacing: "-0.02em" }}
-          >
+          <Eyebrow>Protocol complete</Eyebrow>
+          <h2 className="mt-1.5 text-title-1">
             You finished{" "}
-            <span style={{ textTransform: "capitalize" }}>
-              {humanizeSlug(active.slug)}
-            </span>
+            <span className="capitalize">{humanizeSlug(active.slug)}</span>
           </h2>
-          <p
-            className="text-[14px] mt-2 leading-relaxed text-center"
-            style={{ opacity: 0.92 }}
-          >
+          <p className="mt-2 text-callout text-[var(--foreground-soft)]">
             {active.duration_days} days. That&apos;s consistency most people
             never hit. Now decide what to keep — Coach can run the analysis
             in 15 seconds.
           </p>
-
-          <div className="flex flex-col gap-2 mt-5">
-            <button
-              onClick={applyLearnings}
-              className="w-full py-3 rounded-xl text-[14px] flex items-center justify-center gap-1.5"
-              style={{
-                background: "rgba(255, 255, 255, 0.96)",
-                color: "var(--premium-deep)",
-                fontWeight: 700,
-              }}
-            >
-              <Icon name="sparkle" size={14} strokeWidth={2.2} />
-              Apply learnings now
-            </button>
-            <button
-              onClick={close}
-              className="w-full py-2.5 rounded-xl text-[13px]"
-              style={{
-                background: "rgba(255, 255, 255, 0.18)",
-                color: "#FFFFFF",
-                fontWeight: 600,
-              }}
-            >
-              I&apos;ll decide later
-            </button>
-          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </Sheet>
   );
 }
 

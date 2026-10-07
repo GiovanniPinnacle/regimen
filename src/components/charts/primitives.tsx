@@ -161,5 +161,5 @@ export const INK = {
   /** Recessive grid / baseline. */
   grid: "rgba(255, 255, 255, 0.07)",
   axisText: "var(--muted)",
-  fontSize: 10.5,
+  fontSize: 11,
 } as const;

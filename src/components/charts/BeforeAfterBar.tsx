@@ -111,7 +111,7 @@ export default function BeforeAfterBar({
                 <span className="text-footnote" style={{ color: strong ? "var(--foreground)" : "var(--foreground-soft)", fontWeight: strong ? 700 : 500 }}>
                   {fmt(s.mean)}
                 </span>
-                <span className="text-[10px]" style={{ color: s.n < minN ? "var(--warn)" : "var(--muted)" }}>
+                <span className="text-caption" style={{ color: s.n < minN ? "var(--warn)" : "var(--muted)" }}>
                   n={s.n}
                 </span>
               </span>

@@ -29,7 +29,8 @@ type Props = {
    *  instead of flattening against a zero baseline. Bars mode is always
    *  zero-based (bar length must encode magnitude). */
   domain?: [number, number];
-  /** Stroke / fill color. Falls back to var(--accent). */
+  /** Stroke / fill color. Falls back to var(--foreground-soft)
+   *  (green is reserved for success). */
   color?: string;
   /** Soft fade for missing days (null entries). */
   emptyColor?: string;
@@ -48,7 +49,7 @@ export default function Sparkline({
   emptyColor,
   ariaLabel,
 }: Props) {
-  const fill = color ?? "var(--accent)";
+  const fill = color ?? "var(--foreground-soft)";
   const empty = emptyColor ?? "var(--surface-alt)";
 
   if (values.length === 0) {

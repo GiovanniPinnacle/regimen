@@ -296,7 +296,7 @@ export default function LineChart({
               <text
                 x={padL + 6}
                 y={bandTop + 11}
-                fontSize={INK.fontSize - 1}
+                fontSize={INK.fontSize}
                 fill="var(--muted)"
                 fillOpacity={0.8}
                 fontWeight={600}
@@ -356,7 +356,7 @@ export default function LineChart({
               x={padL + 4}
               y={clampY(target) - 4}
               textAnchor="start"
-              fontSize={INK.fontSize - 0.5}
+              fontSize={INK.fontSize}
               fill="var(--foreground-soft)"
               fontWeight={600}
               className="tabular-nums"
@@ -388,7 +388,7 @@ export default function LineChart({
                 x={rightHalf ? x - 5 : x + 5}
                 y={padT - 1}
                 textAnchor={rightHalf ? "end" : "start"}
-                fontSize={INK.fontSize - 0.5}
+                fontSize={INK.fontSize}
                 fill="var(--foreground-soft)"
                 fontWeight={600}
               >

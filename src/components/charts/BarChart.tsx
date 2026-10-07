@@ -192,7 +192,7 @@ export default function BarChart({
             <text
               x={padX + 2}
               y={sy(target) - 5}
-              fontSize={INK.fontSize - 0.5}
+              fontSize={INK.fontSize}
               fontWeight={600}
               fill="var(--foreground-soft)"
               className="tabular-nums"

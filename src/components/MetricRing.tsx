@@ -25,9 +25,10 @@ type Props = {
   size?: number;
   /** Stroke width of the arc. Auto-scales if not provided. */
   strokeWidth?: number;
-  /** Stroke color of the filled arc. Falls back to var(--accent). */
+  /** Stroke color of the filled arc. Falls back to var(--foreground) —
+   *  pass var(--success) only when the ring represents a hit target. */
   color?: string;
-  /** Track (un-filled) stroke color. Falls back to a soft accent tint. */
+  /** Track (un-filled) stroke color. Falls back to var(--surface-alt). */
   trackColor?: string;
   /** Optional center content — usually a number + tiny label. */
   children?: ReactNode;
@@ -60,8 +61,8 @@ export default function MetricRing({
   const circumference = 2 * Math.PI * r;
   const offset = circumference * (1 - percent / 100);
 
-  const fill = color ?? "var(--accent)";
-  const track = trackColor ?? "var(--accent-tint)";
+  const fill = color ?? "var(--foreground)";
+  const track = trackColor ?? "var(--surface-alt)";
 
   return (
     <div

@@ -55,21 +55,16 @@ export default function AskCoachButton({
       : {
           fontSize: 13,
           padding: "10px 14px",
-          minHeight: 38,
+          minHeight: 44,
           gap: 6,
           letterSpacing: "-0.005em",
         };
   return (
     <button
       onClick={fire}
-      className={`${isBlock ? "flex w-full" : "inline-flex"} items-center justify-center rounded-xl no-truncate`}
+      className={`${isBlock ? "flex w-full" : "inline-flex"} items-center justify-center rounded-[14px] no-truncate bg-[var(--coach-fill)] text-white transition-[transform,background-color] duration-150 hover:bg-[var(--pro)] active:scale-[0.97]`}
       style={{
-        background:
-          "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
-        color: "#FFFFFF",
-        fontWeight: 700,
-        boxShadow:
-          "0 4px 14px var(--pro-glow), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
+        fontWeight: 600,
         whiteSpace: "nowrap",
         flexShrink: 0,
         ...styles,

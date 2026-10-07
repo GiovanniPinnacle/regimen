@@ -12,6 +12,7 @@ import ListRow, { ListGroup } from "@/components/ui/ListRow";
 import { SectionHeader, Stat } from "@/components/ui/Section";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isAdmin } from "@/lib/admin";
 import {
   AFFILIATE_CONFIGS,
   estimateCommissionCents,
@@ -32,16 +33,6 @@ type ClickRow = {
 
 function fmtUSD(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
-}
-
-function isOwner(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const env = process.env.ADMIN_EMAILS ?? "";
-  const list = env
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return list.includes(email.toLowerCase());
 }
 
 function getNow(): number {
@@ -69,7 +60,7 @@ export default async function RevenuePage() {
     );
   }
 
-  const owner = isOwner(user.email);
+  const owner = isAdmin(user.email);
   const since30 = new Date(getNow() - 30 * 86400000).toISOString();
 
   const userClient = supabase;

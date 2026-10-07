@@ -102,7 +102,9 @@ export default function NextStep({
         ? "coach"
         : step.accent === "var(--error)"
           ? "danger"
-          : "neutral";
+          : step.accent === "var(--success)"
+            ? "success"
+            : "neutral";
 
   const renderAction = (
     a: Step["primary"] | NonNullable<Step["secondary"]>,
@@ -159,7 +161,8 @@ function pickStep(s: StateRes, todayTakenCount: number): Step | null {
       title: `You finished ${humanizeSlug(completedProtocol.slug)}`,
       body: `Day ${completedProtocol.current_day} of ${completedProtocol.duration_days}. Lock in what worked, drop what didn't.`,
       icon: "award",
-      accent: "var(--premium)",
+      // Finishing a protocol is a genuine success moment.
+      accent: "var(--success)",
       primary: {
         label: "Apply learnings",
         type: "coach",
@@ -181,7 +184,7 @@ function pickStep(s: StateRes, todayTakenCount: number): Step | null {
       title: `${sig.arrivedUnmarkedCount} ${sig.arrivedUnmarkedCount === 1 ? "item" : "items"} ready to start`,
       body: `Mark them as "using" to add them to your daily check-off.`,
       icon: "shopping-bag",
-      accent: "var(--accent)",
+      accent: "var(--foreground)",
       primary: {
         label: "Mark using",
         type: "link",
@@ -226,7 +229,7 @@ function pickStep(s: StateRes, todayTakenCount: number): Step | null {
           ? `You have ${s.activeCount} items waiting. The first check-off is the hardest — start with anything.`
           : `${sig.uniqueLogDays14d} of last 14 days logged. One tap keeps the streak.`,
       icon: "check-circle",
-      accent: "var(--accent)",
+      accent: "var(--foreground)",
       primary: {
         label: "Scroll to today",
         type: "link",
@@ -340,7 +343,7 @@ function pickStep(s: StateRes, todayTakenCount: number): Step | null {
       title: `${humanizeSlug(ongoing.slug)} · Day ${ongoing.current_day} of ${ongoing.duration_days}`,
       body: `${Math.round((ongoing.current_day / ongoing.duration_days) * 100)}% complete. Stay consistent through the next phase.`,
       icon: "graph",
-      accent: "var(--accent)",
+      accent: "var(--foreground)",
       primary: {
         label: "View today",
         type: "link",

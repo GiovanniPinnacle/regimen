@@ -140,12 +140,24 @@ export default function CalendarHeatmap({
       >
         <desc>{summary}</desc>
 
-        <g aria-hidden fontSize={9.5} fill="var(--muted)" fontWeight={600}>
-          {monthLabels.map((m) => (
-            <text key={`${m.col}-${m.text}`} x={LEFT + m.col * STEP} y={10}>
-              {m.text}
-            </text>
-          ))}
+        {/* viewBox units: the 238-wide grid renders ~1.3–1.7× on phones,
+            so this lands at ≥13px on screen. */}
+        <g aria-hidden fontSize={10.5} fill="var(--muted)" fontWeight={600}>
+          {monthLabels.map((m) => {
+            // A month starting in the last two columns would run past
+            // the right edge — pin it to the edge instead.
+            const atEdge = m.col >= weeks - 2;
+            return (
+              <text
+                key={`${m.col}-${m.text}`}
+                x={atEdge ? vbW : LEFT + m.col * STEP}
+                y={10}
+                textAnchor={atEdge ? "end" : undefined}
+              >
+                {m.text}
+              </text>
+            );
+          })}
           {WEEKDAY_LABELS.map(([r, t]) => (
             <text key={t} x={LEFT - 7} y={TOP + r * STEP + CELL - 3.5} textAnchor="end">
               {t}

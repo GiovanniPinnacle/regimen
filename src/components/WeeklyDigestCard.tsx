@@ -15,6 +15,9 @@
 
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
+import Card from "@/components/ui/Card";
+import Button, { IconButton } from "@/components/ui/Button";
+import { Eyebrow } from "@/components/ui/Section";
 import MetricDelta from "@/components/MetricDelta";
 import SwipeDismiss from "@/components/SwipeDismiss";
 import { usePulseCount } from "@/components/CoachPulse";
@@ -135,156 +138,104 @@ export default function WeeklyDigestCard() {
   const lastPct = Math.round(digest.last_week.rate * 100);
   const prevPct = Math.round(digest.prev_week.rate * 100);
   const deltaPp = Math.round(digest.delta_rate * 100);
-  // Color the headline percentage based on directional movement —
-  // green if last week was higher than the week before, warn-red if
-  // it slipped. The MetricDelta chip handles its own coloring.
-  const trendColor = deltaPp >= 0 ? "var(--accent)" : "var(--error)";
+  // Headline percentage stays neutral when it held or rose (green is
+  // reserved for success moments) and turns error-red if it slipped.
+  // The MetricDelta chip handles its own coloring.
+  const trendColor = deltaPp >= 0 ? "var(--foreground)" : "var(--error)";
 
   return (
     <SwipeDismiss onDismiss={dismiss}>
-    <section
-      className="rounded-2xl card-glass mb-5 overflow-hidden"
-      style={{ borderColor: "rgba(139, 124, 252, 0.30)" }}
-    >
-      <div className="px-4 py-3.5">
-        <div className="flex items-start gap-3">
-          <span
-            className="shrink-0 mt-0.5 h-7 w-7 rounded-lg flex items-center justify-center"
-            style={{
-              background: "var(--pro-tint)",
-              color: "var(--pro)",
-            }}
-          >
-            <Icon name="graph" size={14} strokeWidth={1.8} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div
-              className="text-[10px] uppercase tracking-wider"
-              style={{
-                color: "var(--pro)",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-              }}
-            >
-              Weekly digest
+      <Card padding="none" className="mb-5 overflow-hidden">
+        <div className="px-4 py-3.5">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
+              <Icon name="graph" size={14} strokeWidth={1.8} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <Eyebrow>Weekly digest</Eyebrow>
+              <div className="mt-0.5 flex flex-wrap items-baseline gap-2">
+                <span
+                  className="text-[24px] font-bold leading-none tracking-[-0.02em] tabular-nums"
+                  style={{ color: trendColor }}
+                >
+                  {lastPct}%
+                </span>
+                <span className="text-footnote font-semibold text-[var(--foreground-soft)]">
+                  adherence last week
+                </span>
+                <MetricDelta
+                  delta={deltaPp}
+                  baseline="vs prev"
+                  direction="good_higher"
+                  unit="pp"
+                />
+              </div>
+              <p className="mt-1 text-footnote text-[var(--muted)]">
+                {digest.last_week.taken}/{digest.last_week.total} logged across{" "}
+                {digest.last_week.uniqueDays} days · prev week {prevPct}%
+              </p>
             </div>
-            <div
-              className="flex items-baseline gap-2 mt-0.5 flex-wrap"
-            >
-              <span
-                className="text-[24px] tabular-nums leading-none"
-                style={{
-                  fontWeight: 700,
-                  letterSpacing: "-0.02em",
-                  color: trendColor,
-                }}
-              >
-                {lastPct}%
-              </span>
-              <span
-                className="text-[12.5px]"
-                style={{
-                  color: "var(--foreground-soft)",
-                  fontWeight: 600,
-                }}
-              >
-                adherence last week
-              </span>
-              <MetricDelta
-                delta={deltaPp}
-                baseline="vs prev"
-                direction="good_higher"
-                unit="pp"
-              />
-            </div>
-            <div
-              className="text-[12.5px] mt-1 leading-relaxed"
-              style={{ color: "var(--muted)" }}
-            >
-              {digest.last_week.taken}/{digest.last_week.total} logged across{" "}
-              {digest.last_week.uniqueDays} days · prev week {prevPct}%
-            </div>
+            <IconButton
+              icon="x"
+              label="Dismiss this week"
+              tone="plain"
+              size={36}
+              iconSize={16}
+              className="-mr-2 -mt-1"
+              onClick={dismiss}
+            />
           </div>
-          <button
-            onClick={dismiss}
-            className="shrink-0 leading-none px-1 -mr-1 -mt-0.5"
-            style={{ color: "var(--muted)" }}
-            aria-label="Dismiss this week"
-          >
-            <Icon name="plus" size={14} className="rotate-45" />
-          </button>
-        </div>
 
-        <div className="mt-3 space-y-2">
-          {digest.top_helpers.length > 0 ? (
-            <DigestRow
-              label="Helped most"
-              accent="var(--accent)"
-              entries={digest.top_helpers.map(
-                (h) => `${h.name} ×${h.helped}`,
-              )}
-            />
-          ) : null}
-          {digest.slipping.length > 0 ? (
-            <DigestRow
-              label="Slipping"
-              accent="var(--warn)"
-              entries={digest.slipping.map(
-                (s) =>
-                  `${s.name} ${Math.round(s.prev * 100)}%→${Math.round(s.last * 100)}%`,
-              )}
-            />
-          ) : null}
-          {digest.drop_flags.length > 0 ? (
-            <DigestRow
-              label="Drop flags"
-              accent="var(--error)"
-              entries={digest.drop_flags.map(
-                (d) => `${d.name} ×${d.worse} worse`,
-              )}
-            />
-          ) : null}
-          {digest.best_day ? (
-            <DigestRow
-              label="Best day"
-              accent="var(--pro)"
-              entries={[
-                `${digest.best_day.day} · ${Math.round(digest.best_day.rate * 100)}%`,
-              ]}
-            />
-          ) : null}
-        </div>
+          <div className="mt-3 space-y-2">
+            {digest.top_helpers.length > 0 ? (
+              <DigestRow
+                label="Helped most"
+                accent="var(--foreground-soft)"
+                entries={digest.top_helpers.map(
+                  (h) => `${h.name} ×${h.helped}`,
+                )}
+              />
+            ) : null}
+            {digest.slipping.length > 0 ? (
+              <DigestRow
+                label="Slipping"
+                accent="var(--warn)"
+                entries={digest.slipping.map(
+                  (s) =>
+                    `${s.name} ${Math.round(s.prev * 100)}%→${Math.round(s.last * 100)}%`,
+                )}
+              />
+            ) : null}
+            {digest.drop_flags.length > 0 ? (
+              <DigestRow
+                label="Drop flags"
+                accent="var(--error)"
+                entries={digest.drop_flags.map(
+                  (d) => `${d.name} ×${d.worse} worse`,
+                )}
+              />
+            ) : null}
+            {digest.best_day ? (
+              <DigestRow
+                label="Best day"
+                accent="var(--muted)"
+                entries={[
+                  `${digest.best_day.day} · ${Math.round(digest.best_day.rate * 100)}%`,
+                ]}
+              />
+            ) : null}
+          </div>
 
-        <div className="flex gap-2 mt-3" style={{ paddingLeft: 40 }}>
-          <button
-            onClick={discuss}
-            className="text-[13px] px-3.5 py-2 rounded-lg flex items-center gap-1.5 active:scale-[0.98] transition-transform"
-            style={{
-              background:
-                "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
-              color: "#FFFFFF",
-              fontWeight: 700,
-              minHeight: 36,
-            }}
-          >
-            <Icon name="sparkle" size={13} strokeWidth={2.2} />
-            Discuss with Coach
-          </button>
-          <button
-            onClick={dismiss}
-            className="text-[13px] px-3.5 py-2 rounded-lg"
-            style={{
-              background: "var(--surface-alt)",
-              color: "var(--foreground)",
-              fontWeight: 600,
-              minHeight: 36,
-            }}
-          >
-            Mark read
-          </button>
+          <div className="mt-3 flex gap-2 pl-10">
+            <Button variant="coach" size="md" icon="sparkle" onClick={discuss}>
+              Discuss with Coach
+            </Button>
+            <Button variant="secondary" size="md" onClick={dismiss}>
+              Mark read
+            </Button>
+          </div>
         </div>
-      </div>
-    </section>
+      </Card>
     </SwipeDismiss>
   );
 }
@@ -301,20 +252,12 @@ function DigestRow({
   return (
     <div className="flex items-baseline gap-2">
       <span
-        className="text-[10px] uppercase tracking-wider shrink-0"
-        style={{
-          color: accent,
-          fontWeight: 700,
-          letterSpacing: "0.06em",
-          minWidth: 72,
-        }}
+        className="min-w-[84px] shrink-0 text-eyebrow uppercase"
+        style={{ color: accent }}
       >
         {label}
       </span>
-      <span
-        className="text-[12.5px] flex-1 leading-snug"
-        style={{ color: "var(--foreground-soft)" }}
-      >
+      <span className="flex-1 text-footnote text-[var(--foreground-soft)]">
         {entries.join(" · ")}
       </span>
     </div>

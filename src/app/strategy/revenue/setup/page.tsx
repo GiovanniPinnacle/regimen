@@ -11,6 +11,7 @@
 
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { isAdmin } from "@/lib/admin";
 import Icon from "@/components/Icon";
 import PageHeader from "@/components/ui/PageHeader";
 import Card from "@/components/ui/Card";
@@ -20,16 +21,6 @@ import { ListGroup } from "@/components/ui/ListRow";
 import { SectionHeader, Stat } from "@/components/ui/Section";
 
 export const dynamic = "force-dynamic";
-
-function isOwner(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const env = process.env.ADMIN_EMAILS ?? "";
-  const list = env
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return list.includes(email.toLowerCase());
-}
 
 type NetworkStep = {
   network: string;
@@ -48,7 +39,7 @@ export default async function RevenueSetupPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || !isOwner(user.email)) {
+  if (!user || !isAdmin(user.email)) {
     return (
       <div className="pb-24">
         <PageHeader

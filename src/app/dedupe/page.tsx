@@ -8,8 +8,11 @@
 // deletes the losers — irreversible but logged in changelog.
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import Button, { ButtonLink } from "@/components/ui/Button";
 
 type Member = { id: string; name: string; status: string };
 type Group = {
@@ -82,187 +85,113 @@ export default function DedupePage() {
     }
   }
 
+  const extraRows =
+    report?.duplicate_groups.reduce((n, g) => n + g.losers.length, 0) ?? 0;
+
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <div className="mb-2">
-          <Link
-            href="/you"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            You
-          </Link>
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Clean up duplicates
-        </h1>
-        <p
-          className="text-[13px] mt-1 leading-relaxed"
-          style={{ color: "var(--muted)" }}
-        >
-          Finds items in your stack with the same name (or same catalog row).
-          Picks the survivor, merges fields, re-points your logs + reactions,
-          and deletes the rest.
-        </p>
-      </header>
+      <PageHeader
+        back="/you"
+        backLabel="You"
+        title="Clean up duplicates"
+        subtitle="Finds items in your stack with the same name (or same catalog row). Picks the survivor, merges fields, re-points your logs + reactions, and deletes the rest."
+      />
 
       {loading ? (
-        <div className="py-8 text-center" style={{ color: "var(--muted)" }}>
+        <div className="py-8 text-center text-callout text-[var(--muted)]">
           Scanning your stack…
         </div>
       ) : err ? (
-        <div
-          className="rounded-2xl card-glass p-4 text-[13px]"
-          style={{ color: "var(--error)" }}
-        >
-          {err}
-        </div>
+        <Card tone="danger" padding="md">
+          <p className="text-footnote text-[var(--error)]">{err}</p>
+        </Card>
       ) : done ? (
-        <div className="rounded-2xl card-glass p-6">
-          <div
-            className="text-[16px] mb-1"
-            style={{ fontWeight: 700, color: "var(--accent)" }}
-          >
-            ✓ Merged {done.count} duplicate{done.count === 1 ? "" : "s"}
+        <Card padding="lg">
+          <div className="mb-1 flex items-center gap-2 text-title-3">
+            <Icon
+              name="check-circle"
+              size={20}
+              strokeWidth={2}
+              className="shrink-0 text-[var(--success)]"
+            />
+            Merged {done.count} duplicate{done.count === 1 ? "" : "s"}
           </div>
-          <div
-            className="text-[13px]"
-            style={{ color: "var(--muted)" }}
-          >
+          <p className="text-footnote text-[var(--muted)]">
             Logs, reactions, and companion pointers were re-pointed to the
             survivors. Each merge was recorded in your changelog.
-          </div>
-          <Link
-            href="/today"
-            className="inline-block mt-4 text-[13px] px-4 py-2 rounded-lg"
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 600,
-            }}
-          >
+          </p>
+          <ButtonLink href="/today" variant="primary" size="md" className="mt-4">
             Back to Today
-          </Link>
-        </div>
+          </ButtonLink>
+        </Card>
       ) : !report || report.duplicate_groups.length === 0 ? (
-        <div className="rounded-2xl card-glass p-8 text-center">
-          <span
-            className="inline-flex items-center justify-center h-12 w-12 rounded-2xl mb-3"
-            style={{
-              background: "var(--accent-tint)",
-              color: "var(--accent)",
-            }}
-          >
+        <Card padding="xl" className="text-center">
+          <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-alt)] text-[var(--foreground-soft)]">
             <Icon name="check-circle" size={22} strokeWidth={1.8} />
           </span>
-          <div className="text-[16px]" style={{ fontWeight: 600 }}>
-            No duplicates found
-          </div>
-          <div
-            className="text-[12.5px] mt-1.5"
-            style={{ color: "var(--muted)" }}
-          >
+          <div className="text-title-3">No duplicates found</div>
+          <p className="mt-1.5 text-footnote text-[var(--muted)]">
             Scanned {report?.total_items ?? 0} items. Stack looks clean.
-          </div>
-        </div>
+          </p>
+        </Card>
       ) : (
         <>
-          <section className="rounded-2xl card-glass p-4 mb-5">
-            <div className="text-[14px]" style={{ fontWeight: 600 }}>
+          <Card padding="md" className="mb-5">
+            <div className="text-callout font-semibold">
               Found {report.duplicate_groups.length} duplicate group
               {report.duplicate_groups.length === 1 ? "" : "s"}
             </div>
-            <div
-              className="text-[12.5px] mt-1"
-              style={{ color: "var(--muted)" }}
-            >
-              {report.duplicate_groups.reduce(
-                (s, g) => s + g.losers.length,
-                0,
-              )}{" "}
-              extra row{report.duplicate_groups.reduce((s, g) => s + g.losers.length, 0) === 1 ? "" : "s"} will be deleted, fields merged into the
-              survivor.
-            </div>
-            <button
+            <p className="mt-1 text-footnote text-[var(--muted)]">
+              {extraRows} extra row{extraRows === 1 ? "" : "s"} will be
+              deleted, fields merged into the survivor.
+            </p>
+            <Button
+              variant="primary"
+              size="md"
+              fullWidth
+              className="mt-4"
               onClick={runMerge}
-              disabled={merging}
-              className="w-full mt-4 px-3 py-2.5 rounded-lg flex items-center justify-center gap-1.5"
-              style={{
-                background: "var(--primary)",
-                color: "var(--primary-fg)",
-                fontWeight: 700,
-                fontSize: 13,
-                opacity: merging ? 0.5 : 1,
-              }}
+              loading={merging}
             >
               {merging ? "Merging…" : "Merge all duplicates"}
-            </button>
-          </section>
+            </Button>
+          </Card>
 
           <div className="flex flex-col gap-3">
             {report.duplicate_groups.map((g) => (
-              <div
-                key={g.key}
-                className="rounded-2xl card-glass p-3.5"
-              >
-                <div className="flex items-baseline justify-between gap-2 mb-2">
-                  <div
-                    className="text-[14px]"
-                    style={{ fontWeight: 600 }}
-                  >
+              <Card key={g.key} padding="md">
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <div className="text-callout font-semibold">
                     {g.survivor.name}
                   </div>
-                  <span
-                    className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded"
-                    style={{
-                      background:
-                        g.basis === "name"
-                          ? "var(--pro-tint)"
-                          : "var(--accent-tint)",
-                      color:
-                        g.basis === "name"
-                          ? "var(--pro)"
-                          : "var(--accent)",
-                      fontWeight: 700,
-                      letterSpacing: "0.06em",
-                    }}
-                  >
+                  <Chip size="sm">
                     {g.basis === "name" ? "Same name" : "Same catalog"}
-                  </span>
+                  </Chip>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <div
-                    className="text-[12px] flex items-center gap-2"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    <Icon name="check-circle" size={12} strokeWidth={2.2} />
-                    <span style={{ fontWeight: 600 }}>
+                  <div className="flex items-center gap-2 text-caption text-[var(--foreground)]">
+                    <Icon name="check" size={13} strokeWidth={2.2} />
+                    <span className="font-semibold">
                       Keep ({g.survivor.status}):
                     </span>
-                    <span style={{ color: "var(--foreground-soft)" }}>
+                    <span className="text-[var(--foreground-soft)]">
                       {g.survivor.name}
                     </span>
                   </div>
                   {g.losers.map((l) => (
                     <div
                       key={l.id}
-                      className="text-[12px] flex items-center gap-2"
-                      style={{ color: "var(--muted)" }}
+                      className="flex items-center gap-2 text-caption text-[var(--muted)]"
                     >
-                      <Icon name="trash" size={11} strokeWidth={2} />
-                      <span style={{ fontWeight: 600 }}>
+                      <Icon name="trash" size={13} strokeWidth={2} />
+                      <span className="font-semibold">
                         Merge ({l.status}):
                       </span>
                       <span>{l.name}</span>
                     </div>
                   ))}
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         </>

@@ -130,8 +130,11 @@ export default function ToastHost() {
       className="pointer-events-none fixed inset-x-0 flex flex-col items-center gap-2 px-4"
       style={{
         zIndex: "var(--z-toast)" as unknown as number,
-        // Coach sets --toast-offset to its composer height while open.
-        bottom: `calc(env(safe-area-inset-bottom, 0px) + var(--toast-offset, ${offset}px))`,
+        // Coach sets --toast-offset to its measured composer height while
+        // open. That height already includes the composer's own
+        // safe-area (and keyboard) padding, so it replaces the whole
+        // bottom value instead of being added to the inset again.
+        bottom: `var(--toast-offset, calc(env(safe-area-inset-bottom, 0px) + ${offset}px))`,
       }}
       role="status"
       aria-live="polite"

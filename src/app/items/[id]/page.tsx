@@ -21,6 +21,12 @@ import DeepResearchButton from "@/components/DeepResearchButton";
 import BuyButton from "@/components/BuyButton";
 import TutorialLink from "@/components/TutorialLink";
 import ItemTypeIcon from "@/components/ItemTypeIcon";
+import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Chip from "@/components/ui/Chip";
+import { Eyebrow, SectionHeader } from "@/components/ui/Section";
+import { ListGroup } from "@/components/ui/ListRow";
 
 function getNow(): number {
   return Date.now();
@@ -233,82 +239,64 @@ export default async function ItemDetailPage({
   const hasHistory =
     reactionTotal > 0 || memos.length > 0 || skips.length > 0;
 
+  const sourceLabel =
+    catalog?.source === "off"
+      ? "Open Food Facts"
+      : catalog?.source === "usda"
+        ? "USDA"
+        : catalog?.source === "dsld"
+          ? "NIH DSLD"
+          : "Curated";
+
   return (
     <div className="pb-24">
-      <div className="mb-4">
-        <Link
-          href="/stack"
-          className="text-[13px]"
-          style={{ color: "var(--muted)" }}
-        >
-          ← Stack
-        </Link>
-      </div>
+      <PageHeader
+        back="/stack"
+        backLabel="Stack"
+        eyebrow={ITEM_TYPE_LABELS[item.item_type]}
+        title={item.name}
+        subtitle={item.brand ?? undefined}
+        actions={
+          <Link
+            href={`/items/${id}/edit`}
+            aria-label="Edit item"
+            title="Edit item"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground-soft)] before:absolute before:-inset-1 before:content-[''] active:scale-95"
+          >
+            <Icon name="edit" size={18} strokeWidth={1.8} />
+          </Link>
+        }
+      />
 
-      <header className="mb-6">
+      <Card padding="md" className="mb-6">
         <div className="flex items-start gap-3">
           <ItemTypeIcon type={item.item_type} size={44} tone="accent" />
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
-              <h1
-                className="text-[24px] leading-tight"
-                style={{ fontWeight: 700, letterSpacing: "-0.018em" }}
-              >
-                {item.name}
-              </h1>
-              <div className="flex items-center gap-2 shrink-0">
-                <Link
-                  href={`/items/${id}/edit`}
-                  className="text-[12px] px-2.5 py-1 rounded-lg border-hair"
-                  style={{ color: "var(--muted)" }}
-                >
-                  Edit
-                </Link>
-                <CategoryBadge category={item.category} size="sm" />
+              <div className="text-callout text-[var(--foreground-soft)]">
+                {item.dose ?? "—"}
+                {" · "}
+                {TIMING_LABELS[item.timing_slot]}
               </div>
-            </div>
-            {item.brand && (
-              <div
-                className="text-[13px] mt-0.5"
-                style={{ color: "var(--muted)" }}
-              >
-                {item.brand}
-              </div>
-            )}
-            <div
-              className="text-[13px] mt-2"
-              style={{ color: "var(--muted)" }}
-            >
-              {item.dose ?? "—"}
-              {" · "}
-              {TIMING_LABELS[item.timing_slot]}
-              {" · "}
-              {ITEM_TYPE_LABELS[item.item_type]}
+              <CategoryBadge category={item.category} size="sm" />
             </div>
             {item.schedule_rule?.notes && (
-              <div
-                className="text-[12px] mt-1"
-                style={{ color: "var(--muted)" }}
-              >
+              <p className="mt-1 text-caption text-[var(--muted)]">
                 {item.schedule_rule.notes}
-              </div>
+              </p>
             )}
             {item.goals.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
+              <div className="mt-2 flex flex-wrap gap-1.5">
                 {item.goals.map((g) => (
-                  <span
-                    key={g}
-                    className="text-[11px] px-2 py-0.5 rounded-full border-hair"
-                    style={{ color: "var(--muted)" }}
-                  >
+                  <Chip key={g} size="sm">
                     {GOAL_LABELS[g]}
-                  </span>
+                  </Chip>
                 ))}
               </div>
             )}
           </div>
         </div>
-      </header>
+      </Card>
 
       <ItemActions item={item} />
 
@@ -317,10 +305,9 @@ export default async function ItemDetailPage({
       )}
 
       {/* Tutorial / how-to — surfaced near the top so users see the
-          link before scrolling through research notes etc. */}
-      {/* Always render — TutorialLink handles missing-URL state with a
-          "search YouTube for X" fallback so the user never hits a
-          dead end on items without curated tutorials. */}
+          link before scrolling through research notes etc. TutorialLink
+          handles a missing URL with a "search YouTube for X" fallback so
+          the user never hits a dead end. */}
       {(item.media_url || item.how_to || item.item_type === "practice" ||
         item.item_type === "device" || item.item_type === "gear") && (
         <Section title="How to do this">
@@ -333,61 +320,34 @@ export default async function ItemDetailPage({
         </Section>
       )}
 
-      {/* Macros panel — appears when catalog has any nutritional data,
-       *   even without enrichment. Surfaces the data we always have for
-       *   USDA + Open Food Facts items. */}
+      {/* Macros panel — appears when the catalog has any nutritional data,
+          even without enrichment (USDA + Open Food Facts items). */}
       {catalog &&
         (catalog.calories != null ||
           catalog.protein_g != null ||
           catalog.fat_g != null ||
           catalog.carbs_g != null) && (
           <Section title="Nutrition">
-            <div
-              className="rounded-2xl card-glass p-3.5"
-            >
+            <Card padding="md">
               {catalog.serving_size && (
-                <div
-                  className="text-[11px] uppercase tracking-wider mb-2"
-                  style={{
-                    color: "var(--muted)",
-                    fontWeight: 700,
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  Per {catalog.serving_size}
-                </div>
+                <Eyebrow className="mb-2">Per {catalog.serving_size}</Eyebrow>
               )}
               <div className="grid grid-cols-4 gap-2">
                 {catalog.calories != null && (
-                  <NutStat
-                    label="kcal"
-                    value={String(Math.round(catalog.calories))}
-                  />
+                  <NutStat label="kcal" value={String(Math.round(catalog.calories))} />
                 )}
                 {catalog.protein_g != null && (
-                  <NutStat
-                    label="P"
-                    value={`${Math.round(catalog.protein_g)}g`}
-                  />
+                  <NutStat label="Protein" value={`${Math.round(catalog.protein_g)}g`} />
                 )}
                 {catalog.fat_g != null && (
-                  <NutStat
-                    label="F"
-                    value={`${Math.round(catalog.fat_g)}g`}
-                  />
+                  <NutStat label="Fat" value={`${Math.round(catalog.fat_g)}g`} />
                 )}
                 {catalog.carbs_g != null && (
-                  <NutStat
-                    label="C"
-                    value={`${Math.round(catalog.carbs_g)}g`}
-                  />
+                  <NutStat label="Carbs" value={`${Math.round(catalog.carbs_g)}g`} />
                 )}
               </div>
               {(catalog.fiber_g != null || catalog.sugar_g != null) && (
-                <div
-                  className="text-[11px] mt-2 flex gap-3 tabular-nums"
-                  style={{ color: "var(--muted)" }}
-                >
+                <div className="mt-2 flex gap-3 text-caption tabular-nums text-[var(--muted)]">
                   {catalog.fiber_g != null && (
                     <span>Fiber {Math.round(catalog.fiber_g)}g</span>
                   )}
@@ -397,19 +357,10 @@ export default async function ItemDetailPage({
                 </div>
               )}
               {catalog.micros && Object.keys(catalog.micros).length > 0 && (
-                <details className="mt-3">
-                  <summary
-                    className="cursor-pointer list-none text-[11px] uppercase tracking-wider flex items-center gap-1"
-                    style={{
-                      color: "var(--muted)",
-                      fontWeight: 700,
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    <span>Micronutrients ({Object.keys(catalog.micros).length})</span>
-                    <span className="ml-auto text-[14px]">⌄</span>
-                  </summary>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[11.5px]">
+                <Disclosure
+                  label={`Micronutrients (${Object.keys(catalog.micros).length})`}
+                >
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-caption">
                     {Object.entries(catalog.micros)
                       .sort((a, b) => a[0].localeCompare(b[0]))
                       .map(([k, v]) => (
@@ -417,191 +368,117 @@ export default async function ItemDetailPage({
                           key={k}
                           className="flex items-baseline justify-between gap-1"
                         >
-                          <span style={{ color: "var(--muted)" }}>
+                          <span className="text-[var(--muted)]">
                             {k.replace(/_/g, " ").replace(/(mg|mcg|iu|g)$/, "")}
                           </span>
-                          <span className="tabular-nums" style={{ fontWeight: 600 }}>
+                          <span className="font-semibold tabular-nums">
                             {Number(v).toFixed(2)}
-                            <span
-                              className="text-[10px] ml-0.5"
-                              style={{ color: "var(--muted)" }}
-                            >
+                            <span className="ml-0.5 font-normal text-[var(--muted)]">
                               {(k.match(/(mg|mcg|iu|g)$/) ?? [])[1] ?? ""}
                             </span>
                           </span>
                         </div>
                       ))}
                   </div>
-                </details>
+                </Disclosure>
               )}
               {catalog.active_ingredients &&
                 catalog.active_ingredients.length > 0 && (
-                  <details className="mt-3">
-                    <summary
-                      className="cursor-pointer list-none text-[11px] uppercase tracking-wider flex items-center gap-1"
-                      style={{
-                        color: "var(--muted)",
-                        fontWeight: 700,
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      <span>
-                        Active ingredients ({catalog.active_ingredients.length})
-                      </span>
-                      <span className="ml-auto text-[14px]">⌄</span>
-                    </summary>
-                    <div className="flex flex-col gap-0.5 mt-2 text-[11.5px]">
+                  <Disclosure
+                    label={`Active ingredients (${catalog.active_ingredients.length})`}
+                  >
+                    <div className="flex flex-col gap-0.5 text-caption">
                       {catalog.active_ingredients.map((ai, i) => (
                         <div
                           key={i}
                           className="flex items-baseline justify-between"
                         >
-                          <span style={{ color: "var(--foreground-soft)" }}>
+                          <span className="text-[var(--foreground-soft)]">
                             {ai.name}
                           </span>
-                          <span className="tabular-nums" style={{ fontWeight: 600 }}>
+                          <span className="font-semibold tabular-nums">
                             {ai.amount}{" "}
-                            <span
-                              className="text-[10px]"
-                              style={{ color: "var(--muted)" }}
-                            >
+                            <span className="font-normal text-[var(--muted)]">
                               {ai.unit}
                             </span>
                           </span>
                         </div>
                       ))}
                     </div>
-                  </details>
+                  </Disclosure>
                 )}
-            </div>
+            </Card>
           </Section>
         )}
 
       {catalog && (catalog.coach_summary || catalog.mechanism) && (
         <Section title="What it is">
-          <div className="rounded-2xl card-glass p-4 flex flex-col gap-3">
+          <Card padding="md" className="flex flex-col gap-3">
             {catalog.evidence_grade && (
-              <div className="flex items-center gap-2">
-                <span
-                  className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full"
-                  style={{
-                    background:
-                      catalog.evidence_grade === "A"
-                        ? "var(--accent-tint)"
-                        : catalog.evidence_grade === "B"
-                          ? "var(--pro-tint)"
-                          : catalog.evidence_grade === "C"
-                            ? "var(--premium-tint)"
-                            : "rgba(239, 68, 68, 0.10)",
-                    color:
-                      catalog.evidence_grade === "A"
-                        ? "var(--accent)"
-                        : catalog.evidence_grade === "B"
-                          ? "var(--pro)"
-                          : catalog.evidence_grade === "C"
-                            ? "var(--premium)"
-                            : "var(--error)",
-                    fontWeight: 700,
-                    letterSpacing: "0.06em",
-                  }}
+              <div className="flex flex-wrap items-center gap-2">
+                <Chip
+                  size="sm"
+                  tone={
+                    catalog.evidence_grade === "A" || catalog.evidence_grade === "B"
+                      ? "neutral"
+                      : catalog.evidence_grade === "C"
+                        ? "warn"
+                        : "danger"
+                  }
                 >
                   Evidence {catalog.evidence_grade}
-                </span>
+                </Chip>
                 {catalog.best_timing && (
-                  <span
-                    className="text-[11px]"
-                    style={{ color: "var(--muted)" }}
-                  >
+                  <span className="text-caption text-[var(--muted)]">
                     Best {catalog.best_timing}
                   </span>
                 )}
               </div>
             )}
             {catalog.coach_summary && (
-              <div
-                className="text-[13.5px] leading-relaxed"
-                style={{ color: "var(--foreground-soft)" }}
-              >
+              <p className="text-callout text-[var(--foreground-soft)]">
                 {catalog.coach_summary}
-              </div>
+              </p>
             )}
             {catalog.mechanism && (
               <div>
-                <div
-                  className="text-[10px] uppercase tracking-wider mb-1"
-                  style={{
-                    color: "var(--muted)",
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                  }}
-                >
-                  How it works
-                </div>
-                <div
-                  className="text-[12.5px] leading-relaxed"
-                  style={{ color: "var(--muted)" }}
-                >
+                <Eyebrow className="mb-1">How it works</Eyebrow>
+                <p className="text-footnote text-[var(--muted)]">
                   {catalog.mechanism}
-                </div>
+                </p>
               </div>
             )}
             {catalog.cautions && catalog.cautions.length > 0 && (
-              <div
-                className="rounded-xl p-3"
-                style={{
-                  background: "rgba(239, 68, 68, 0.08)",
-                  border: "1px solid rgba(239, 68, 68, 0.20)",
-                }}
-              >
-                <div
-                  className="text-[10px] uppercase tracking-wider mb-1"
-                  style={{
-                    color: "var(--error)",
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                  }}
-                >
+              <Card tone="danger" variant="inset" padding="sm">
+                <div className="mb-1 text-eyebrow uppercase text-[var(--error)]">
                   Watch for
                 </div>
                 <ul className="flex flex-col gap-0.5">
                   {catalog.cautions.map((c, i) => (
                     <li
                       key={i}
-                      className="text-[12px] leading-snug"
-                      style={{ color: "var(--foreground-soft)" }}
+                      className="text-footnote text-[var(--foreground-soft)]"
                     >
-                      <span
-                        style={{ color: "var(--error)", fontWeight: 700 }}
-                      >
+                      <span className="font-semibold text-[var(--error)]">
                         {c.tag}:
                       </span>{" "}
                       {c.note}
                     </li>
                   ))}
                 </ul>
-              </div>
+              </Card>
             )}
             {catalog.pairs_well_with &&
               catalog.pairs_well_with.length > 0 && (
                 <div>
-                  <div
-                    className="text-[10px] uppercase tracking-wider mb-1"
-                    style={{
-                      color: "var(--accent)",
-                      fontWeight: 700,
-                      letterSpacing: "0.08em",
-                    }}
-                  >
-                    Pairs well with
-                  </div>
+                  <Eyebrow className="mb-1">Pairs well with</Eyebrow>
                   <ul className="flex flex-col gap-0.5">
                     {catalog.pairs_well_with.slice(0, 4).map((p, i) => (
                       <li
                         key={i}
-                        className="text-[12.5px] leading-snug"
-                        style={{ color: "var(--foreground-soft)" }}
+                        className="text-footnote text-[var(--foreground-soft)]"
                       >
-                        <span style={{ fontWeight: 600 }}>{p.name}</span> —{" "}
+                        <span className="font-semibold">{p.name}</span> —{" "}
                         {p.reason}
                       </li>
                     ))}
@@ -611,68 +488,40 @@ export default async function ItemDetailPage({
             {catalog.brand_recommendations &&
               catalog.brand_recommendations.length > 0 && (
                 <div>
-                  <div
-                    className="text-[10px] uppercase tracking-wider mb-1"
-                    style={{
-                      color: "var(--premium)",
-                      fontWeight: 700,
-                      letterSpacing: "0.08em",
-                    }}
-                  >
-                    Recommended brands
-                  </div>
+                  <Eyebrow className="mb-1">Recommended brands</Eyebrow>
                   <ul className="flex flex-col gap-0.5">
                     {catalog.brand_recommendations
                       .slice(0, 3)
                       .map((b, i) => (
                         <li
                           key={i}
-                          className="text-[12.5px] leading-snug"
-                          style={{ color: "var(--foreground-soft)" }}
+                          className="text-footnote text-[var(--foreground-soft)]"
                         >
-                          <span style={{ fontWeight: 600 }}>{b.brand}</span>{" "}
+                          <span className="font-semibold">{b.brand}</span>{" "}
                           — {b.reasoning}
                         </li>
                       ))}
                   </ul>
                 </div>
               )}
-            <div
-              className="text-[10px] mt-1 flex items-center gap-1"
-              style={{ color: "var(--muted)" }}
-            >
-              From the global catalog ·{" "}
-              {catalog.source === "off"
-                ? "Open Food Facts"
-                : catalog.source === "usda"
-                  ? "USDA"
-                  : catalog.source === "dsld"
-                    ? "NIH DSLD"
-                    : "Curated"}
-              {" · enriched by Coach"}
-            </div>
-          </div>
+            <p className="mt-1 text-caption text-[var(--muted)]">
+              From the global catalog · {sourceLabel} · enriched by Coach
+            </p>
+          </Card>
         </Section>
       )}
 
       {item.usage_notes && (
         <Section title="How to use">
-          <div
-            className="text-[14px] leading-relaxed whitespace-pre-line"
-          >
-            {item.usage_notes}
-          </div>
+          <p className="text-body whitespace-pre-line">{item.usage_notes}</p>
         </Section>
       )}
 
       {item.research_summary && (
         <Section title="Research notes">
-          <div
-            className="text-[13px] leading-relaxed whitespace-pre-line"
-            style={{ color: "var(--muted)" }}
-          >
+          <p className="text-footnote whitespace-pre-line text-[var(--muted)]">
             {item.research_summary}
-          </div>
+          </p>
           <div className="mt-3">
             <RegenerateResearchButton itemId={item.id} hasResearch={true} />
           </div>
@@ -681,67 +530,60 @@ export default async function ItemDetailPage({
 
       {!item.research_summary && !item.usage_notes && (
         <Section title="Research notes">
-          <div
-            className="border-hair rounded-lg p-3 text-[13px]"
-            style={{ color: "var(--muted)" }}
-          >
-            No research generated yet.
+          <Card padding="md">
+            <p className="text-footnote text-[var(--muted)]">
+              No research generated yet.
+            </p>
             <div className="mt-2">
               <RegenerateResearchButton itemId={item.id} hasResearch={false} />
             </div>
-          </div>
+          </Card>
         </Section>
       )}
 
       <Section title="Deep research">
         {item.deep_research ? (
-          <details className="border-hair rounded-xl group">
-            <summary
-              className="px-4 py-3 cursor-pointer list-none flex items-center justify-between"
-              style={{ color: "var(--muted)" }}
-            >
-              <span className="text-[12px]">
-                {item.deep_research_generated_at
-                  ? `Generated ${new Date(item.deep_research_generated_at).toLocaleDateString()}`
-                  : "Tap to expand"}
-              </span>
-              <span className="text-[14px] transition-transform group-open:rotate-180">
-                ⌄
-              </span>
-            </summary>
-            <div className="px-4 pb-4">
-              <div
-                className="text-[13px] leading-relaxed whitespace-pre-line"
-              >
-                {item.deep_research}
+          <Card padding="none">
+            <details className="group">
+              <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between px-4 py-3 text-[var(--muted)]">
+                <span className="text-footnote">
+                  {item.deep_research_generated_at
+                    ? `Generated ${new Date(item.deep_research_generated_at).toLocaleDateString()}`
+                    : "Tap to expand"}
+                </span>
+                <Icon
+                  name="chevron-down"
+                  size={16}
+                  strokeWidth={2}
+                  className="transition-transform group-open:rotate-180"
+                />
+              </summary>
+              <div className="px-4 pb-4">
+                <div className="text-footnote whitespace-pre-line">
+                  {item.deep_research}
+                </div>
+                <div className="mt-4">
+                  <DeepResearchButton itemId={item.id} hasDeepResearch={true} />
+                </div>
               </div>
-              <div className="mt-4">
-                <DeepResearchButton itemId={item.id} hasDeepResearch={true} />
-              </div>
-            </div>
-          </details>
+            </details>
+          </Card>
         ) : (
-          <div
-            className="border-hair rounded-lg p-3"
-          >
-            <div className="text-[13px] mb-2" style={{ color: "var(--muted)" }}>
-              Run a deep-research memo (~800–1500 words, Opus 4.5). Mechanism,
-              primary trial data with citations, dose-response, stack interactions,
-              your specific use case, risks. 1–3 min.
-            </div>
+          <Card padding="md">
+            <p className="mb-3 text-footnote text-[var(--muted)]">
+              Run a deep-research memo (~800–1500 words): mechanism, primary
+              trial data with citations, dose-response, stack interactions,
+              your specific use case, risks. Takes 1–3 min.
+            </p>
             <DeepResearchButton itemId={item.id} hasDeepResearch={false} />
-          </div>
+          </Card>
         )}
       </Section>
-
 
       <Section title="Purchase state">
         <PurchaseStateControl item={item} />
         {(item.ordered_on || item.arrived_on || item.days_supply) && (
-          <div
-            className="text-[12px] mt-2 flex flex-wrap gap-x-3"
-            style={{ color: "var(--muted)" }}
-          >
+          <div className="mt-2 flex flex-wrap gap-x-3 text-caption text-[var(--muted)]">
             {item.ordered_on && <span>Ordered {item.ordered_on}</span>}
             {item.arrived_on && <span>Arrived {item.arrived_on}</span>}
             {item.days_supply && <span>{item.days_supply}-day supply</span>}
@@ -751,34 +593,26 @@ export default async function ItemDetailPage({
 
       {hasHistory && (
         <Section title="Your history">
-          <div className="rounded-2xl card-glass overflow-hidden">
+          <Card padding="none" className="divide-y divide-[var(--border)] overflow-hidden">
             {reactionTotal > 0 && (
-              <div
-                className="px-4 py-3"
-                style={{ borderBottom: "1px solid var(--border)" }}
-              >
-                <div className="flex items-baseline justify-between mb-2">
-                  <div
-                    className="text-[12px]"
-                    style={{ color: "var(--muted)", fontWeight: 500 }}
-                  >
+              <div className="px-4 py-3">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <div className="text-caption font-medium text-[var(--muted)]">
                     Reactions · last 30 days
                   </div>
-                  <div className="text-[12px] tabular-nums">
-                    <span
-                      style={{ color: "var(--foreground)", fontWeight: 600 }}
-                    >
+                  <div className="text-caption tabular-nums">
+                    <span className="font-semibold text-[var(--foreground)]">
                       {reactionTotal}
                     </span>
-                    <span style={{ color: "var(--muted)" }}> total</span>
+                    <span className="text-[var(--muted)]"> total</span>
                   </div>
                 </div>
-                <div className="flex h-2 rounded-full overflow-hidden mb-1.5">
+                <div className="mb-1.5 flex h-2 overflow-hidden rounded-full">
                   {reactionCounts.helped > 0 && (
                     <div
                       style={{
                         width: `${(reactionCounts.helped / reactionTotal) * 100}%`,
-                        background: "var(--olive)",
+                        background: "var(--foreground)",
                       }}
                     />
                   )}
@@ -786,7 +620,7 @@ export default async function ItemDetailPage({
                     <div
                       style={{
                         width: `${(reactionCounts.no_change / reactionTotal) * 100}%`,
-                        background: "var(--warn)",
+                        background: "var(--muted)",
                       }}
                     />
                   )}
@@ -807,22 +641,19 @@ export default async function ItemDetailPage({
                     />
                   )}
                 </div>
-                <div
-                  className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] tabular-nums"
-                  style={{ color: "var(--muted)" }}
-                >
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-caption tabular-nums text-[var(--muted)]">
                   {reactionCounts.helped > 0 && (
-                    <span style={{ color: "var(--olive)" }}>
+                    <span className="text-[var(--foreground)]">
                       Helped {reactionCounts.helped}
                     </span>
                   )}
                   {reactionCounts.no_change > 0 && (
-                    <span style={{ color: "var(--warn)" }}>
+                    <span className="text-[var(--foreground-soft)]">
                       No change {reactionCounts.no_change}
                     </span>
                   )}
                   {reactionCounts.worse > 0 && (
-                    <span style={{ color: "var(--error)" }}>
+                    <span className="text-[var(--error)]">
                       Worse {reactionCounts.worse}
                     </span>
                   )}
@@ -834,60 +665,26 @@ export default async function ItemDetailPage({
             )}
 
             {memos.length > 0 && (
-              <div
-                className="px-4 py-3"
-                style={{
-                  borderBottom:
-                    skips.length > 0 ? "1px solid var(--border)" : undefined,
-                }}
-              >
-                <div
-                  className="text-[12px] mb-2"
-                  style={{ color: "var(--muted)", fontWeight: 500 }}
-                >
+              <div className="px-4 py-3">
+                <div className="mb-2 text-caption font-medium text-[var(--muted)]">
                   Voice memos · last 14 days
                 </div>
                 <div className="flex flex-col gap-2">
                   {memos.map((m) => (
-                    <div
-                      key={m.id}
-                      className="rounded-lg p-2.5"
-                      style={{
-                        background: "var(--surface-alt)",
-                        border: "1px solid var(--border)",
-                      }}
-                    >
-                      <div
-                        className="flex items-center gap-2 mb-1"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        {m.context_tag && (
-                          <span
-                            className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                            style={{
-                              background: "var(--olive-tint)",
-                              color: "var(--olive)",
-                              fontWeight: 600,
-                              letterSpacing: "0.06em",
-                            }}
-                          >
-                            {m.context_tag}
-                          </span>
-                        )}
-                        <span className="text-[10px]">
+                    <Card key={m.id} variant="inset" padding="sm">
+                      <div className="mb-1 flex items-center gap-2 text-[var(--muted)]">
+                        {m.context_tag && <Chip size="sm">{m.context_tag}</Chip>}
+                        <span className="text-caption">
                           {new Date(m.created_at).toLocaleDateString(undefined, {
                             month: "short",
                             day: "numeric",
                           })}
                         </span>
                       </div>
-                      <div
-                        className="text-[12px] leading-relaxed"
-                        style={{ color: "var(--foreground)", opacity: 0.9 }}
-                      >
+                      <p className="text-footnote text-[var(--foreground-soft)]">
                         {m.transcript}
-                      </div>
-                    </div>
+                      </p>
+                    </Card>
                   ))}
                 </div>
               </div>
@@ -895,28 +692,16 @@ export default async function ItemDetailPage({
 
             {skips.length > 0 && (
               <div className="px-4 py-3">
-                <div
-                  className="text-[12px] mb-2"
-                  style={{ color: "var(--muted)", fontWeight: 500 }}
-                >
+                <div className="mb-2 text-caption font-medium text-[var(--muted)]">
                   Recent skips · last 14 days
                 </div>
                 <div className="flex flex-col gap-1">
                   {skips.map((s, i) => (
-                    <div
-                      key={i}
-                      className="text-[12px] flex gap-3"
-                    >
-                      <span
-                        className="tabular-nums shrink-0"
-                        style={{ color: "var(--muted)" }}
-                      >
+                    <div key={i} className="flex gap-3 text-footnote">
+                      <span className="shrink-0 tabular-nums text-[var(--muted)]">
                         {s.date.slice(5)}
                       </span>
-                      <span
-                        className="leading-snug"
-                        style={{ color: "var(--foreground)", opacity: 0.85 }}
-                      >
+                      <span className="text-[var(--foreground-soft)]">
                         {s.skipped_reason}
                       </span>
                     </div>
@@ -924,292 +709,218 @@ export default async function ItemDetailPage({
                 </div>
               </div>
             )}
-          </div>
+          </Card>
         </Section>
       )}
 
       {info ? (
         <>
           <Section title="Overview">
-            <p className="text-[14px] leading-relaxed">{info.overview}</p>
+            <p className="text-body">{info.overview}</p>
           </Section>
 
-          {info.goodFor && info.goodFor.length > 0 && (
-            <CollapsibleSection title="Good for">
-              <ul className="flex flex-col gap-1.5">
-                {info.goodFor.map((b, i) => (
-                  <li key={i} className="text-[14px] leading-relaxed flex gap-2">
-                    <span style={{ color: "var(--muted)" }}>•</span>
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </CollapsibleSection>
-          )}
+          <div className="flex flex-col gap-2">
+            {info.goodFor && info.goodFor.length > 0 && (
+              <CollapsibleSection title="Good for">
+                <BulletList items={info.goodFor} />
+              </CollapsibleSection>
+            )}
 
-          {info.howItWorks && (
-            <CollapsibleSection title="How it works">
-              <p className="text-[14px] leading-relaxed">{info.howItWorks}</p>
-            </CollapsibleSection>
-          )}
+            {info.howItWorks && (
+              <CollapsibleSection title="How it works">
+                <p className="text-callout">{info.howItWorks}</p>
+              </CollapsibleSection>
+            )}
 
-          {info.dosing && (
-            <CollapsibleSection title="Dosing">
-              <p className="text-[14px] leading-relaxed">{info.dosing}</p>
-            </CollapsibleSection>
-          )}
+            {info.dosing && (
+              <CollapsibleSection title="Dosing">
+                <p className="text-callout">{info.dosing}</p>
+              </CollapsibleSection>
+            )}
 
-          {info.timing && (
-            <CollapsibleSection title="Timing">
-              <p className="text-[14px] leading-relaxed">{info.timing}</p>
-            </CollapsibleSection>
-          )}
+            {info.timing && (
+              <CollapsibleSection title="Timing">
+                <p className="text-callout">{info.timing}</p>
+              </CollapsibleSection>
+            )}
 
-          {info.risks && info.risks.length > 0 && (
-            <CollapsibleSection title="Risks + cautions">
-              <ul className="flex flex-col gap-1.5">
-                {info.risks.map((r, i) => (
-                  <li
-                    key={i}
-                    className="text-[14px] leading-relaxed flex gap-2"
-                  >
-                    <span style={{ color: "var(--muted)" }}>•</span>
-                    <span>{r}</span>
-                  </li>
-                ))}
-              </ul>
-            </CollapsibleSection>
-          )}
+            {info.risks && info.risks.length > 0 && (
+              <CollapsibleSection title="Risks + cautions">
+                <BulletList items={info.risks} />
+              </CollapsibleSection>
+            )}
 
-          {info.interactions && info.interactions.length > 0 && (
-            <CollapsibleSection title="Interactions">
-              <ul className="flex flex-col gap-1.5">
-                {info.interactions.map((x, i) => (
-                  <li
-                    key={i}
-                    className="text-[14px] leading-relaxed flex gap-2"
-                  >
-                    <span style={{ color: "var(--muted)" }}>•</span>
-                    <span>{x}</span>
-                  </li>
-                ))}
-              </ul>
-            </CollapsibleSection>
-          )}
+            {info.interactions && info.interactions.length > 0 && (
+              <CollapsibleSection title="Interactions">
+                <BulletList items={info.interactions} />
+              </CollapsibleSection>
+            )}
 
-          {info.postOpNote && (
-            <CollapsibleSection title="Post-op note">
-              <p className="text-[14px] leading-relaxed">{info.postOpNote}</p>
-            </CollapsibleSection>
-          )}
+            {info.postOpNote && (
+              <CollapsibleSection title="Post-op note">
+                <p className="text-callout">{info.postOpNote}</p>
+              </CollapsibleSection>
+            )}
 
-          {info.sources && info.sources.length > 0 && (
-            <CollapsibleSection title="Sources">
-              <div className="text-[12px]" style={{ color: "var(--muted)" }}>
-                {info.sources.join(" · ")}
-              </div>
-            </CollapsibleSection>
-          )}
+            {info.sources && info.sources.length > 0 && (
+              <CollapsibleSection title="Sources">
+                <p className="text-caption text-[var(--muted)]">
+                  {info.sources.join(" · ")}
+                </p>
+              </CollapsibleSection>
+            )}
+          </div>
         </>
       ) : (
-        <div
-          className="border-hair rounded-xl p-4 mb-6 text-[13px]"
-          style={{ color: "var(--muted)" }}
-        >
-          No curated info yet for this item. Tap the Ask Coach button to ask
-          anything about it.
-        </div>
+        <Card padding="md" className="mt-8">
+          <p className="text-footnote text-[var(--muted)]">
+            No curated info yet for this item. Tap the Coach button at the top
+            to ask anything about it.
+          </p>
+        </Card>
       )}
 
       {item.notes && (
         <Section title="Your notes">
-          <p className="text-[14px] leading-relaxed whitespace-pre-wrap">
-            {item.notes}
-          </p>
+          <p className="text-body whitespace-pre-wrap">{item.notes}</p>
         </Section>
       )}
 
       {item.review_trigger && (
         <Section title="Review trigger">
-          <p className="text-[14px] leading-relaxed">{item.review_trigger}</p>
+          <p className="text-body">{item.review_trigger}</p>
         </Section>
       )}
 
-      {(() => {
-        const BUYABLE = new Set([
-          "supplement",
-          "topical",
-          "device",
-          "gear",
-          "test",
-          "food",
-        ]);
-        if (!BUYABLE.has(item.item_type)) return null;
-        return (
-          <Section title="Get this">
-            <BuyButton
-              itemId={item.id}
-              itemName={item.name}
-              vendor={item.vendor}
-              affiliateUrl={item.affiliate_url ?? item.purchase_url ?? null}
-              listPriceCents={item.list_price_cents}
-              catalogVendor={catalog?.default_vendor ?? null}
-              catalogAffiliateUrl={catalog?.default_affiliate_url ?? null}
-              catalogListPriceCents={catalog?.default_list_price_cents ?? null}
-              source="item_detail"
-              variant="primary"
-              label={
-                item.affiliate_url || catalog?.default_affiliate_url
-                  ? "Get this"
-                  : "Find on Amazon"
-              }
-            />
-            <div
-              className="text-[11px] leading-relaxed mt-3"
-              style={{ color: "var(--muted)" }}
+      {BUYABLE.has(item.item_type) && (
+        <Section title="Get this">
+          <BuyButton
+            itemId={item.id}
+            itemName={item.name}
+            vendor={item.vendor}
+            affiliateUrl={item.affiliate_url ?? item.purchase_url ?? null}
+            listPriceCents={item.list_price_cents}
+            catalogVendor={catalog?.default_vendor ?? null}
+            catalogAffiliateUrl={catalog?.default_affiliate_url ?? null}
+            catalogListPriceCents={catalog?.default_list_price_cents ?? null}
+            source="item_detail"
+            variant="primary"
+            label={
+              item.affiliate_url || catalog?.default_affiliate_url
+                ? "Get this"
+                : "Find on Amazon"
+            }
+          />
+          <p className="mt-3 text-caption text-[var(--muted)]">
+            Regimen earns a small commission on links we vetted. Recommendations
+            are picked FIRST on health merit — affiliates are only attached to
+            items already approved by Coach.{" "}
+            <Link
+              href="/privacy#affiliates"
+              className="underline text-[var(--foreground-soft)]"
             >
-              Regimen earns a small commission on links we vetted. Recommendations
-              are picked FIRST on health merit — affiliates are only attached to
-              items already approved by Coach.{" "}
-              <Link
-                href="/privacy#affiliates"
-                className="underline"
-                style={{ color: "var(--foreground-soft)" }}
-              >
-                How this works
-              </Link>
-            </div>
-          </Section>
-        );
-      })()}
+              How this works
+            </Link>
+          </p>
+        </Section>
+      )}
 
       {related.length > 0 && (
         <Section title={`Also for ${GOAL_LABELS[primaryGoal!]}`}>
-          <div className="flex flex-col gap-2">
+          <ListGroup>
             {related.map((r) => (
               <Link
                 key={r.id}
                 href={`/items/${r.id}`}
-                className="border-hair rounded-xl p-3 flex items-center gap-3"
+                className="flex min-h-[52px] items-center gap-3 px-4 py-2.5 transition-colors active:bg-[var(--surface-alt)]"
               >
                 <ItemTypeIcon type={r.item_type} size={32} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[14px]" style={{ fontWeight: 500 }}>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-body font-medium">
                     {r.name}
-                  </div>
-                  <div
-                    className="text-[12px]"
-                    style={{ color: "var(--muted)" }}
-                  >
+                  </span>
+                  <span className="block truncate text-footnote text-[var(--muted)]">
                     {r.dose ?? "—"} · {TIMING_LABELS[r.timing_slot]}
-                  </div>
-                </div>
+                  </span>
+                </span>
+                <Icon
+                  name="chevron-right"
+                  size={16}
+                  strokeWidth={2}
+                  className="shrink-0 text-[var(--muted)]"
+                />
               </Link>
             ))}
-          </div>
+          </ListGroup>
         </Section>
       )}
     </div>
   );
 }
 
+const BUYABLE = new Set(["supplement", "topical", "device", "gear", "test", "food"]);
+
 function Section({
   title,
-  badge,
-  collapsible,
-  defaultOpen,
   children,
 }: {
   title: string;
-  /** Optional small badge shown next to the title — useful for word
-   *  counts ("240 words"), item counts, or freshness markers. */
-  badge?: string | null;
-  /** When true, the section renders as a collapsible <details>.
-   *  Heavy reading sections (research, history, deep research) opt in
-   *  so the item-detail page reads as a structured ToC instead of a
-   *  wall of text. */
-  collapsible?: boolean;
-  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
-  if (!collapsible) {
-    return (
-      <section className="mb-6">
-        <h2
-          className="text-[11px] uppercase tracking-wider mb-2 flex items-baseline gap-2"
-          style={{ color: "var(--muted)", fontWeight: 500 }}
-        >
-          <span>{title}</span>
-          {badge && (
-            <span
-              className="text-[10px] tabular-nums"
-              style={{ color: "var(--muted)", opacity: 0.7 }}
-            >
-              {badge}
-            </span>
-          )}
-        </h2>
-        {children}
-      </section>
-    );
-  }
   return (
-    <section className="mb-3">
-      <details className="group" open={defaultOpen}>
-        <summary
-          className="cursor-pointer list-none flex items-center justify-between gap-2 py-2 px-1 -mx-1 rounded-lg"
-          style={{ color: "var(--muted)" }}
-        >
-          <h2
-            className="text-[11px] uppercase tracking-wider flex items-baseline gap-2"
-            style={{ fontWeight: 500, letterSpacing: "0.06em" }}
-          >
-            <span>{title}</span>
-            {badge && (
-              <span
-                className="text-[10px] tabular-nums"
-                style={{ opacity: 0.7 }}
-              >
-                {badge}
-              </span>
-            )}
-          </h2>
-          <span
-            className="text-[14px] leading-none transition-transform group-open:rotate-180"
-            aria-hidden
-          >
-            ⌄
-          </span>
-        </summary>
-        <div className="pt-2">{children}</div>
-      </details>
+    <section>
+      <SectionHeader title={title} />
+      {children}
     </section>
   );
 }
 
 function NutStat({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      className="rounded-lg p-2 text-center"
-      style={{ background: "var(--surface-alt)" }}
-    >
-      <div
-        className="text-[14.5px] tabular-nums leading-none"
-        style={{ fontWeight: 700 }}
-      >
+    <div className="rounded-[10px] bg-[var(--surface-alt)] p-2 text-center">
+      <div className="text-callout font-bold leading-none tabular-nums">
         {value}
       </div>
-      <div
-        className="text-[9.5px] mt-1 uppercase tracking-wider"
-        style={{
-          color: "var(--muted)",
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-        }}
-      >
+      <div className="mt-1 text-eyebrow uppercase text-[var(--muted)]">
         {label}
       </div>
     </div>
+  );
+}
+
+function Disclosure({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group mt-3">
+      <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1 text-eyebrow uppercase text-[var(--muted)]">
+        <span>{label}</span>
+        <Icon
+          name="chevron-down"
+          size={16}
+          strokeWidth={2}
+          className="ml-auto transition-transform group-open:rotate-180"
+        />
+      </summary>
+      <div className="pt-1">{children}</div>
+    </details>
+  );
+}
+
+function BulletList({ items }: { items: string[] }) {
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {items.map((b, i) => (
+        <li key={i} className="flex gap-2 text-callout">
+          <span className="text-[var(--muted)]">•</span>
+          <span>{b}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -1221,20 +932,19 @@ function CollapsibleSection({
   children: React.ReactNode;
 }) {
   return (
-    <details className="mb-2 border-hair rounded-lg group">
-      <summary
-        className="px-3 py-2.5 text-[12px] uppercase tracking-wider cursor-pointer list-none flex items-center justify-between gap-2"
-        style={{ color: "var(--muted)", fontWeight: 500 }}
-      >
-        <span>{title}</span>
-        <span
-          className="text-[14px] leading-none transition-transform group-open:rotate-180"
-          style={{ color: "var(--muted)" }}
-        >
-          ⌄
-        </span>
-      </summary>
-      <div className="px-3 pb-3 pt-1">{children}</div>
-    </details>
+    <Card padding="none">
+      <details className="group">
+        <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-callout font-medium">
+          <span>{title}</span>
+          <Icon
+            name="chevron-down"
+            size={16}
+            strokeWidth={2}
+            className="shrink-0 text-[var(--muted)] transition-transform group-open:rotate-180"
+          />
+        </summary>
+        <div className="px-4 pb-4">{children}</div>
+      </details>
+    </Card>
   );
 }
