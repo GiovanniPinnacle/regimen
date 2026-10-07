@@ -8,6 +8,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -61,6 +62,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+  // intake_log.date defaults to the DB's current_date (UTC) — set the
+  // user's local day explicitly so evening entries land on the right day.
+  const { today } = await getUserToday(supabase, user.id);
 
   const body = (await request.json()) as Body;
   if (!body.kind || !body.content) {
@@ -129,6 +133,7 @@ export async function POST(request: NextRequest) {
     .from("intake_log")
     .insert({
       user_id: user.id,
+      date: today,
       kind: body.kind,
       content: body.content,
       serving,
@@ -161,7 +166,7 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const { today } = await getUserToday(supabase, user.id);
   const { data, error } = await supabase
     .from("intake_log")
     .select(

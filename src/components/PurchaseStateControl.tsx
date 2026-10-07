@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Item, PurchaseState } from "@/lib/types";
+import { localDateISO } from "@/lib/series";
 
 const LABEL: Record<PurchaseState, string> = {
   needed: "Needed",
@@ -40,7 +41,7 @@ export default function PurchaseStateControl({
   async function setTo(next: PurchaseState) {
     setBusy(true);
     const client = createClient();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateISO();
     const update: Record<string, unknown> = { purchase_state: next };
     if (next === "ordered" && !item.ordered_on) update.ordered_on = today;
     if (next === "arrived" && !item.arrived_on) update.arrived_on = today;

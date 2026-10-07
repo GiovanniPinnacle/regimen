@@ -9,6 +9,14 @@ import {
   ACHIEVEMENTS_BY_KEY,
   type AchievementKey,
 } from "@/lib/achievements";
+import {
+  addDaysISO,
+  computeStreak,
+  dailyAdherence,
+  type DoseLog,
+  type SchedulableItem,
+} from "@/lib/series";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 
@@ -22,18 +30,21 @@ export async function GET() {
   }
 
   // Pull existing unlocks
-  const { data: existingRows } = await supabase
+  const { data: existingRows, error: existingErr } = await supabase
     .from("achievements")
     .select("achievement_key, unlocked_at")
     .eq("user_id", user.id);
+  if (existingErr) {
+    return NextResponse.json({ error: existingErr.message }, { status: 500 });
+  }
   const existing = new Set(
     (existingRows ?? []).map((r) => r.achievement_key as string),
   );
 
   // Pull all the data we need to evaluate. Run in parallel.
-  const since = new Date(Date.now() - 200 * 86400000)
-    .toISOString()
-    .slice(0, 10);
+  // Day keys are the user's local calendar days (server clock is UTC).
+  const { today } = await getUserToday(supabase, user.id);
+  const since = addDaysISO(today, -200);
   const [
     stackLogRes,
     skipsRes,
@@ -44,6 +55,7 @@ export async function GET() {
     retiredRes,
     refineUsageRes,
     todayLogRes,
+    itemsRes,
   ] = await Promise.all([
     supabase
       .from("stack_log")
@@ -91,10 +103,34 @@ export async function GET() {
       .limit(1),
     supabase
       .from("stack_log")
-      .select("date, taken")
+      .select("item_id, date, taken")
       .eq("user_id", user.id)
-      .eq("date", new Date().toISOString().slice(0, 10)),
+      .eq("date", today),
+    // Schedule fields — "perfect day" = every SCHEDULED dose taken, not
+    // every logged row.
+    supabase
+      .from("items")
+      .select(
+        "id, status, started_on, ends_on, created_at, timing_slot, item_type, schedule_rule",
+      )
+      .eq("user_id", user.id)
+      .in("status", ["active", "retired"]),
   ]);
+  const failed =
+    stackLogRes.error ??
+    skipsRes.error ??
+    reactionsRes.error ??
+    voiceMemosRes.error ??
+    intakeRes.error ??
+    enrollmentsRes.error ??
+    retiredRes.error ??
+    refineUsageRes.error ??
+    todayLogRes.error ??
+    itemsRes.error;
+  if (failed) {
+    console.error("achievements", failed);
+    return NextResponse.json({ error: failed.message }, { status: 500 });
+  }
 
   const stackLog = stackLogRes.data ?? [];
   const skips = skipsRes.data ?? [];
@@ -107,14 +143,23 @@ export async function GET() {
   const todayLog = todayLogRes.data ?? [];
 
   // Compute current state for each achievement
-  const uniqueDays = new Set(stackLog.map((r) => r.date as string));
-  const currentStreak = computeStreak(Array.from(uniqueDays));
+  const currentStreak = computeStreak(
+    stackLog as { date: string; taken: boolean | null }[],
+    today,
+  );
   const totalCheckoffs = stackLog.filter((r) => r.taken).length;
   const totalReactions = reactions.length;
   const photoMeals = intake.filter((r) => r.photo_url).length;
-  const todayTaken = todayLog.filter((r) => r.taken).length;
-  const todayTotal = todayLog.length;
-  const todayAllDone = todayTotal > 0 && todayTaken === todayTotal;
+  const [todayAdherence] = dailyAdherence(
+    (itemsRes.data ?? []) as SchedulableItem[],
+    todayLog as DoseLog[],
+    today,
+    today,
+  );
+  const todayAllDone =
+    todayAdherence != null &&
+    todayAdherence.scheduled > 0 &&
+    todayAdherence.taken === todayAdherence.scheduled;
 
   // Evaluate each achievement
   const earned: AchievementKey[] = [];
@@ -145,12 +190,13 @@ export async function GET() {
   // Insert any newly-earned that aren't already in the table
   const newlyEarned = earned.filter((k) => !existing.has(k));
   if (newlyEarned.length > 0) {
-    await supabase.from("achievements").insert(
+    const { error: insertErr } = await supabase.from("achievements").insert(
       newlyEarned.map((k) => ({
         user_id: user.id,
         achievement_key: k,
       })),
     );
+    if (insertErr) console.error("achievements insert", insertErr);
   }
 
   // Return all unlocked + newly earned (so client can fire toasts)
@@ -168,23 +214,3 @@ export async function GET() {
   });
 }
 
-function computeStreak(datesDesc: string[]): number {
-  if (datesDesc.length === 0) return 0;
-  const sorted = [...datesDesc].sort().reverse();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let count = 0;
-  for (let offset = 0; offset < sorted.length + 1; offset++) {
-    const target = new Date(today);
-    target.setDate(today.getDate() - offset);
-    const targetStr = target.toISOString().slice(0, 10);
-    if (sorted.includes(targetStr)) {
-      count++;
-    } else if (offset === 0) {
-      continue;
-    } else {
-      break;
-    }
-  }
-  return count;
-}

@@ -16,6 +16,7 @@
 import { useState } from "react";
 import Icon from "@/components/Icon";
 import { showToast } from "@/lib/toast";
+import { localDateISO } from "@/lib/series";
 
 type ParsedMarker = {
   name: string;
@@ -87,7 +88,7 @@ export default function BloodworkUpload({
         throw new Error(data.error ?? "Parse failed");
       }
       setParsed(data.parse);
-      setDrawnOn(data.parse.drawn_on ?? new Date().toISOString().slice(0, 10));
+      setDrawnOn(data.parse.drawn_on ?? localDateISO());
       setLabSource(data.parse.lab_source ?? "manual");
       showToast(`Parsed ${data.parse.biomarkers.length} markers`, {
         tone: "success",

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Item } from "@/lib/types";
+import { localDateISO } from "@/lib/series";
 
 export default function ItemActions({ item }: { item: Item }) {
   const router = useRouter();
@@ -16,7 +17,7 @@ export default function ItemActions({ item }: { item: Item }) {
     const client = createClient();
     const updates: Record<string, unknown> = { status: newStatus };
     if (newStatus === "active" && !item.started_on) {
-      updates.started_on = new Date().toISOString().slice(0, 10);
+      updates.started_on = localDateISO();
     }
     const { error } = await client
       .from("items")
@@ -28,6 +29,7 @@ export default function ItemActions({ item }: { item: Item }) {
       // Also log to changelog
       await client.from("changelog").insert({
         user_id: (await client.auth.getUser()).data.user?.id,
+        date: localDateISO(),
         change_type:
           newStatus === "retired"
             ? "remove"

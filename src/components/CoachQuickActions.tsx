@@ -62,7 +62,7 @@ const FIRST_VISIT_ACTIONS: Action[] = [
   {
     label: "Pick a protocol",
     prompt:
-      "Based on my stated goals, which of the available protocols (FUE recovery, Sleep restoration, Beginner strength) makes most sense for me? Recommend ONE and explain why.",
+      "Based on my stated goals, which of the available protocols makes most sense for me? Recommend ONE and explain why.",
     icon: "list-ordered",
     accent: "var(--premium)",
   },

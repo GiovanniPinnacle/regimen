@@ -10,6 +10,8 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { addDaysISO } from "@/lib/series";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,11 +54,10 @@ export async function GET() {
   // RLS on intake_log restricts to auth.uid() = user_id, so the
   // cookied client is the safer default. Removed the admin escalation
   // — there's nothing here that needs to bypass RLS.
-  const since = new Date(Date.now() - 30 * 86400000)
-    .toISOString()
-    .slice(0, 10);
+  const { today } = await getUserToday(supabase, user.id);
+  const since = addDaysISO(today, -30);
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("intake_log")
     .select(
       "content, kind, calories, protein_g, fat_g, carbs_g, serving, date, logged_at",
@@ -66,6 +67,9 @@ export async function GET() {
     .gte("date", since)
     .order("logged_at", { ascending: false })
     .limit(200);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   const rows = (data ?? []) as Row[];
 

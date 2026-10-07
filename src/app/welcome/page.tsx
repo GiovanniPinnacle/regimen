@@ -309,13 +309,6 @@ export default function WelcomePage() {
             >
               Go act on these →
             </Link>
-            <Link
-              href="/strategy"
-              className="text-[14px] px-5 py-2.5 rounded-2xl border-hair"
-              style={{ color: "var(--olive)" }}
-            >
-              Read the strategy
-            </Link>
             <button
               onClick={() => {
                 setMemo(null);

@@ -22,6 +22,7 @@ import {
 import Icon from "@/components/Icon";
 import CoachMarkdown from "@/components/CoachMarkdown";
 import { createClient } from "@/lib/supabase/client";
+import { COACH_EVENT, type CoachAskDetail } from "@/lib/coach-events";
 
 type ContentPart =
   | { type: "text"; text: string }
@@ -90,7 +91,12 @@ const QUICK_ACTIONS: QuickAction[] = [
 
 const STORAGE_KEY = "regimen.coach.conversation.v1";
 
-export default function Coach() {
+export default function Coach({
+  initialAsk,
+}: {
+  /** Event payload that triggered the lazy load — replayed on mount. */
+  initialAsk?: CoachAskDetail | null;
+} = {}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -473,34 +479,43 @@ export default function Coach() {
   // Close on route change — if the user navigates away from /today via
   // browser back or a tab tap while Coach is open, dismiss the overlay
   // instead of leaving it stuck on top of the new page.
+  // Only on an actual change — not on mount, or the lazy-load replay
+  // of the opening event (below) would be immediately undone.
+  const lastPathRef = useRef(pathname);
   useEffect(() => {
+    if (lastPathRef.current === pathname) return;
+    lastPathRef.current = pathname;
     setOpen(false);
-     
   }, [pathname]);
 
-  // Cross-app trigger: anyone can dispatch `regimen:ask` to seed Coach
-  // with text. When `send: true` is set the message fires immediately
-  // (use for action-verbs like "Investigate", "Drop?"). When omitted,
-  // we pre-fill the input + put the cursor at the end so the user can
-  // append their own context before tapping send.
+  const replayedRef = useRef(false);
+  // Cross-app trigger: anyone can dispatch `regimen:ask` (see
+  // src/lib/coach-events.ts). Empty/absent text just opens the overlay;
+  // `newChat` clears the thread first. When `send: true` is set the
+  // message fires immediately (use for action-verbs like "Investigate",
+  // "Drop?"). Otherwise we pre-fill the input + put the cursor at the
+  // end so the user can append their own context before tapping send.
+  // `initialAsk` is the event that caused CoachLazy to load this chunk —
+  // it fired before our listener existed, so we replay it once here.
   useEffect(() => {
-    function onAsk(e: Event) {
-      const detail = (e as CustomEvent<{ text?: string; send?: boolean }>)
-        .detail;
-      if (!detail?.text) return;
+    function applyAsk(detail: CoachAskDetail | null | undefined) {
       setOpen(true);
-      if (detail.send) {
+      if (detail?.newChat) {
+        clearConversation();
         setInput("");
-        const seeded: Msg[] = [{ role: "user", content: detail.text }];
+      }
+      const text = detail?.text?.trim() ? detail.text : "";
+      if (!text) return;
+      if (detail?.send) {
+        setInput("");
+        const seeded: Msg[] = [{ role: "user", content: text }];
         setMessages(seeded);
         void sendNow(seeded);
       } else {
         // Pre-fill — append a newline so the cursor sits on the next
         // line ready for the user to type more context. Focus the
         // textarea + scroll the cursor to the end.
-        const seedText = detail.text.endsWith("\n")
-          ? detail.text
-          : detail.text + "\n\n";
+        const seedText = text.endsWith("\n") ? text : text + "\n\n";
         setInput(seedText);
         setTimeout(() => {
           const el = textareaRef.current;
@@ -511,13 +526,21 @@ export default function Coach() {
         }, 120);
       }
     }
-    window.addEventListener("regimen:ask", onAsk as EventListener);
+    function onAsk(e: Event) {
+      applyAsk((e as CustomEvent<CoachAskDetail>).detail);
+    }
+    // Ref-guarded so StrictMode's double effect run can't send twice.
+    if (initialAsk && !replayedRef.current) {
+      replayedRef.current = true;
+      applyAsk(initialAsk);
+    }
+    window.addEventListener(COACH_EVENT, onAsk as EventListener);
     return () =>
-      window.removeEventListener("regimen:ask", onAsk as EventListener);
-     
+      window.removeEventListener(COACH_EVENT, onAsk as EventListener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Don't render the FAB on auth/compliance pages — Coach needs a signed-
+  // Don't render on auth/compliance pages — Coach needs a signed-
   // in user, and these pages are reachable while logged out (per
   // middleware PUBLIC_PATHS for /privacy + /terms).
   if (
@@ -531,21 +554,6 @@ export default function Coach() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Open Coach"
-        className="fixed bottom-24 right-5 z-40 h-14 w-14 rounded-full flex items-center justify-center transition-all active:scale-95 coach-fab"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--pro) 0%, var(--pro-deep) 100%)",
-          color: "#FFFFFF",
-          boxShadow:
-            "0 10px 28px var(--pro-glow), 0 2px 6px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
-        }}
-      >
-        <Icon name="sparkle" size={22} strokeWidth={1.8} />
-      </button>
-
       {open && (
         <div
           // z-[70] sits above TabNav (z-50) and ToastHost (z-50) — was
@@ -558,6 +566,7 @@ export default function Coach() {
           <header
             className="px-5 py-3 flex items-center justify-between"
             style={{
+              paddingTop: "calc(env(safe-area-inset-top, 0px) + 12px)",
               background:
                 "linear-gradient(135deg, rgba(139, 124, 252, 0.14) 0%, rgba(52, 194, 142, 0.05) 100%)",
               borderBottom: "1px solid var(--border)",

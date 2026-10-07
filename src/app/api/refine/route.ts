@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
+import { getUserToday } from "@/lib/user-date";
 import {
   buildContextForCurrentUser,
   contextToSystemPrompt,
@@ -23,6 +24,7 @@ export async function POST() {
 
   const limited = await rateLimitOrError(user.id, "coach");
   if (limited) return limited;
+  const { today: ctxToday } = await getUserToday(supabase, user.id);
 
   const ctx = await buildContextForCurrentUser();
   const baseSystem = contextToSystemPrompt(ctx);
@@ -82,6 +84,20 @@ Rules:
       { status: 500 },
     );
   }
+
+  // Record the run. user-state / Coach context read triggered_by="refine"
+  // (ranRefineRecently → stage) and achievements read
+  // change_type="refinement_run" (first_refinement) — nothing wrote
+  // either marker before, so both signals were permanently false.
+  const { error: logErr } = await supabase.from("changelog").insert({
+    user_id: user.id,
+    date: ctxToday,
+    change_type: "refinement_run",
+    reasoning: "Ran /refine audit",
+    triggered_by: "refine",
+    approved_by_user: true,
+  });
+  if (logErr) console.error("refine: changelog insert", logErr);
 
   return NextResponse.json({
     memo,

@@ -5,21 +5,29 @@
 // Coach is one tap away via "Discuss" CTA on the client card if the
 // user wants narrative on top of the numbers.
 //
-// Comparison window:
-//   - last_week       = days [-7, 0)  (the most recently completed
-//                       7-day window ending today)
-//   - prev_week       = days [-14, -7) (the 7 days before that)
+// Comparison window (user-local calendar days):
+//   - last_week       = [today-6, today]
+//   - prev_week       = [today-13, today-7]
+// Adherence = taken / SCHEDULED doses (src/lib/series.ts).
 //
 // Returned shape feeds the WeeklyDigestCard component directly.
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  addDaysISO,
+  aggregateAdherence,
+  dailyAdherence,
+  perItemAdherence,
+  type DailyAdherence,
+  type SchedulableItem,
+} from "@/lib/series";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type ItemRow = {
-  id: string;
+type ItemRow = SchedulableItem & {
   name: string;
   status: string;
 };
@@ -41,59 +49,72 @@ export async function GET() {
   }
 
   // Cookied SSR client — RLS enforces user_id + catalog moderation gate.
-  const todayUtc = new Date();
-  const since14 = new Date(Date.now() - 14 * 86400000)
-    .toISOString()
-    .slice(0, 10);
-  const lastWeekStart = new Date(Date.now() - 7 * 86400000)
-    .toISOString()
-    .slice(0, 10);
+  const now = new Date();
+  // Local calendar days in the user's zone (server clock is UTC).
+  const { today } = await getUserToday(supabase, user.id);
+  // last_week = [today-6, today], prev_week = [today-13, today-7].
+  const lastWeekStart = addDaysISO(today, -6);
+  const prevWeekStart = addDaysISO(today, -13);
+  const prevWeekEnd = addDaysISO(today, -7);
 
   const [itemsRes, logRes, reactRes] = await Promise.all([
     supabase
       .from("items")
-      .select("id, name, status")
+      .select(
+        "id, name, status, started_on, ends_on, created_at, timing_slot, item_type, schedule_rule",
+      )
       .eq("user_id", user.id)
-      .eq("status", "active"),
+      .in("status", ["active", "retired"]),
     supabase
       .from("stack_log")
       .select("item_id, date, taken")
       .eq("user_id", user.id)
-      .gte("date", since14),
+      .gte("date", prevWeekStart)
+      .lte("date", today),
     supabase
       .from("item_reactions")
       .select("item_id, reaction, reacted_on, items(name)")
       .eq("user_id", user.id)
-      .gte("reacted_on", since14),
+      .gte("reacted_on", prevWeekStart),
   ]);
+  const failed = itemsRes.error ?? logRes.error ?? reactRes.error;
+  if (failed) {
+    console.error("weekly-digest", failed);
+    return NextResponse.json({ error: failed.message }, { status: 500 });
+  }
 
-  const items = (itemsRes.data ?? []) as ItemRow[];
-  const itemNameById = new Map(items.map((i) => [i.id, i.name]));
+  const allItems = (itemsRes.data ?? []) as ItemRow[];
+  const items = allItems.filter((i) => i.status === "active");
+  const itemNameById = new Map(allItems.map((i) => [i.id, i.name]));
   const logs = (logRes.data ?? []) as LogRow[];
   const reactions = (reactRes.data ?? []) as ReactionRow[];
 
-  // Adherence by week.
-  const lastWeekLogs = logs.filter((l) => l.date >= lastWeekStart);
-  const prevWeekLogs = logs.filter((l) => l.date < lastWeekStart);
-
-  function adherence(rows: LogRow[]): {
+  // Adherence by week — taken vs SCHEDULED doses (src/lib/series.ts),
+  // not vs logged rows (stack_log only has rows for days the user tapped).
+  const lastWeekDays = dailyAdherence(allItems, logs, lastWeekStart, today);
+  const prevWeekDays = dailyAdherence(
+    allItems,
+    logs,
+    prevWeekStart,
+    prevWeekEnd,
+  );
+  function adherence(days: DailyAdherence[]): {
     rate: number;
     taken: number;
     total: number;
     uniqueDays: number;
   } {
-    if (rows.length === 0) return { rate: 0, taken: 0, total: 0, uniqueDays: 0 };
-    const taken = rows.filter((r) => r.taken).length;
-    const days = new Set(rows.map((r) => r.date));
+    const agg = aggregateAdherence(days);
     return {
-      rate: Math.round((taken / rows.length) * 100) / 100,
-      taken,
-      total: rows.length,
-      uniqueDays: days.size,
+      rate: agg.rate != null ? Math.round(agg.rate * 100) / 100 : 0,
+      taken: agg.taken,
+      total: agg.scheduled,
+      // Days with at least one taken dose.
+      uniqueDays: days.filter((d) => d.taken > 0).length,
     };
   }
-  const lastWeek = adherence(lastWeekLogs);
-  const prevWeek = adherence(prevWeekLogs);
+  const lastWeek = adherence(lastWeekDays);
+  const prevWeek = adherence(prevWeekDays);
 
   // Top "helped" items in the last week.
   type RxAgg = {
@@ -137,18 +158,19 @@ export async function GET() {
   // Per-item adherence trend — items whose adherence dropped >25% from
   // prev to last week. Surfaces "your X dropped from 90% to 50%" calls.
   type ItemRate = { item_id: string; name: string; last: number; prev: number };
+  const lastPer = perItemAdherence(items, logs, lastWeekStart, today);
+  const prevPer = perItemAdherence(items, logs, prevWeekStart, prevWeekEnd);
   const perItem: ItemRate[] = [];
   for (const item of items) {
-    const last = lastWeekLogs.filter((l) => l.item_id === item.id);
-    const prev = prevWeekLogs.filter((l) => l.item_id === item.id);
-    if (last.length < 3 || prev.length < 3) continue;
-    const lastRate = last.filter((r) => r.taken).length / last.length;
-    const prevRate = prev.filter((r) => r.taken).length / prev.length;
+    const last = lastPer.get(item.id);
+    const prev = prevPer.get(item.id);
+    if (!last || !prev || last.rate == null || prev.rate == null) continue;
+    if (last.scheduled < 3 || prev.scheduled < 3) continue;
     perItem.push({
       item_id: item.id,
       name: item.name,
-      last: Math.round(lastRate * 100) / 100,
-      prev: Math.round(prevRate * 100) / 100,
+      last: Math.round(last.rate * 100) / 100,
+      prev: Math.round(prev.rate * 100) / 100,
     });
   }
   const slipping = perItem
@@ -157,26 +179,21 @@ export async function GET() {
     .slice(0, 3);
 
   // Day-of-week win — which weekday had the highest adherence?
-  const byDow = new Map<number, { taken: number; total: number }>();
-  for (const r of lastWeekLogs) {
-    const d = new Date(r.date + "T00:00:00Z").getUTCDay();
-    const e = byDow.get(d) ?? { taken: 0, total: 0 };
-    e.total++;
-    if (r.taken) e.taken++;
-    byDow.set(d, e);
-  }
+  // (Each weekday appears once in the 7-day window.)
   let bestDow: { day: string; rate: number } | null = null;
   const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  for (const [d, v] of byDow) {
-    if (v.total < 2) continue;
-    const rate = v.taken / v.total;
-    if (!bestDow || rate > bestDow.rate) {
-      bestDow = { day: DOW[d], rate };
+  for (const d of lastWeekDays) {
+    if (d.rate == null || d.scheduled < 2) continue;
+    if (!bestDow || d.rate > bestDow.rate) {
+      bestDow = {
+        day: DOW[new Date(d.date + "T00:00:00Z").getUTCDay()],
+        rate: d.rate,
+      };
     }
   }
 
   return NextResponse.json({
-    generated_at: todayUtc.toISOString(),
+    generated_at: now.toISOString(),
     last_week: lastWeek,
     prev_week: prevWeek,
     delta_rate: Math.round((lastWeek.rate - prevWeek.rate) * 100) / 100,
@@ -184,6 +201,7 @@ export async function GET() {
     drop_flags: dropFlags,
     slipping,
     best_day: bestDow,
-    has_data: lastWeek.total >= 7,
+    // Enough real logging to say anything (scheduled totals are never 0).
+    has_data: logs.filter((l) => l.date >= lastWeekStart).length >= 7,
   });
 }

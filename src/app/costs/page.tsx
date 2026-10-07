@@ -8,6 +8,7 @@ import {
   type StackLogRow,
 } from "@/lib/cost";
 import { ITEM_TYPE_LABELS } from "@/lib/constants";
+import { addDaysISO, localDateISO } from "@/lib/series";
 import type { Item, ItemType } from "@/lib/types";
 import Icon from "@/components/Icon";
 import CostsCoachAction from "@/components/CostsCoachAction";
@@ -19,10 +20,11 @@ export const dynamic = "force-dynamic";
  *  react-hooks/purity rule doesn't flag Date.now() in render. Server
  *  components are re-rendered per request anyway, but the rule doesn't
  *  distinguish, so we sidestep it. */
-function sinceDateStr(daysAgo: number): string {
-  return new Date(Date.now() - daysAgo * 86400000)
-    .toISOString()
-    .slice(0, 10);
+function wasteWindow(timeZone?: string): { from: string; to: string } {
+  // Server runtime is UTC — anchor "today" on the user's profile zone so
+  // the window lines up with stack_log.date (a local calendar day).
+  const to = localDateISO(new Date(), timeZone);
+  return { from: addDaysISO(to, -29), to };
 }
 
 export default async function CostsPage() {
@@ -33,11 +35,12 @@ export default async function CostsPage() {
   // Cap at 500 active items — far above any realistic stack size
   // but bounds the worst case so a runaway insert can't blow up
   // the costs page.
-  const { data } = await supabase
+  const { data, error: itemsErr } = await supabase
     .from("items")
     .select("*")
     .eq("status", "active")
     .limit(500);
+  if (itemsErr) console.error("costs: items", itemsErr);
   const items = (data ?? []) as Item[];
   const breakdown = computeCostBreakdown(items);
 
@@ -46,15 +49,25 @@ export default async function CostsPage() {
   // user_id + date).
   let wasteCandidates: ReturnType<typeof findWasteCandidates> = [];
   if (user) {
-    const since = sinceDateStr(30);
-    const { data: logRows } = await supabase
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("timezone")
+      .eq("id", user.id)
+      .maybeSingle();
+    const { from, to } = wasteWindow(
+      (profile?.timezone as string | null) ?? undefined,
+    );
+    const { data: logRows, error: logErr } = await supabase
       .from("stack_log")
       .select("item_id, taken, date")
       .eq("user_id", user.id)
-      .gte("date", since);
+      .gte("date", from)
+      .lte("date", to);
+    if (logErr) console.error("costs: stack_log", logErr);
     wasteCandidates = findWasteCandidates(
       items,
       (logRows ?? []) as StackLogRow[],
+      { from, to },
     );
   }
 

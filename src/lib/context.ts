@@ -17,10 +17,21 @@ import {
 } from "@/lib/cost";
 import {
   findSymptomCorrelations,
+  symptomRowsFromSources,
   type SymptomCorrelation,
   type ChangelogRow,
+  type CheckinSymptomRow,
   type SymptomRow as SymptomCorrelateRow,
 } from "@/lib/symptom-correlate";
+import { getProtocol } from "@/lib/protocols";
+import {
+  addDaysISO,
+  computeStreak,
+  dailyAdherence,
+  protocolProgress,
+  type DoseLog,
+} from "@/lib/series";
+import { getUserToday } from "@/lib/user-date";
 
 export type ProtocolContext = {
   userId: string;
@@ -255,6 +266,11 @@ export async function buildContextForUser(
 ): Promise<ProtocolContext> {
   const admin = createAdminClient();
 
+  // Day keys (stack_log.date etc.) are the user's LOCAL calendar days;
+  // the server clock is UTC. Anchor every window on profiles.timezone.
+  const { today } = await getUserToday(admin, userId);
+  const since = (days: number) => addDaysISO(today, -days);
+
   const [
     itemsRes,
     symptomsRes,
@@ -273,6 +289,7 @@ export async function buildContextForUser(
     ouraRes,
     coachConvoRes,
     biomarkersRes,
+    checkins21Res,
   ] = await Promise.all([
       admin.from("items").select("*").eq("user_id", userId),
       admin
@@ -283,11 +300,11 @@ export async function buildContextForUser(
         .limit(21),
       admin
         .from("stack_log")
-        .select("date, taken")
+        .select("item_id, date, taken")
         .eq("user_id", userId)
         .gte(
           "date",
-          new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10),
+          since(7),
         ),
       admin
         .from("profiles")
@@ -302,7 +319,7 @@ export async function buildContextForUser(
         .eq("user_id", userId)
         .gte(
           "date",
-          new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10),
+          since(3),
         )
         .order("date", { ascending: false })
         .order("checkin_window", { ascending: true }),
@@ -314,7 +331,7 @@ export async function buildContextForUser(
         .not("skipped_reason", "is", null)
         .gte(
           "date",
-          new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10),
+          since(7),
         )
         .order("date", { ascending: false })
         .limit(40),
@@ -324,7 +341,7 @@ export async function buildContextForUser(
         .eq("user_id", userId)
         .gte(
           "reacted_on",
-          new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
+          since(30),
         )
         .order("reacted_on", { ascending: false }),
       admin
@@ -345,10 +362,10 @@ export async function buildContextForUser(
         .eq("user_id", userId)
         .gte(
           "date",
-          new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10),
+          since(3),
         )
         .order("logged_at", { ascending: false }),
-      // 14-day stack log — used to compute streak + unique log days
+      // 60-day taken log — streak (not capped at 14) + 14d unique log days
       admin
         .from("stack_log")
         .select("date, taken")
@@ -356,23 +373,23 @@ export async function buildContextForUser(
         .eq("taken", true)
         .gte(
           "date",
-          new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10),
+          since(60),
         )
         .order("date", { ascending: false }),
       // Active protocol enrollments
       admin
         .from("protocol_enrollments")
-        .select("protocol_slug, started_on, status, current_day, duration_days")
+        .select("protocol_slug, start_date, status")
         .eq("user_id", userId)
         .in("status", ["active", "completed"]),
       // Recent /refine runs (changelog with triggered_by=refine)
       admin
         .from("changelog")
-        .select("changed_at")
+        .select("id")
         .eq("user_id", userId)
         .eq("triggered_by", "refine")
         .gte(
-          "changed_at",
+          "created_at",
           new Date(Date.now() - 7 * 86400000).toISOString(),
         )
         .limit(1),
@@ -385,20 +402,17 @@ export async function buildContextForUser(
         .eq("user_id", userId)
         .gte(
           "date",
-          new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
+          since(30),
         ),
       // 30-day changelog — every change_type, not just /refine. Used by
       // the symptom-correlation detector to pair declining symptoms with
       // preceding stack changes ("did X break your sleep?").
       admin
         .from("changelog")
-        .select("changed_at, date, change_type, item_name, reasoning")
+        .select("date, created_at, change_type, item_name, reasoning")
         .eq("user_id", userId)
-        .gte(
-          "changed_at",
-          new Date(Date.now() - 30 * 86400000).toISOString(),
-        )
-        .order("changed_at", { ascending: false }),
+        .gte("date", since(30))
+        .order("date", { ascending: false }),
       // Last 14 days of Oura daily metrics — readiness, HRV, RHR, sleep
       // stages. Coach was previously blind to wearable data even though
       // the sync was working.
@@ -410,7 +424,7 @@ export async function buildContextForUser(
         .eq("user_id", userId)
         .gte(
           "date",
-          new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10),
+          since(14),
         )
         .order("date", { ascending: false }),
       // Most-recent Coach turn within the last 7 days — surfaces "where
@@ -434,10 +448,42 @@ export async function buildContextForUser(
         .eq("user_id", userId)
         .gte(
           "drawn_on",
-          new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10),
+          since(180),
         )
         .order("drawn_on", { ascending: false }),
+      // 21 days of check-in scales — the populated symptom source for the
+      // correlation detector (symptom_log has no writer today).
+      admin
+        .from("daily_checkins")
+        .select("date, mood, energy, stress")
+        .eq("user_id", userId)
+        .gte("date", since(21)),
     ]);
+
+  // Surface query failures instead of silently treating them as "no data".
+  const queryResults = {
+    itemsRes,
+    symptomsRes,
+    stackLogRes,
+    profileRes,
+    checkinsRes,
+    skipsRes,
+    reactionsRes,
+    voiceMemosRes,
+    intakeRes,
+    stackLog14Res,
+    enrollmentsRes,
+    refineRes,
+    stackLog30Res,
+    changelog30Res,
+    ouraRes,
+    coachConvoRes,
+    biomarkersRes,
+    checkins21Res,
+  };
+  for (const [name, res] of Object.entries(queryResults)) {
+    if (res.error) console.error(`buildContextForUser: ${name}`, res.error);
+  }
 
   const allItems = (itemsRes.data ?? []) as Item[];
   const activeItems = allItems.filter((i) => i.status === "active");
@@ -453,13 +499,17 @@ export async function buildContextForUser(
   const wasteCandidates = findWasteCandidates(
     activeItems,
     (stackLog30Res.data ?? []) as StackLogRow[],
+    { from: since(30), to: today },
   );
 
   // Symptom × stack-change correlations — pairs declining symptom
   // dimensions with stack changes from the prior 14 days. Empty when
   // the user has too little data or no clear signal.
   const symptomCorrelations = findSymptomCorrelations(
-    (symptomsRes.data ?? []) as SymptomCorrelateRow[],
+    symptomRowsFromSources(
+      (symptomsRes.data ?? []) as SymptomCorrelateRow[],
+      (checkins21Res.data ?? []) as CheckinSymptomRow[],
+    ),
     (changelog30Res.data ?? []) as ChangelogRow[],
   );
 
@@ -548,16 +598,16 @@ export async function buildContextForUser(
     }
   }
 
-  // Adherence: rollup stack_log by date
-  const byDate: Record<string, { taken: number; total: number }> = {};
-  for (const row of stackLogRes.data ?? []) {
-    const d = row.date as string;
-    if (!byDate[d]) byDate[d] = { taken: 0, total: 0 };
-    byDate[d].total++;
-    if (row.taken) byDate[d].taken++;
-  }
-  const recentAdherence = Object.entries(byDate)
-    .map(([date, v]) => ({ date, ...v }))
+  // Adherence: taken vs SCHEDULED doses per day (not vs logged rows —
+  // stack_log only has rows for days the user tapped something).
+  const recentAdherence = dailyAdherence(
+    allItems,
+    (stackLogRes.data ?? []) as DoseLog[],
+    since(7),
+    today,
+  )
+    .filter((d) => d.scheduled > 0)
+    .map((d) => ({ date: d.date, taken: d.taken, total: d.scheduled }))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 
   // Compute macros if profile has enough data
@@ -666,38 +716,38 @@ export async function buildContextForUser(
   const worsenedItemCount = recentReactions.filter((r) => r.worse >= 2).length;
 
   // Streak + unique log days (14d window)
-  const log14Rows = (stackLog14Res.data ?? []) as { date: string }[];
-  const uniqueDaysSet = new Set(log14Rows.map((r) => r.date));
-  const uniqueLogDays14d = uniqueDaysSet.size;
+  const takenDates = ((stackLog14Res.data ?? []) as { date: string }[]).map(
+    (r) => r.date,
+  );
+  const uniqueLogDays14d = new Set(takenDates.filter((d) => d >= since(14)))
+    .size;
 
-  // Compute consecutive-day streak ending today (or yesterday)
-  let currentStreak = 0;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-    if (uniqueDaysSet.has(d)) currentStreak++;
-    else if (i === 0 && d === todayStr) {
-      // Allow yesterday-only streak (today might just not be logged yet)
-      continue;
-    } else break;
-  }
+  // Consecutive taken days ending today (or yesterday)
+  const currentStreak = computeStreak(takenDates, today);
 
   const ranRefineRecently = (refineRes.data ?? []).length > 0;
 
+  // protocol_enrollments stores only start_date; current day + duration
+  // come from the code-side protocol definition.
   type EnrollmentRow = {
     protocol_slug: string;
-    current_day: number;
-    duration_days: number;
+    start_date: string;
     status: string;
   };
   const activeProtocols = ((enrollmentsRes.data ?? []) as EnrollmentRow[]).map(
-    (e) => ({
-      slug: e.protocol_slug,
-      current_day: e.current_day,
-      duration_days: e.duration_days,
-      completed:
-        e.status === "completed" || e.current_day >= e.duration_days,
-    }),
+    (e) => {
+      const p = protocolProgress(
+        e.start_date,
+        getProtocol(e.protocol_slug)?.duration_days ?? 0,
+        today,
+      );
+      return {
+        slug: e.protocol_slug,
+        current_day: p.current_day,
+        duration_days: p.duration_days,
+        completed: e.status === "completed" || p.completed,
+      };
+    },
   );
 
   // Determine stage
@@ -748,7 +798,6 @@ export async function buildContextForUser(
       created_at: v.created_at,
     })),
     todayIntake: (() => {
-      const today = new Date().toISOString().slice(0, 10);
       const rows = (intakeRes.data ?? []) as {
         date: string;
         kind: string;
@@ -1295,7 +1344,7 @@ export function contextToSystemPrompt(ctx: ProtocolContext): string {
   if (ctx.recentAdherence.length > 0) {
     lines.push(`# RECENT ADHERENCE (last 7 days)`);
     for (const a of ctx.recentAdherence) {
-      lines.push(`- ${a.date}: ${a.taken}/${a.total} logged`);
+      lines.push(`- ${a.date}: ${a.taken}/${a.total} scheduled doses taken`);
     }
     lines.push(``);
   }

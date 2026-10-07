@@ -4,7 +4,7 @@
 // final wording before public launch, run this past a lawyer.
 
 import Link from "next/link";
-import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
 
 export const metadata = {
   title: "Privacy — Regimen",
@@ -13,30 +13,13 @@ export const metadata = {
 export default function PrivacyPage() {
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <div className="mb-2">
-          <Link
-            href="/more"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            More
-          </Link>
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Privacy
-        </h1>
-        <p
-          className="text-[13px] mt-2 leading-relaxed"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          Last updated: May 8, 2026.
-        </p>
-      </header>
+      <PageHeader
+        title="Privacy"
+        subtitle="Last updated: May 8, 2026."
+        back="/you"
+        backLabel="You"
+        showCoach={false}
+      />
 
       <div
         className="prose-tight space-y-5 text-[14px] leading-relaxed"
@@ -152,6 +135,22 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
+        <Section id="affiliates" title="Affiliate links">
+          <p>
+            Some &ldquo;Buy&rdquo; links in Regimen are affiliate links:
+            if you purchase through one, the retailer may pay us a small
+            commission at no extra cost to you.
+          </p>
+          <p>
+            Recommendations are chosen on health merit first. A link is
+            only attached after an item is already in your plan or
+            suggested for you — commissions never decide what Coach
+            recommends. When you tap one, we record the click (item and
+            retailer) so we can measure it; we don&apos;t share your health
+            data with retailers.
+          </p>
+        </Section>
+
         <Section title="Children">
           <p>
             Regimen is not directed at anyone under 18. If you are under
@@ -193,14 +192,16 @@ export default function PrivacyPage() {
 }
 
 function Section({
+  id,
   title,
   children,
 }: {
+  id?: string;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <section>
+    <section id={id} className="scroll-mt-6">
       <h2
         className="text-[18px] mb-2"
         style={{

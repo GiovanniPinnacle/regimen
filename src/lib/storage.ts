@@ -7,6 +7,12 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { todayISO } from "@/lib/constants";
+import {
+  addDaysISO,
+  lastNDays,
+  perItemAdherence,
+  type DoseLog,
+} from "@/lib/series";
 import type {
   ChangelogEntry,
   Item,
@@ -99,12 +105,13 @@ export async function toggleTaken(
   if (!user) return false;
 
   // Check current state
-  const { data: existing } = await client
+  const { data: existing, error: lookupErr } = await client
     .from("stack_log")
     .select("id,taken")
     .eq("date", date)
     .eq("item_id", itemId)
     .maybeSingle();
+  if (lookupErr) console.error("toggleTaken lookup", lookupErr);
 
   if (existing) {
     const newTaken = !existing.taken;
@@ -184,12 +191,13 @@ export async function logSkip(
   } = await client.auth.getUser();
   if (!user) return;
 
-  const { data: existing } = await client
+  const { data: existing, error: lookupErr } = await client
     .from("stack_log")
     .select("id")
     .eq("date", date)
     .eq("item_id", itemId)
     .maybeSingle();
+  if (lookupErr) console.error("logSkip lookup", lookupErr);
 
   const row = {
     user_id: user.id,
@@ -321,7 +329,10 @@ export async function getOuraToday(date: string): Promise<{
     .select("*")
     .eq("date", date)
     .maybeSingle();
-  if (error) return null;
+  if (error) {
+    console.error("getOuraToday", error);
+    return null;
+  }
   return data as typeof data & { wake_time?: string | null };
 }
 
@@ -405,82 +416,46 @@ export async function getEnrollment(slug: string): Promise<{
 
 // ---------- Adherence per item ----------
 
-/** Returns adherence (0..1) per item over the last N days. */
-export async function getAdherenceMap(
-  itemIds: string[],
-  days = 14,
-): Promise<Record<string, number>> {
-  if (itemIds.length === 0) return {};
-  const since = new Date(Date.now() - days * 86400000)
-    .toISOString()
-    .slice(0, 10);
-  const { data, error } = await supa()
-    .from("stack_log")
-    .select("item_id, taken, date")
-    .in("item_id", itemIds)
-    .gte("date", since);
-  if (error) {
-    console.error("getAdherenceMap", error);
-    return {};
-  }
-  const counts = new Map<string, { taken: number; total: number }>();
-  for (const row of data ?? []) {
-    const id = row.item_id as string;
-    if (!counts.has(id)) counts.set(id, { taken: 0, total: 0 });
-    const c = counts.get(id)!;
-    c.total++;
-    if (row.taken) c.taken++;
-  }
-  const map: Record<string, number> = {};
-  for (const [id, c] of counts.entries()) {
-    map[id] = c.total > 0 ? c.taken / c.total : 0;
-  }
-  return map;
-}
-
-/** Returns a per-day taken series (1 = taken, 0 = logged-not-taken,
- *  null = no log) for each item over the last N days. Index 0 is the
- *  oldest day, index N-1 is today — chronological left-to-right so the
- *  Sparkline reads naturally.
+/** Per-item adherence over the last N local days (today inclusive),
+ *  measured against SCHEDULED doses (see src/lib/series.ts) — a day the
+ *  user never opened the app counts as a miss, not as missing data.
  *
- *  Single bulk query; no N+1 fanout. Use alongside getAdherenceMap. */
-export async function getAdherenceSeriesMap(
-  itemIds: string[],
+ *  Single bulk stack_log query; no N+1 fanout. Returns both the rollup
+ *  rate (0..1; absent for items with nothing scheduled, e.g. as_needed)
+ *  and a chronological per-day series for sparklines
+ *  (1 = taken, 0 = due but not taken, null = not due). */
+export async function getItemAdherence(
+  items: Item[],
   days = 14,
-): Promise<Record<string, (number | null)[]>> {
-  if (itemIds.length === 0) return {};
-  // Build chronological day list. Use UTC ISO date strings to match
-  // stack_log.date which is stored as a date column.
-  const dayKeys: string[] = [];
-  for (let offset = days - 1; offset >= 0; offset--) {
-    dayKeys.push(
-      new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10),
-    );
-  }
-  const since = dayKeys[0];
+): Promise<{
+  rates: Record<string, number>;
+  series: Record<string, (number | null)[]>;
+}> {
+  if (items.length === 0) return { rates: {}, series: {} };
+  const dayKeys = lastNDays(days, todayISO());
+  const from = dayKeys[0];
+  const to = dayKeys[dayKeys.length - 1];
   const { data, error } = await supa()
     .from("stack_log")
     .select("item_id, taken, date")
-    .in("item_id", itemIds)
-    .gte("date", since);
+    .in(
+      "item_id",
+      items.map((i) => i.id),
+    )
+    .gte("date", from)
+    .lte("date", to);
   if (error) {
-    console.error("getAdherenceSeriesMap", error);
-    return {};
+    console.error("getItemAdherence", error);
+    return { rates: {}, series: {} };
   }
-  // index by (item_id, date) for O(1) lookup
-  const byKey = new Map<string, boolean>();
-  for (const row of data ?? []) {
-    byKey.set(`${row.item_id}|${row.date}`, !!row.taken);
+  const per = perItemAdherence(items, (data ?? []) as DoseLog[], from, to);
+  const rates: Record<string, number> = {};
+  const series: Record<string, (number | null)[]> = {};
+  for (const [id, a] of per) {
+    if (a.rate != null) rates[id] = a.rate;
+    series[id] = a.series;
   }
-  const map: Record<string, (number | null)[]> = {};
-  for (const id of itemIds) {
-    map[id] = dayKeys.map((d) => {
-      const v = byKey.get(`${id}|${d}`);
-      if (v === undefined) return null; // no log → unknown
-      return v ? 1 : 0;
-    });
-  }
-  return map;
+  return { rates, series };
 }
 
 // ---------- Item reactions ----------
@@ -534,13 +509,12 @@ export async function getRecentReactions(
   itemId: string,
   days = 30,
 ): Promise<ItemReaction[]> {
-  const since = new Date();
-  since.setDate(since.getDate() - days);
+  const since = addDaysISO(todayISO(), -days);
   const { data, error } = await supa()
     .from("item_reactions")
     .select("*")
     .eq("item_id", itemId)
-    .gte("reacted_on", since.toISOString().slice(0, 10))
+    .gte("reacted_on", since)
     .order("reacted_on", { ascending: false });
   if (error) {
     console.error("getRecentReactions", error);

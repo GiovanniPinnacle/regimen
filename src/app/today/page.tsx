@@ -54,6 +54,12 @@ import {
   todayISO,
 } from "@/lib/constants";
 import { calcMacros, type MacroTargets } from "@/lib/macros";
+import {
+  addDaysISO,
+  dailyAdherence,
+  type DoseLog,
+  type SchedulableItem,
+} from "@/lib/series";
 import { createClient } from "@/lib/supabase/client";
 
 const NON_CHECKOFF_SLOTS: TimingSlot[] = ["situational"];
@@ -159,6 +165,8 @@ export default function TodayPage() {
     | null
   >(null);
   const [macros, setMacros] = useState<MacroTargets | null>(null);
+  /** profiles.water_target_oz — feeds DailyScore's water component. */
+  const [waterTargetOz, setWaterTargetOz] = useState<number | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [postopDate, setPostopDate] = useState<string | null>(null);
   const [mountNow] = useState(() => Date.now());
@@ -232,33 +240,40 @@ export default function TodayPage() {
     (async () => {
       try {
         const client = createClient();
-        const sevenDaysAgo = new Date(Date.now() - 7 * 86400000)
-          .toISOString()
-          .slice(0, 10);
-        const { data } = await client
-          .from("stack_log")
-          .select("date, taken")
-          .gte("date", sevenDaysAgo)
-          .lt("date", today);
-        if (!alive) return;
-        type Row = { date: string; taken: boolean };
-        const byDay = new Map<string, { taken: number; total: number }>();
-        for (const r of (data ?? []) as Row[]) {
-          if (!byDay.has(r.date)) byDay.set(r.date, { taken: 0, total: 0 });
-          const c = byDay.get(r.date)!;
-          c.total += 1;
-          if (r.taken) c.taken += 1;
-        }
-        const dailyPcts: number[] = [];
-        for (const c of byDay.values()) {
-          if (c.total > 0) dailyPcts.push((c.taken / c.total) * 100);
-        }
-        if (dailyPcts.length === 0) {
+        const from = addDaysISO(today, -7);
+        const to = addDaysISO(today, -1);
+        // Denominator = doses SCHEDULED each day (series.ts), not rows
+        // logged — an untouched day is 0%, not missing.
+        const [logRes, itemRes] = await Promise.all([
+          client
+            .from("stack_log")
+            .select("item_id, date, taken")
+            .gte("date", from)
+            .lte("date", to),
+          client
+            .from("items")
+            .select(
+              "id, status, started_on, ends_on, created_at, timing_slot, item_type, schedule_rule",
+            )
+            .in("status", ["active", "retired"]),
+        ]);
+        if (logRes.error) console.error("today: 7d stack_log", logRes.error);
+        if (itemRes.error) console.error("today: 7d items", itemRes.error);
+        if (!alive || logRes.error || itemRes.error) return;
+        const dailyRates = dailyAdherence(
+          (itemRes.data ?? []) as SchedulableItem[],
+          (logRes.data ?? []) as DoseLog[],
+          from,
+          to,
+        )
+          .map((d) => d.rate)
+          .filter((r): r is number => r != null);
+        if (dailyRates.length === 0) {
           setSevenDayAvgPct(null);
         } else {
           const avg =
-            dailyPcts.reduce((s, v) => s + v, 0) / dailyPcts.length;
-          setSevenDayAvgPct(Math.round(avg));
+            dailyRates.reduce((s, v) => s + v, 0) / dailyRates.length;
+          setSevenDayAvgPct(Math.round(avg * 100));
         }
       } catch {
         // silent — header just hides the comparison if it fails
@@ -267,7 +282,6 @@ export default function TodayPage() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today, reloadKey]);
 
   useEffect(() => {
@@ -276,10 +290,11 @@ export default function TodayPage() {
       const { data: profile } = await client
         .from("profiles")
         .select(
-          "display_name, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date",
+          "display_name, weight_kg, height_cm, age, biological_sex, activity_level, body_goal, meals_per_day, postop_date, water_target_oz",
         )
         .maybeSingle();
       setDisplayName(profile?.display_name ?? null);
+      setWaterTargetOz(profile?.water_target_oz ?? null);
       setPostopDate(profile?.postop_date ?? null);
       if (
         profile?.weight_kg &&
@@ -805,6 +820,8 @@ export default function TodayPage() {
         <DailyScore
           takenCount={takenCount}
           totalActive={totalActive}
+          waterTargetOz={waterTargetOz}
+          proteinTargetG={macros?.protein_g ?? null}
         />
       </SectionBoundary>
 

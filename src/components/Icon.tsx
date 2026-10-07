@@ -75,7 +75,14 @@ export type IconName =
   | "thermometer"
   | "moon-stars"
   | "wind"
-  | "snowflake";
+  | "snowflake"
+  // === v4: app shell / settings ===
+  | "bell"
+  | "message"
+  | "bug"
+  | "file-text"
+  | "link"
+  | "log-out";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
@@ -456,6 +463,42 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1-1 1.5-2 2-1 .5-1 1.5-1 2M12 17v0.01" />
+    </>
+  ),
+
+  // App shell / settings
+  bell: (
+    <>
+      <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </>
+  ),
+  message: (
+    <path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z" />
+  ),
+  bug: (
+    <>
+      <rect x="7" y="7" width="10" height="13" rx="5" />
+      <path d="M9.5 7.5a2.5 2.5 0 0 1 5 0M12 11v9" />
+      <path d="M3 13h4M17 13h4M4 8l3 2M20 8l-3 2M4 19l3-2M20 19l-3-2" />
+    </>
+  ),
+  "file-text": (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5M9 13h6M9 17h6" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+    </>
+  ),
+  "log-out": (
+    <>
+      <path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3" />
+      <path d="M16 17l5-5-5-5M21 12H9" />
     </>
   ),
 };

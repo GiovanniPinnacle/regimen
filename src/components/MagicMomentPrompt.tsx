@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
+import { addDaysISO, localDateISO } from "@/lib/series";
 
 const DISMISS_KEY = "regimen.magic_moment.dismissed.v1";
 const SEEN_KEY = "regimen.magic_moment.last_run.v1";
@@ -46,14 +47,13 @@ export default function MagicMomentPrompt() {
       } catch {}
 
       // Need 3+ unique days of stack_log
-      const since = new Date(Date.now() - 14 * 86400000)
-        .toISOString()
-        .slice(0, 10);
+      const since = addDaysISO(localDateISO(), -14);
       const client = createClient();
-      const { data } = await client
+      const { data, error } = await client
         .from("stack_log")
         .select("date")
         .gte("date", since);
+      if (error) console.error("MagicMomentPrompt: stack_log", error);
       if (!alive) return;
       const uniqueDays = new Set(
         (data ?? []).map((r) => r.date as string),

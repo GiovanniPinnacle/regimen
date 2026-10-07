@@ -14,6 +14,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getUserToday } from "@/lib/user-date";
 import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
 
@@ -208,7 +209,7 @@ export async function POST(request: NextRequest) {
 
   // Defaults — drawn_on falls back to today if Coach couldn't read it
   if (!result.drawn_on) {
-    result.drawn_on = new Date().toISOString().slice(0, 10);
+    result.drawn_on = (await getUserToday(supabase, user.id)).today;
   }
   if (!Array.isArray(result.biomarkers)) {
     result.biomarkers = [];

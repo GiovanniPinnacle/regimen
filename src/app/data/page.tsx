@@ -49,12 +49,12 @@ export default function DataPage() {
       <header className="mb-6">
         <div className="mb-2">
           <Link
-            href="/more"
+            href="/you"
             className="text-[12px] inline-flex items-center gap-1"
             style={{ color: "var(--muted)" }}
           >
             <Icon name="chevron-right" size={11} className="rotate-180" />
-            More
+            You
           </Link>
         </div>
         <h1
@@ -180,17 +180,25 @@ export default function DataPage() {
               letterSpacing: "0.06em",
             }}
           >
-            Pro · soon
+            Live
           </span>
         </div>
-        <div
-          className="rounded-2xl card-glass p-4 text-[13px]"
+        <Link
+          href="/tests"
+          className="rounded-2xl card-glass p-4 text-[13px] flex items-center gap-3 pressable"
           style={{ color: "var(--muted)" }}
         >
-          Upload any bloodwork PDF (Function Health, InsideTracker, Marek,
-          LabCorp, Quest) and Coach vision extracts every biomarker into a
-          trendable timeline. $5/scan or unlimited with Pro.
-        </div>
+          <span className="flex-1 min-w-0">
+            Upload any bloodwork PDF (Function Health, InsideTracker, Marek,
+            LabCorp, Quest) and Coach extracts every biomarker into a
+            trendable timeline. Upload on the Tests page.
+          </span>
+          <Icon
+            name="chevron-right"
+            size={14}
+            className="shrink-0 opacity-50"
+          />
+        </Link>
       </section>
 
       <section>

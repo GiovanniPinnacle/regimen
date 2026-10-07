@@ -87,12 +87,12 @@ export default function DedupePage() {
       <header className="mb-6">
         <div className="mb-2">
           <Link
-            href="/more"
+            href="/you"
             className="text-[12px] inline-flex items-center gap-1"
             style={{ color: "var(--muted)" }}
           >
             <Icon name="chevron-right" size={11} className="rotate-180" />
-            More
+            You
           </Link>
         </div>
         <h1

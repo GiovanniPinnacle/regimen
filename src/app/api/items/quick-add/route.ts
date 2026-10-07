@@ -10,7 +10,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { ItemType, TimingSlot, Category } from "@/lib/types";
-import { todayISO } from "@/lib/constants";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 
@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+  // Day keys are the user's local calendar day (server clock is UTC).
+  const { today: userToday } = await getUserToday(supabase, user.id);
 
   let body: Body;
   try {
@@ -117,7 +119,7 @@ export async function POST(request: NextRequest) {
     const updates: Record<string, unknown> = {
       status: "active",
       timing_slot: timingSlot,
-      started_on: todayISO(),
+      started_on: userToday,
     };
     if (body.dose?.trim()) updates.dose = body.dose.trim();
     if (body.parent_id) {
@@ -147,7 +149,7 @@ export async function POST(request: NextRequest) {
       status: "active",
       goals: [],
       schedule_rule: { frequency: "daily" },
-      started_on: todayISO(),
+      started_on: userToday,
       dose: body.dose?.trim() || null,
     };
     if (body.parent_id) {
@@ -170,6 +172,7 @@ export async function POST(request: NextRequest) {
   // Log to changelog so it shows up in /changelog
   await supabase.from("changelog").insert({
     user_id: user.id,
+    date: userToday,
     change_type: isReactivate ? "promote" : "add",
     item_id: data.id,
     item_name: data.name,

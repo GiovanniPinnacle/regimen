@@ -112,7 +112,7 @@ export default function EmptyToday({
           href="/items/new"
           icon="plus"
           title="Add a single item"
-          subtitle="Type a name, Coach classifies the rest. Magnesium, minoxidil, anything."
+          subtitle="Type a name, Coach classifies the rest. Magnesium, creatine, anything."
         />
         <PathCard
           href="/scan"

@@ -79,12 +79,14 @@ export default function TrainPage() {
           .order("name")
           .limit(300),
         client
-          .from("oura_data")
+          .from("oura_daily")
           .select("sleep_score, readiness, hrv")
           .eq("date", today)
           .maybeSingle(),
       ]);
       if (!alive) return;
+      if (itemsRes.error) console.error("train: items", itemsRes.error);
+      if (ouraRes.error) console.error("train: oura_daily", ouraRes.error);
       const all = (itemsRes.data ?? []) as TrainItem[];
       // Filter to training-related practices/devices via keyword match.
       // Crude but works — Coach can tag items more formally later.

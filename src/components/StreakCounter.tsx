@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
+import { addDaysISO, computeStreak, localDateISO } from "@/lib/series";
 
 export default function StreakCounter() {
   const [streak, setStreak] = useState<number>(0);
@@ -18,19 +19,20 @@ export default function StreakCounter() {
     (async () => {
       try {
         const client = createClient();
-        const since = new Date(Date.now() - 60 * 86400000)
-          .toISOString()
-          .slice(0, 10);
-        const { data } = await client
+        const today = localDateISO();
+        const { data, error } = await client
           .from("stack_log")
-          .select("date")
-          .gte("date", since)
+          .select("date, taken")
+          .gte("date", addDaysISO(today, -60))
           .order("date", { ascending: false });
+        if (error) console.error("StreakCounter: stack_log", error);
         if (!alive) return;
-        const uniqueDays = new Set(
-          (data ?? []).map((r) => r.date as string),
+        setStreak(
+          computeStreak(
+            (data ?? []) as { date: string; taken: boolean | null }[],
+            today,
+          ),
         );
-        setStreak(computeStreak(Array.from(uniqueDays)));
       } finally {
         if (alive) setLoaded(true);
       }
@@ -76,25 +78,3 @@ export default function StreakCounter() {
   );
 }
 
-function computeStreak(datesDesc: string[]): number {
-  if (datesDesc.length === 0) return 0;
-  // Sort descending, then walk back from today checking consecutive days.
-  const sorted = [...datesDesc].sort().reverse();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let count = 0;
-  for (let offset = 0; offset < sorted.length + 1; offset++) {
-    const target = new Date(today);
-    target.setDate(today.getDate() - offset);
-    const targetStr = target.toISOString().slice(0, 10);
-    if (sorted.includes(targetStr)) {
-      count++;
-    } else if (offset === 0) {
-      // Today not logged yet — that's fine, check yesterday next loop
-      continue;
-    } else {
-      break;
-    }
-  }
-  return count;
-}

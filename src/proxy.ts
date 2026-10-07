@@ -6,7 +6,6 @@ const PUBLIC_PATHS = [
   "/auth/callback",
   "/auth/confirm",
   "/api/cron",
-  "/logos", // logo mockup previews (and subpaths) — no user data
   // Compliance pages — App Store + GDPR + CCPA require these be
   // reachable WITHOUT auth so prospective users + regulators can read
   // them before creating an account. Linked from /signin footer.

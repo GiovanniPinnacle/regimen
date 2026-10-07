@@ -3,12 +3,14 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { daysSincePostOp, POSTOP_DATE_ZERO } from "@/lib/constants";
-import { getAnthropic, MODELS, MODEL_OPTS } from "@/lib/anthropic";
+import { getAnthropic, MODEL_OPTS } from "@/lib/anthropic";
 import {
   buildContextForUser,
   contextToSystemPrompt,
 } from "@/lib/context";
 import type { Item } from "@/lib/types";
+import { addDaysISO } from "@/lib/series";
+import { getUserToday } from "@/lib/user-date";
 
 export type InsightRow = {
   user_id: string;
@@ -127,16 +129,16 @@ export async function generateBiotinAlert(
   userId: string,
 ): Promise<InsightRow[]> {
   const admin = createAdminClient();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const threeDaysOut = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
-  const target = threeDaysOut.toISOString().slice(0, 10);
+  // Cron runs in UTC — anchor on the user's local day.
+  const { today } = await getUserToday(admin, userId);
+  const target = addDaysISO(today, 3);
 
-  const { data } = await admin
+  const { data, error } = await admin
     .from("reviews")
     .select("scheduled_date, phase_name")
     .eq("user_id", userId)
     .eq("scheduled_date", target);
+  if (error) console.error("generateBiotinAlert: reviews", error);
 
   const bloodwork = (data ?? []).filter((r) =>
     /bloodwork|function health|labs?/i.test(r.phase_name),
@@ -269,16 +271,19 @@ export async function promoteDayMilestoneItems(
   }
   if (ready.length === 0) return [];
 
-  const todayISO = new Date().toISOString().slice(0, 10);
+  // Local day for started_on / changelog.date (cron runs in UTC).
+  const { today: todayISO } = await getUserToday(admin, userId);
 
   // Promote
   for (const r of ready) {
-    await admin
+    const { error: promoteErr } = await admin
       .from("items")
       .update({ status: "active", started_on: todayISO })
       .eq("id", r.id);
+    if (promoteErr) console.error("day-milestone promote", promoteErr);
     await admin.from("changelog").insert({
       user_id: userId,
+      date: todayISO,
       change_type: "promote",
       item_id: r.id,
       item_name: r.name,

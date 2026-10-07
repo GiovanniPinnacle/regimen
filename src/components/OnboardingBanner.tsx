@@ -87,8 +87,8 @@ export default function OnboardingBanner() {
     title = "Enable notifications";
     body = (
       <>
-        Get your daily morning check-in + biotin alerts + cycle flip reminders
-        right on your phone. Tap below and tap &quot;Allow&quot; when iOS prompts.
+        Get your daily check-in, dose reminders, and milestone nudges right
+        on your phone. Tap below and tap &quot;Allow&quot; when iOS prompts.
       </>
     );
     action = (
@@ -115,7 +115,7 @@ export default function OnboardingBanner() {
     );
   } else if (pushState === "default") {
     title = "Enable notifications";
-    body = <>Daily morning check-ins + biotin/cycle/milestone alerts.</>;
+    body = <>Daily check-ins, dose reminders, and milestone nudges.</>;
     action = (
       <button
         onClick={handleEnable}

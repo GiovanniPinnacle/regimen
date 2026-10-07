@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import SwipeDismiss from "@/components/SwipeDismiss";
 import type { IngredientStackResult, IngredientWarning } from "@/lib/ingredient-stack";
+import { localDateISO } from "@/lib/series";
 
 const HIDE_KEY_BASE = "regimen.stackwarn.dismissed_today.v1";
 
@@ -69,7 +70,7 @@ export default function StackWarningsBanner({
     try {
       return (
         localStorage.getItem(hideKey) ===
-        new Date().toISOString().slice(0, 10)
+        localDateISO()
       );
     } catch {
       return false;
@@ -99,7 +100,7 @@ export default function StackWarningsBanner({
 
   function dismiss() {
     try {
-      localStorage.setItem(hideKey, new Date().toISOString().slice(0, 10));
+      localStorage.setItem(hideKey, localDateISO());
     } catch {}
     setDismissed(true);
   }

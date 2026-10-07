@@ -3,15 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ItemCard from "@/components/ItemCard";
-import {
-  getItemsByStatus,
-  getAdherenceMap,
-  getAdherenceSeriesMap,
-} from "@/lib/storage";
+import { getItemsByStatus, getItemAdherence } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/client";
 import { showToast } from "@/lib/toast";
 import type { Category, Goal, Item, ItemType, Status } from "@/lib/types";
-import { ITEM_TYPE_LABELS } from "@/lib/constants";
+import { ITEM_TYPE_LABELS, todayISO } from "@/lib/constants";
+import { daysBetween } from "@/lib/series";
 import ItemTypeIcon from "@/components/ItemTypeIcon";
 import EmptyState from "@/components/EmptyState";
 import StackFilterSheet from "@/components/StackFilterSheet";
@@ -39,12 +36,14 @@ const STATUS_TABS: { value: StatusTab; label: string; subtitle: string }[] = [
   { value: "backburner", label: "Parked", subtitle: "Revisit later" },
 ];
 
+/** Days of supply left. The current unit's clock starts when it ARRIVED
+ *  (arrived_on) — started_on is when the item joined the regimen and
+ *  doesn't reset on reorder. Falls back to started_on for items that
+ *  never went through /purchases. */
 function calcSupplyLeft(item: Item): number | null {
-  if (!item.days_supply || !item.started_on) return null;
-  const startedAt = new Date(item.started_on);
-  const daysElapsed = Math.floor(
-    (Date.now() - startedAt.getTime()) / 86400000,
-  );
+  const anchor = item.arrived_on ?? item.started_on;
+  if (!item.days_supply || !anchor) return null;
+  const daysElapsed = Math.max(0, daysBetween(anchor, todayISO()));
   return item.days_supply - daysElapsed;
 }
 
@@ -158,13 +157,9 @@ export default function StackPage() {
       // (parallel with the rollup) so each ItemCard can render its
       // 14-day sparkline without an N+1 fanout.
       if (statusTab === "active") {
-        const ids = all.map((i) => i.id);
-        const [adh, series] = await Promise.all([
-          getAdherenceMap(ids, 14),
-          getAdherenceSeriesMap(ids, 14),
-        ]);
+        const { rates, series } = await getItemAdherence(all, 14);
         if (!alive) return;
-        setAdherenceMap(adh);
+        setAdherenceMap(rates);
         setAdherenceSeriesMap(series);
       } else {
         setAdherenceMap({});

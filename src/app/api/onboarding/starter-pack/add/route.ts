@@ -15,7 +15,7 @@ import type {
   Status,
   TimingSlot,
 } from "@/lib/types";
-import { todayISO } from "@/lib/constants";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 
@@ -48,6 +48,8 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+  // Day keys are the user's local calendar day (server clock is UTC).
+  const { today: userToday } = await getUserToday(supabase, user.id);
 
   let body: Body;
   try {
@@ -117,7 +119,7 @@ export async function POST(request: NextRequest) {
       status,
       schedule_rule: { frequency: "daily" },
       catalog_item_id: c.id,
-      started_on: status === "active" ? todayISO() : null,
+      started_on: status === "active" ? userToday : null,
     }));
 
   if (inserts.length === 0) {

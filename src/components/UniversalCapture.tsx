@@ -265,12 +265,12 @@ export default function UniversalCapture({ open, onClose }: Props) {
             <div
               className="text-[11px] uppercase tracking-wider"
               style={{
-                color: "var(--accent)",
+                color: "var(--muted)",
                 fontWeight: 700,
                 letterSpacing: "0.06em",
               }}
             >
-              Capture
+              Log
             </div>
             <div
               className="text-[16px] mt-0.5"
@@ -305,8 +305,8 @@ export default function UniversalCapture({ open, onClose }: Props) {
                 onClick={startListening}
                 className="rounded-2xl py-4 flex flex-col items-center justify-center gap-1.5"
                 style={{
-                  background: "var(--accent-tint)",
-                  color: "var(--accent)",
+                  background: "var(--surface-alt)",
+                  color: "var(--foreground)",
                   border: "1px solid var(--border)",
                   minHeight: 92,
                 }}
@@ -334,8 +334,8 @@ export default function UniversalCapture({ open, onClose }: Props) {
                 onClick={pickPhoto}
                 className="rounded-2xl py-4 flex flex-col items-center justify-center gap-1.5"
                 style={{
-                  background: "var(--olive-tint)",
-                  color: "var(--olive)",
+                  background: "var(--surface-alt)",
+                  color: "var(--foreground)",
                   border: "1px solid var(--border)",
                   minHeight: 92,
                 }}
@@ -441,7 +441,7 @@ export default function UniversalCapture({ open, onClose }: Props) {
               <button
                 onClick={startListening}
                 className="text-[12px] underline mt-1"
-                style={{ color: "var(--accent)" }}
+                style={{ color: "var(--foreground-soft)" }}
               >
                 ↻ Re-record
               </button>

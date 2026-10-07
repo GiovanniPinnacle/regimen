@@ -24,7 +24,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, MODELS, MODEL_OPTS, textOf } from "@/lib/anthropic";
 import { rateLimitOrError, recordUsage } from "@/lib/rate-limit";
-import { todayISO } from "@/lib/constants";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -134,6 +134,38 @@ async function classify(
   }
 }
 
+/** daily_checkins scale columns (1-5) the classifier may target. Common
+ *  synonyms map onto them; everything else is kept as jsonb extras. */
+const CHECKIN_COLUMN_ALIASES: Record<string, "mood" | "energy" | "stress"> = {
+  mood: "mood",
+  feel: "mood",
+  feel_score: "mood",
+  energy: "energy",
+  energy_pm: "energy",
+  stress: "stress",
+};
+
+function splitSymptomFields(fields: ClassifyResult["fields"]): {
+  columns: Partial<Record<"mood" | "energy" | "stress", number>>;
+  extras: Record<string, number | string>;
+} {
+  const columns: Partial<Record<"mood" | "energy" | "stress", number>> = {};
+  const extras: Record<string, number | string> = {};
+  for (const [rawKey, rawVal] of Object.entries(fields ?? {})) {
+    const key = rawKey.trim().toLowerCase();
+    if (!/^[a-z0-9_]{1,40}$/.test(key)) continue;
+    const col = CHECKIN_COLUMN_ALIASES[key];
+    const num = typeof rawVal === "number" ? rawVal : Number(rawVal);
+    if (col && Number.isFinite(num)) {
+      // Columns are 1-5 ints; clamp + round whatever the model returned.
+      columns[col] = Math.min(5, Math.max(1, Math.round(num)));
+    } else if (typeof rawVal === "number" || typeof rawVal === "string") {
+      extras[key] = typeof rawVal === "string" ? rawVal.slice(0, 200) : rawVal;
+    }
+  }
+  return { columns, extras };
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -163,6 +195,8 @@ export async function POST(request: NextRequest) {
   if (limited) return limited;
 
   const intent = await classify(text, user.id, body.hint);
+  // Server clock is UTC; day keys are the user's local calendar day.
+  const { today } = await getUserToday(supabase, user.id);
 
   // Execute the intent with side effects scoped to this user.
   let executedAction: string | null = null;
@@ -180,8 +214,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle();
     if (itemRow) {
-      const today = todayISO();
-      await supabase.from("stack_log").upsert(
+      const { error: logErr } = await supabase.from("stack_log").upsert(
         {
           user_id: user.id,
           item_id: itemRow.id,
@@ -191,6 +224,7 @@ export async function POST(request: NextRequest) {
         },
         { onConflict: "user_id,item_id,date" },
       );
+      if (logErr) console.error("capture: stack_log check_off", logErr);
       executedAction = "check_off";
       actionData = { item_id: itemRow.id, item_name: itemRow.name };
     } else {
@@ -208,8 +242,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle();
     if (itemRow) {
-      const today = todayISO();
-      await supabase.from("stack_log").upsert(
+      const { error: logErr } = await supabase.from("stack_log").upsert(
         {
           user_id: user.id,
           item_id: itemRow.id,
@@ -220,6 +253,7 @@ export async function POST(request: NextRequest) {
         },
         { onConflict: "user_id,item_id,date" },
       );
+      if (logErr) console.error("capture: stack_log skip", logErr);
       executedAction = "skip_with_reason";
       actionData = { item_id: itemRow.id, item_name: itemRow.name };
     } else {
@@ -259,9 +293,9 @@ export async function POST(request: NextRequest) {
     } catch {
       // Macros failed — log without them
     }
-    await supabase.from("intake_log").insert({
+    const { error: intakeErr } = await supabase.from("intake_log").insert({
       user_id: user.id,
-      date: todayISO(),
+      date: today,
       logged_at: new Date().toISOString(),
       kind: "meal",
       content: intent.subject,
@@ -271,50 +305,77 @@ export async function POST(request: NextRequest) {
       carbs_g: macros?.carbs_g ?? null,
       serving: macros?.serving ?? null,
     });
+    if (intakeErr) console.error("capture: intake_log insert", intakeErr);
     executedAction = "log_meal";
     actionData = { meal: intent.subject, macros };
   } else if (intent.intent === "log_workout" && intent.subject) {
     // Workouts go to voice_memos (free-form context) — we don't yet
     // have a structured workouts table.
-    await supabase.from("voice_memos").insert({
+    const { error: memoErr } = await supabase.from("voice_memos").insert({
       user_id: user.id,
       transcript: intent.subject,
       context_tag: "workout",
     });
+    if (memoErr) console.error("capture: voice_memos workout", memoErr);
     executedAction = "log_workout";
     actionData = { workout: intent.subject };
   } else if (intent.intent === "log_symptom") {
-    // Upsert today's daily_checkin with the inferred fields.
-    if (intent.fields && Object.keys(intent.fields).length > 0) {
-      const today = todayISO();
-      await supabase.from("daily_checkins").upsert(
+    // Upsert today's daily_checkin with the inferred fields. The
+    // classifier returns free-form keys ({sleep_quality: 6, mood: 3}),
+    // so whitelist: mood/energy/stress are real 1-5 columns; anything
+    // else numeric goes into the `data` jsonb instead of being spread
+    // into the row (an unknown column fails the whole upsert).
+    const { columns, extras } = splitSymptomFields(intent.fields);
+    if (Object.keys(columns).length > 0 || Object.keys(extras).length > 0) {
+      const { data: existing, error: readErr } = await supabase
+        .from("daily_checkins")
+        .select("data, notes")
+        .eq("user_id", user.id)
+        .eq("date", today)
+        .eq("checkin_window", "general")
+        .maybeSingle();
+      if (readErr) console.error("capture: daily_checkins read", readErr);
+      const prevData =
+        (existing?.data as Record<string, unknown> | null | undefined) ?? {};
+      const prevNotes = (existing?.notes as string | null | undefined) ?? null;
+      const { error: upsertErr } = await supabase.from("daily_checkins").upsert(
         {
           user_id: user.id,
           date: today,
           checkin_window: "general",
-          ...intent.fields,
-          notes: text,
+          ...columns,
+          data: { ...prevData, ...extras },
+          notes: prevNotes ? `${prevNotes}\n${text}` : text,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id,date,checkin_window" },
       );
+      if (upsertErr) {
+        console.error("capture: daily_checkins upsert", upsertErr);
+        return NextResponse.json(
+          { error: "Couldn't save that check-in" },
+          { status: 500 },
+        );
+      }
       executedAction = "log_symptom";
-      actionData = { fields: intent.fields };
+      actionData = { fields: { ...columns, ...extras } };
     } else {
       // No structured fields — fall back to voice memo
-      await supabase.from("voice_memos").insert({
+      const { error: memoErr } = await supabase.from("voice_memos").insert({
         user_id: user.id,
         transcript: text,
         context_tag: "symptom",
       });
+      if (memoErr) console.error("capture: voice_memos insert", memoErr);
       executedAction = "voice_memo";
     }
   } else if (intent.intent === "voice_memo") {
-    await supabase.from("voice_memos").insert({
+    const { error: memoErr } = await supabase.from("voice_memos").insert({
       user_id: user.id,
       transcript: text,
       context_tag: body.hint ?? null,
     });
+    if (memoErr) console.error("capture: voice_memos", memoErr);
     executedAction = "voice_memo";
   } else if (
     intent.intent === "add_item" ||

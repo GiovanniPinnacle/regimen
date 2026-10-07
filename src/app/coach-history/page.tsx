@@ -10,6 +10,8 @@ import { createClient } from "@/lib/supabase/server";
 import Icon from "@/components/Icon";
 import EmptyGlyph from "@/components/EmptyGlyph";
 import CoachMarkdown from "@/components/CoachMarkdown";
+import { addDaysISO, localDateISO } from "@/lib/series";
+import { getUserToday } from "@/lib/user-date";
 
 export const dynamic = "force-dynamic";
 
@@ -48,21 +50,23 @@ export default async function CoachHistoryPage() {
   // RLS on claude_conversations restricts to auth.uid() = user_id
   // (migration 001 generic owner policy). Cookied client is the
   // safer default — admin escalation here was unnecessary.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("claude_conversations")
     .select("id, created_at, messages_json")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(60);
 
+  if (error) console.error("coach-history: claude_conversations", error);
   const rows = (data ?? []) as Row[];
 
-  // Group by date (YYYY-MM-DD in user's locale-ish — we use the row's
-  // ISO date prefix; close enough for a "Yesterday / Today" breakdown).
+  // Group by the user's LOCAL calendar day (created_at is a UTC
+  // timestamp; the server clock is UTC).
+  const { today, timeZone } = await getUserToday(supabase, user.id);
   type Group = { date: string; rows: Row[] };
   const groups: Group[] = [];
   for (const r of rows) {
-    const d = r.created_at.slice(0, 10);
+    const d = localDateISO(new Date(r.created_at), timeZone);
     const last = groups[groups.length - 1];
     if (last && last.date === d) last.rows.push(r);
     else groups.push({ date: d, rows: [r] });
@@ -73,12 +77,12 @@ export default async function CoachHistoryPage() {
       <header className="mb-6">
         <div className="mb-2">
           <Link
-            href="/more"
+            href="/you"
             className="text-[12px] inline-flex items-center gap-1"
             style={{ color: "var(--muted)" }}
           >
             <Icon name="chevron-right" size={11} className="rotate-180" />
-            More
+            You
           </Link>
         </div>
         <h1
@@ -137,7 +141,7 @@ export default async function CoachHistoryPage() {
                   letterSpacing: "0.08em",
                 }}
               >
-                {formatDateHeading(g.date)}
+                {formatDateHeading(g.date, today)}
               </h2>
               <div className="flex flex-col gap-3">
                 {g.rows.map((row) => {
@@ -217,16 +221,16 @@ export default async function CoachHistoryPage() {
   );
 }
 
-function formatDateHeading(iso: string): string {
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+function formatDateHeading(iso: string, today: string): string {
   if (iso === today) return "Today";
-  if (iso === yesterday) return "Yesterday";
-  // "Apr 27, 2026" style
+  if (iso === addDaysISO(today, -1)) return "Yesterday";
+  // "Apr 27, 2026" style. Pin UTC so the calendar date isn't shifted by
+  // the runtime's zone.
   const d = new Date(iso + "T00:00:00Z");
   return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }

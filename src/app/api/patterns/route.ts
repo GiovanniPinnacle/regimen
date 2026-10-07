@@ -11,6 +11,13 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  addDaysISO,
+  perItemAdherence,
+  type DoseLog,
+  type SchedulableItem,
+} from "@/lib/series";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 
@@ -32,14 +39,11 @@ export async function GET() {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const since30 = new Date(Date.now() - 30 * 86400000)
-    .toISOString()
-    .slice(0, 10);
-  const since14 = new Date(Date.now() - 14 * 86400000)
-    .toISOString()
-    .slice(0, 10);
+  const { today } = await getUserToday(supabase, user.id);
+  const since30 = addDaysISO(today, -30);
+  const since14 = addDaysISO(today, -14);
 
-  const [reactionsRes, skipsRes, takenRes] = await Promise.all([
+  const [reactionsRes, skipsRes, takenRes, itemsRes] = await Promise.all([
     supabase
       .from("item_reactions")
       .select("item_id, reaction, reacted_on, items(name)")
@@ -54,10 +58,26 @@ export async function GET() {
       .gte("date", since14),
     supabase
       .from("stack_log")
-      .select("item_id, taken, date, items(name)")
+      .select("item_id, taken, date")
       .eq("user_id", user.id)
-      .gte("date", since14),
+      .gte("date", since14)
+      .lte("date", today),
+    // Schedule fields — "perfect adherence" means every SCHEDULED dose
+    // taken, not every logged row.
+    supabase
+      .from("items")
+      .select(
+        "id, name, status, started_on, ends_on, created_at, timing_slot, item_type, schedule_rule",
+      )
+      .eq("user_id", user.id)
+      .eq("status", "active"),
   ]);
+  const failed =
+    reactionsRes.error ?? skipsRes.error ?? takenRes.error ?? itemsRes.error;
+  if (failed) {
+    console.error("patterns", failed);
+    return NextResponse.json({ error: failed.message }, { status: 500 });
+  }
 
   const patterns: Pattern[] = [];
 
@@ -182,41 +202,27 @@ export async function GET() {
   }
 
   // ----- 3. Streak wins (positive reinforcement) -----
-  type TakenRow = {
-    item_id: string;
-    taken: boolean;
-    date: string;
-    items?: { name?: string } | null;
-  };
-  const takenByItem = new Map<
-    string,
-    { item_name: string; takenCount: number; totalDays: number }
-  >();
-  for (const row of (takenRes.data ?? []) as TakenRow[]) {
-    const name = row.items?.name ?? "(unknown)";
-    if (!takenByItem.has(row.item_id)) {
-      takenByItem.set(row.item_id, {
-        item_name: name,
-        takenCount: 0,
-        totalDays: 0,
-      });
-    }
-    const t = takenByItem.get(row.item_id)!;
-    t.totalDays++;
-    if (row.taken) t.takenCount++;
-  }
-
-  for (const [item_id, t] of takenByItem.entries()) {
-    if (t.totalDays >= 12 && t.takenCount === t.totalDays) {
-      patterns.push({
-        kind: "streak_win",
-        severity: "low",
-        item_id,
-        item_name: t.item_name,
-        headline: `${t.item_name}: ${t.takenCount} days perfect adherence`,
-        detail: `Consistent. Whatever you're doing here is working — keep the slot, keep the cue.`,
-      });
-    }
+  // Every scheduled dose in the last 14 days taken, with ≥12 scheduled.
+  const activeItems = (itemsRes.data ?? []) as (SchedulableItem & {
+    name: string;
+  })[];
+  const perItem = perItemAdherence(
+    activeItems,
+    (takenRes.data ?? []) as DoseLog[],
+    since14,
+    today,
+  );
+  for (const item of activeItems) {
+    const a = perItem.get(item.id);
+    if (!a || a.scheduled < 12 || a.taken < a.scheduled) continue;
+    patterns.push({
+      kind: "streak_win",
+      severity: "low",
+      item_id: item.id,
+      item_name: item.name,
+      headline: `${item.name}: ${a.taken} days perfect adherence`,
+      detail: `Consistent. Whatever you're doing here is working — keep the slot, keep the cue.`,
+    });
   }
 
   // Sort by severity (urgent → high → medium → low), then take top 5
@@ -233,6 +239,6 @@ export async function GET() {
   return NextResponse.json({
     patterns: patterns.slice(0, 5),
     total_found: patterns.length,
-    has_data: rxAgg.size > 0 || skipsByItem.size > 0 || takenByItem.size > 0,
+    has_data: rxAgg.size > 0 || skipsByItem.size > 0 || (takenRes.data ?? []).length > 0,
   });
 }

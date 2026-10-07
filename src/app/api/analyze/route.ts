@@ -10,7 +10,7 @@ import {
   buildContextForCurrentUser,
   contextToSystemPrompt,
 } from "@/lib/context";
-import { todayISO } from "@/lib/constants";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -79,6 +79,8 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+  // Day keys are the user's local calendar day (server clock is UTC).
+  const { today: userToday } = await getUserToday(supabase, user.id);
 
   const body = (await request.json()) as {
     type: AnalyzeType;
@@ -169,7 +171,7 @@ export async function POST(request: NextRequest) {
     const parsed = JSON.parse(jsonMatch[0]);
 
     // Store per type
-    const today = todayISO();
+    const today = userToday;
     if (body.type === "food") {
       const r = parsed as FoodResult;
       const flags = r.ingredients

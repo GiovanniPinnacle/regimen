@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { addDaysISO, localDateISO } from "@/lib/series";
+import { getUserToday } from "@/lib/user-date";
 import { notFound } from "next/navigation";
 import CategoryBadge from "@/components/CategoryBadge";
 import {
@@ -105,12 +107,15 @@ export default async function ItemDetailPage({
   // Personal history with this item — last 30d reactions, last 14d memos,
   // last 14d skips. The "what's MY relationship with this item" view.
   const NOW = getNow();
-  const since30 = new Date(NOW - 30 * 86400000)
-    .toISOString()
-    .slice(0, 10);
-  const since14 = new Date(NOW - 14 * 86400000)
-    .toISOString()
-    .slice(0, 10);
+  // reacted_on / stack_log.date are the user's local days (server is UTC).
+  const {
+    data: { user: viewer },
+  } = await supabase.auth.getUser();
+  const userToday = viewer
+    ? (await getUserToday(supabase, viewer.id)).today
+    : localDateISO(new Date(NOW));
+  const since30 = addDaysISO(userToday, -30);
+  const since14 = addDaysISO(userToday, -14);
   const since14Iso = new Date(NOW - 14 * 86400000).toISOString();
 
   const [reactionsHistRes, memosHistRes, skipsHistRes] = await Promise.all([
@@ -1003,9 +1008,9 @@ export default async function ItemDetailPage({
               are picked FIRST on health merit — affiliates are only attached to
               items already approved by Coach.{" "}
               <Link
-                href="/strategy"
+                href="/privacy#affiliates"
                 className="underline"
-                style={{ color: "var(--accent)" }}
+                style={{ color: "var(--foreground-soft)" }}
               >
                 How this works
               </Link>

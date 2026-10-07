@@ -3,7 +3,7 @@
 // — for final wording before public launch, run this past a lawyer.
 
 import Link from "next/link";
-import Icon from "@/components/Icon";
+import PageHeader from "@/components/ui/PageHeader";
 
 export const metadata = {
   title: "Terms — Regimen",
@@ -12,30 +12,13 @@ export const metadata = {
 export default function TermsPage() {
   return (
     <div className="pb-24">
-      <header className="mb-6">
-        <div className="mb-2">
-          <Link
-            href="/more"
-            className="text-[12px] inline-flex items-center gap-1"
-            style={{ color: "var(--muted)" }}
-          >
-            <Icon name="chevron-right" size={11} className="rotate-180" />
-            More
-          </Link>
-        </div>
-        <h1
-          className="text-[34px] leading-tight"
-          style={{ fontWeight: 700, letterSpacing: "-0.024em" }}
-        >
-          Terms of use
-        </h1>
-        <p
-          className="text-[13px] mt-2 leading-relaxed"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          Last updated: May 8, 2026.
-        </p>
-      </header>
+      <PageHeader
+        title="Terms of use"
+        subtitle="Last updated: May 8, 2026."
+        back="/you"
+        backLabel="You"
+        showCoach={false}
+      />
 
       <div
         className="prose-tight space-y-5 text-[14px] leading-relaxed"

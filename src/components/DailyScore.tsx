@@ -7,35 +7,48 @@
 // Formula (in priority order — adherence dominates):
 //   - Adherence today (40 pts): % of items checked off
 //   - Streak bonus (25 pts): scales with current streak length
-//   - Intake (20 pts): water + protein hit %
+//   - Intake (20 pts): water + protein hit % (10 each) — fetched here;
+//     a component whose target is unknown is left out of the max and
+//     the score is rescaled, rather than silently scoring 0.
 //   - Reactions/feedback (15 pts): logged any reaction recently?
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Sparkline from "@/components/Sparkline";
+import {
+  addDaysISO,
+  computeStreak,
+  dailyAdherence,
+  localDateISO,
+  type DoseLog,
+  type SchedulableItem,
+} from "@/lib/series";
 
 type Props = {
   /** Today's items taken / total */
   takenCount: number;
   totalActive: number;
-  /** Pulled from IntakeTracker / similar — both nullable. */
-  waterOz?: number | null;
+  /** Daily water target (profiles.water_target_oz). null = unknown. */
   waterTargetOz?: number | null;
-  proteinG?: number | null;
+  /** Daily protein target (from calcMacros). null = unknown. */
   proteinTargetG?: number | null;
 };
 
-const SCORE_KEY_YESTERDAY = "regimen.dailyscore.yesterday.v1";
+/** Last persisted {date, score}. Read once on mount (before today's
+ *  write) so a stored entry dated yesterday becomes the delta baseline.
+ *  (Previously read a ".yesterday" key that nothing ever wrote.) */
+const SCORE_KEY = "regimen.dailyscore.today.v1";
 
 export default function DailyScore({
   takenCount,
   totalActive,
-  waterOz = null,
-  waterTargetOz = 84,
-  proteinG = null,
+  waterTargetOz = null,
   proteinTargetG = null,
 }: Props) {
   const [streak, setStreak] = useState(0);
   const [reactionsThisWeek, setReactionsThisWeek] = useState(0);
+  /** Today's intake totals from intake_log (null until loaded). */
+  const [waterOz, setWaterOz] = useState<number | null>(null);
+  const [proteinG, setProteinG] = useState<number | null>(null);
   /** 14-day adherence trajectory — derived from stack_log per-day
    *  taken-fraction. Powers the Sparkline shown beside the score.
    *  Each entry is 0..1 or null if no log on that day. */
@@ -45,12 +58,10 @@ export default function DailyScore({
   const [yesterdayScore] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
     try {
-      const raw = localStorage.getItem(SCORE_KEY_YESTERDAY);
+      const raw = localStorage.getItem(SCORE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as { date: string; score: number };
-      const yesterday = new Date(Date.now() - 86400000)
-        .toISOString()
-        .slice(0, 10);
+      const yesterday = addDaysISO(localDateISO(), -1);
       if (parsed.date === yesterday) return parsed.score;
       return null;
     } catch {
@@ -62,61 +73,63 @@ export default function DailyScore({
     try {
       const { createClient } = await import("@/lib/supabase/client");
       const c = createClient();
-      const since60 = new Date(Date.now() - 60 * 86400000)
-        .toISOString()
-        .slice(0, 10);
-      const since7 = new Date(Date.now() - 7 * 86400000)
-        .toISOString()
-        .slice(0, 10);
-      const since14 = new Date(Date.now() - 14 * 86400000)
-        .toISOString()
-        .slice(0, 10);
-      const [stackRes, rxRes, seriesRes] = await Promise.all([
+      const today = localDateISO();
+      const from14 = addDaysISO(today, -13);
+      const [stackRes, rxRes, itemsRes, intakeRes] = await Promise.all([
+        // 60 days of logs: streak + the 14-day sparkline in one query.
         c
           .from("stack_log")
-          .select("date")
-          .gte("date", since60)
+          .select("item_id, date, taken")
+          .gte("date", addDaysISO(today, -60))
           .order("date", { ascending: false }),
         c
           .from("item_reactions")
           .select("id")
-          .gte("reacted_on", since7),
+          .gte("reacted_on", addDaysISO(today, -7)),
+        // Schedule fields — the sparkline denominator is what was DUE
+        // each day, not what happened to get logged.
         c
-          .from("stack_log")
-          .select("date, taken")
-          .gte("date", since14),
+          .from("items")
+          .select(
+            "id, status, started_on, ends_on, created_at, timing_slot, item_type, schedule_rule",
+          )
+          .in("status", ["active", "retired"]),
+        c
+          .from("intake_log")
+          .select("water_oz, protein_g")
+          .eq("date", today),
       ]);
-      const days = new Set(
-        (stackRes.data ?? []).map((r) => r.date as string),
-      );
-      setStreak(computeStreak(Array.from(days)));
+      if (stackRes.error) console.error("DailyScore: stack_log", stackRes.error);
+      if (rxRes.error) console.error("DailyScore: item_reactions", rxRes.error);
+      if (itemsRes.error) console.error("DailyScore: items", itemsRes.error);
+      if (intakeRes.error) console.error("DailyScore: intake_log", intakeRes.error);
+
+      const logs = (stackRes.data ?? []) as DoseLog[];
+      setStreak(computeStreak(logs, today));
       setReactionsThisWeek((rxRes.data ?? []).length);
 
-      // Build the 14-day adherence sparkline series. For each day,
-      // the value is "fraction of logged items that were taken" —
-      // null when no log exists on that day. Chronological order
-      // (oldest left, today right) so the sparkline reads naturally.
-      type LogRow = { date: string; taken: boolean };
-      const byDay = new Map<string, { taken: number; total: number }>();
-      for (const row of (seriesRes.data ?? []) as LogRow[]) {
-        const d = row.date;
-        if (!byDay.has(d)) byDay.set(d, { taken: 0, total: 0 });
-        const cnt = byDay.get(d)!;
-        cnt.total += 1;
-        if (row.taken) cnt.taken += 1;
+      if (!intakeRes.error) {
+        const rows = (intakeRes.data ?? []) as {
+          water_oz: number | string | null;
+          protein_g: number | string | null;
+        }[];
+        setWaterOz(rows.reduce((s, r) => s + Number(r.water_oz ?? 0), 0));
+        setProteinG(rows.reduce((s, r) => s + Number(r.protein_g ?? 0), 0));
       }
-      const series: (number | null)[] = [];
-      for (let offset = 13; offset >= 0; offset--) {
-        const d = new Date(Date.now() - offset * 86400000)
-          .toISOString()
-          .slice(0, 10);
-        const cnt = byDay.get(d);
-        series.push(
-          cnt && cnt.total > 0 ? cnt.taken / cnt.total : null,
-        );
-      }
-      setAdherenceSeries(series);
-    } catch {}
+
+      // 14-day adherence sparkline: taken / scheduled per day, null on
+      // days nothing was due. Chronological (oldest left, today right).
+      setAdherenceSeries(
+        dailyAdherence(
+          (itemsRes.data ?? []) as SchedulableItem[],
+          logs,
+          from14,
+          today,
+        ).map((d) => d.rate),
+      );
+    } catch (e) {
+      console.error("DailyScore load", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -127,20 +140,23 @@ export default function DailyScore({
   const score = useMemo(() => {
     const adherencePct =
       totalActive > 0 ? takenCount / totalActive : 0;
-    const adherencePts = Math.round(adherencePct * 40);
-    const streakPts = Math.min(25, streak * 2.5);
-    const waterPts =
-      waterOz != null && waterTargetOz != null && waterTargetOz > 0
-        ? Math.round(Math.min(1, waterOz / waterTargetOz) * 10)
-        : 0;
-    const proteinPts =
-      proteinG != null && proteinTargetG != null && proteinTargetG > 0
-        ? Math.round(Math.min(1, proteinG / proteinTargetG) * 10)
-        : 0;
-    const reactionPts = Math.min(15, reactionsThisWeek * 3);
-    return Math.round(
-      adherencePts + streakPts + waterPts + proteinPts + reactionPts,
-    );
+    let earned =
+      Math.round(adherencePct * 40) +
+      Math.min(25, streak * 2.5) +
+      Math.min(15, reactionsThisWeek * 3);
+    let available = 40 + 25 + 15;
+    // Intake components only count when we know the target.
+    if (waterTargetOz != null && waterTargetOz > 0) {
+      available += 10;
+      earned += Math.round(Math.min(1, (waterOz ?? 0) / waterTargetOz) * 10);
+    }
+    if (proteinTargetG != null && proteinTargetG > 0) {
+      available += 10;
+      earned += Math.round(
+        Math.min(1, (proteinG ?? 0) / proteinTargetG) * 10,
+      );
+    }
+    return Math.round((earned / available) * 100);
   }, [
     takenCount,
     totalActive,
@@ -158,9 +174,9 @@ export default function DailyScore({
     if (totalActive === 0 && reactionsThisWeek === 0) return;
     try {
       localStorage.setItem(
-        SCORE_KEY_YESTERDAY.replace("yesterday", "today"),
+        SCORE_KEY,
         JSON.stringify({
-          date: new Date().toISOString().slice(0, 10),
+          date: localDateISO(),
           score,
         }),
       );
@@ -302,23 +318,3 @@ function scoreBreakdown(
   return parts.join(" · ") || "Start with one item";
 }
 
-function computeStreak(datesDesc: string[]): number {
-  if (datesDesc.length === 0) return 0;
-  const sorted = [...datesDesc].sort().reverse();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let count = 0;
-  for (let offset = 0; offset < sorted.length + 1; offset++) {
-    const target = new Date(today);
-    target.setDate(today.getDate() - offset);
-    const targetStr = target.toISOString().slice(0, 10);
-    if (sorted.includes(targetStr)) {
-      count++;
-    } else if (offset === 0) {
-      continue;
-    } else {
-      break;
-    }
-  }
-  return count;
-}

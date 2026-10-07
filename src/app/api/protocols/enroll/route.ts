@@ -9,7 +9,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getProtocol, isProtocolEnrollable } from "@/lib/protocols";
-import { todayISO } from "@/lib/constants";
+import { getUserToday } from "@/lib/user-date";
+import { addDaysISO } from "@/lib/series";
 
 type Body = {
   slug: string;
@@ -24,6 +25,8 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+  // Day keys are the user's local calendar day (server clock is UTC).
+  const { today: userToday } = await getUserToday(supabase, user.id);
 
   const body = (await request.json()) as Body;
   const protocol = getProtocol(body.slug);
@@ -37,7 +40,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const startDate = body.start_date ?? todayISO();
+  const startDate = body.start_date ?? userToday;
 
   // Idempotent: if already enrolled, return existing
   const { data: existing } = await supabase
@@ -88,19 +91,11 @@ export async function POST(request: NextRequest) {
 
   // Copy protocol items into the user's items table, tagged with
   // from_protocol_slug + from_protocol_item_key so we can tell where they came from.
-  const start = new Date(startDate);
+  // Pure calendar arithmetic on YYYY-MM-DD (tz-free).
   const itemsToInsert = protocol.items.map((pi) => {
-    const startedOn = new Date(start);
-    startedOn.setDate(
-      startedOn.getDate() + (pi.starts_on_day ?? 0),
-    );
-    const endsOn = pi.ends_on_day != null
-      ? (() => {
-          const d = new Date(start);
-          d.setDate(d.getDate() + pi.ends_on_day!);
-          return d.toISOString().slice(0, 10);
-        })()
-      : null;
+    const startedOn = addDaysISO(startDate, pi.starts_on_day ?? 0);
+    const endsOn =
+      pi.ends_on_day != null ? addDaysISO(startDate, pi.ends_on_day) : null;
 
     return {
       user_id: user.id,
@@ -113,7 +108,7 @@ export async function POST(request: NextRequest) {
       category: pi.category,
       item_type: pi.item_type,
       goals: pi.goals,
-      started_on: startedOn.toISOString().slice(0, 10),
+      started_on: startedOn,
       ends_on: endsOn,
       review_trigger: pi.review_trigger,
       status:
@@ -234,7 +229,7 @@ export async function POST(request: NextRequest) {
   // Log to changelog
   await supabase.from("changelog").insert({
     user_id: user.id,
-    date: todayISO(),
+    date: userToday,
     change_type: "enroll_protocol",
     item_name: protocol.name,
     reasoning: `Enrolled in protocol: ${protocol.slug} (${protocol.items.length} items)`,

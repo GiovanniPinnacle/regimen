@@ -194,11 +194,11 @@ export default function AboutMePage() {
       <header className="mb-5">
         <div className="mb-2">
           <Link
-            href="/more"
+            href="/you"
             className="text-[12px]"
             style={{ color: "var(--muted)" }}
           >
-            ← More
+            ← You
           </Link>
         </div>
         <h1

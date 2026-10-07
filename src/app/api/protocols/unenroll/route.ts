@@ -6,7 +6,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { todayISO } from "@/lib/constants";
+import { getUserToday } from "@/lib/user-date";
 
 type Body = {
   slug: string;
@@ -21,6 +21,8 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+  // Day keys are the user's local calendar day (server clock is UTC).
+  const { today: userToday } = await getUserToday(supabase, user.id);
 
   const body = (await request.json()) as Body;
   if (!body.slug) {
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
 
   await supabase.from("changelog").insert({
     user_id: user.id,
-    date: todayISO(),
+    date: userToday,
     change_type: "unenroll_protocol",
     item_name: body.slug,
     reasoning: body.remove_items

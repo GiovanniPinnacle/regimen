@@ -7,6 +7,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { UserStage, UserSignals } from "@/lib/context";
+import { getProtocol } from "@/lib/protocols";
+import { addDaysISO, computeStreak, protocolProgress } from "@/lib/series";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,24 +36,23 @@ export async function GET() {
   // belt-and-suspenders.
   const userId = user.id;
 
-  const since14 = new Date(Date.now() - 14 * 86400000)
-    .toISOString()
-    .slice(0, 10);
-  const since30 = new Date(Date.now() - 30 * 86400000)
-    .toISOString()
-    .slice(0, 10);
+  const { today } = await getUserToday(supabase, userId);
+  const since14 = addDaysISO(today, -14);
+  const since30 = addDaysISO(today, -30);
+  const since60 = addDaysISO(today, -60);
 
-  const [itemsRes, log14Res, reactRes, enrollRes, refineRes, displayNameRes] =
+  const [itemsRes, log60Res, reactRes, enrollRes, refineRes, displayNameRes] =
     await Promise.all([
       supabase.from("items").select(
         "id, status, item_type, owned, purchase_state",
       ).eq("user_id", userId),
+      // 60d so the streak isn't capped at the 14d unique-days window.
       supabase
         .from("stack_log")
         .select("date")
         .eq("user_id", userId)
         .eq("taken", true)
-        .gte("date", since14),
+        .gte("date", since60),
       supabase
         .from("item_reactions")
         .select("item_id, reaction")
@@ -58,16 +60,16 @@ export async function GET() {
         .gte("reacted_on", since30),
       supabase
         .from("protocol_enrollments")
-        .select("protocol_slug, current_day, duration_days, status")
+        .select("protocol_slug, start_date, status")
         .eq("user_id", userId)
         .in("status", ["active", "completed"]),
       supabase
         .from("changelog")
-        .select("changed_at")
+        .select("id")
         .eq("user_id", userId)
         .eq("triggered_by", "refine")
         .gte(
-          "changed_at",
+          "created_at",
           new Date(Date.now() - 7 * 86400000).toISOString(),
         )
         .limit(1),
@@ -77,6 +79,17 @@ export async function GET() {
         .eq("id", userId)
         .maybeSingle(),
     ]);
+  const failed =
+    itemsRes.error ??
+    log60Res.error ??
+    reactRes.error ??
+    enrollRes.error ??
+    refineRes.error ??
+    displayNameRes.error;
+  if (failed) {
+    console.error("user-state", failed);
+    return NextResponse.json({ error: failed.message }, { status: 500 });
+  }
 
   type ItemRow = {
     status: string;
@@ -99,20 +112,14 @@ export async function GET() {
     (i) => i.purchase_state === "arrived",
   ).length;
 
-  const uniqueDays = new Set(
-    ((log14Res.data ?? []) as { date: string }[]).map((r) => r.date),
+  const takenDates = ((log60Res.data ?? []) as { date: string }[]).map(
+    (r) => r.date,
   );
-  const uniqueLogDays14d = uniqueDays.size;
+  const uniqueLogDays14d = new Set(takenDates.filter((d) => d >= since14))
+    .size;
 
-  // Streak: consecutive days ending today/yesterday
-  let currentStreak = 0;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-    if (uniqueDays.has(d)) currentStreak++;
-    else if (i === 0 && d === todayStr) continue;
-    else break;
-  }
+  // Streak: consecutive taken days ending today/yesterday
+  const currentStreak = computeStreak(takenDates, today);
 
   // Worsened items (2+ "worse" reactions in 30d)
   type RxRow = { item_id: string; reaction: string };
@@ -132,16 +139,24 @@ export async function GET() {
 
   type EnrollRow = {
     protocol_slug: string;
-    current_day: number;
-    duration_days: number;
+    start_date: string;
     status: string;
   };
-  const activeProtocols = ((enrollRes.data ?? []) as EnrollRow[]).map((e) => ({
-    slug: e.protocol_slug,
-    current_day: e.current_day,
-    duration_days: e.duration_days,
-    completed: e.status === "completed" || e.current_day >= e.duration_days,
-  }));
+  // protocol_enrollments only stores start_date — current day and
+  // duration are derived from the code-side protocol definition.
+  const activeProtocols = ((enrollRes.data ?? []) as EnrollRow[]).map((e) => {
+    const p = protocolProgress(
+      e.start_date,
+      getProtocol(e.protocol_slug)?.duration_days ?? 0,
+      today,
+    );
+    return {
+      slug: e.protocol_slug,
+      current_day: p.current_day,
+      duration_days: p.duration_days,
+      completed: e.status === "completed" || p.completed,
+    };
+  });
 
   let stage: UserStage;
   if (activeCount === 0) stage = "first_visit";

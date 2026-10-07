@@ -96,6 +96,17 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // Retired routes — permanent (308) so bookmarks + installed PWAs
+  // land on the current home for each feature.
+  async redirects() {
+    return [
+      { source: "/more", destination: "/you", permanent: true },
+      { source: "/refine", destination: "/insights", permanent: true },
+      { source: "/queued", destination: "/stack", permanent: true },
+      { source: "/backburner", destination: "/stack", permanent: true },
+      { source: "/fit", destination: "/train", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

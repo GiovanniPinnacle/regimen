@@ -13,6 +13,7 @@ import Link from "next/link";
 import Icon from "@/components/Icon";
 import { createClient } from "@/lib/supabase/client";
 import { showToast } from "@/lib/toast";
+import { localDateISO } from "@/lib/series";
 
 export default function AccountPage() {
   const [email, setEmail] = useState<string | null>(null);
@@ -45,7 +46,7 @@ export default function AccountPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `regimen-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `regimen-export-${localDateISO()}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -86,12 +87,12 @@ export default function AccountPage() {
       <header className="mb-6">
         <div className="mb-2">
           <Link
-            href="/more"
+            href="/you"
             className="text-[12px] inline-flex items-center gap-1"
             style={{ color: "var(--muted)" }}
           >
             <Icon name="chevron-right" size={11} className="rotate-180" />
-            More
+            You
           </Link>
         </div>
         <h1

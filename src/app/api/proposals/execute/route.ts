@@ -14,7 +14,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { todayISO } from "@/lib/constants";
+import { getUserToday } from "@/lib/user-date";
 
 type Body = {
   action: "add" | "update" | "retire" | "promote" | "queue" | "adjust";
@@ -119,6 +119,8 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  // Day keys are the user's local calendar day (server clock is UTC).
+  const { today: userToday } = await getUserToday(supabase, user.id);
 
   const body = (await request.json()) as Body;
   if (!body.action || !body.item_name) {
@@ -165,7 +167,7 @@ export async function POST(request: NextRequest) {
           existing.status === "backburner" ||
           existing.status === "queued")
       ) {
-        updates.started_on = todayISO();
+        updates.started_on = userToday;
       }
       const { error } = await supabase
         .from("items")
@@ -195,7 +197,7 @@ export async function POST(request: NextRequest) {
         dose: extra.dose ?? null,
         brand: extra.brand ?? null,
         notes: extra.notes ?? body.reasoning ?? null,
-        started_on: body.action === "add" ? todayISO() : null,
+        started_on: body.action === "add" ? userToday : null,
         review_trigger: extra.review_trigger ?? null,
         schedule_rule: { frequency: extra.frequency ?? "daily" },
         catalog_item_id: extra.catalog_item_id ?? null,
@@ -234,7 +236,7 @@ export async function POST(request: NextRequest) {
   } else if (body.action === "promote") {
     const { error } = await supabase
       .from("items")
-      .update({ status: "active", started_on: todayISO() })
+      .update({ status: "active", started_on: userToday })
       .eq("id", existing.id)
       .eq("user_id", user.id);
     if (error)
@@ -279,6 +281,7 @@ export async function POST(request: NextRequest) {
   // Log in changelog
   await supabase.from("changelog").insert({
     user_id: user.id,
+    date: userToday,
     change_type: changeType,
     item_id: itemId,
     item_name: itemName,

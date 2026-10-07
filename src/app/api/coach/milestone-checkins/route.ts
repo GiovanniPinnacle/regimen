@@ -18,6 +18,8 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { addDaysISO, daysBetween } from "@/lib/series";
+import { getUserToday } from "@/lib/user-date";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,7 +81,8 @@ export async function GET() {
   // Also pull the most recent reaction (any age) to seed the card's
   // "still feeling X?" framing.
   const itemIds = items.map((i) => i.id);
-  const since5 = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
+  const { today } = await getUserToday(supabase, user.id);
+  const since5 = addDaysISO(today, -5);
   const [recentRes, mostRecentRes] = await Promise.all([
     supabase
       .from("item_reactions")
@@ -119,16 +122,10 @@ export async function GET() {
     }
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
   const checkins: Checkin[] = [];
   for (const item of items) {
-    const start = new Date(item.started_on);
-    start.setHours(0, 0, 0, 0);
-    const days = Math.floor(
-      (today.getTime() - start.getTime()) / 86400000,
-    );
+    // Calendar days between local dates (tz-free string math).
+    const days = daysBetween(item.started_on.slice(0, 10), today);
     if (days < 12) continue; // before the 14-day window
 
     // Find the closest milestone within ±2 days. Walk milestones from

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Recipe } from "@/lib/types";
+import { localDateISO } from "@/lib/series";
 
 export default function RecipeActions({ recipe }: { recipe: Recipe }) {
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function RecipeActions({ recipe }: { recipe: Recipe }) {
       .from("recipes")
       .update({
         times_made: recipe.times_made + 1,
-        last_made: new Date().toISOString().slice(0, 10),
+        last_made: localDateISO(),
       })
       .eq("id", recipe.id);
     router.refresh();

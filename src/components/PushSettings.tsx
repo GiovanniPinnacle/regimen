@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { subscribeToPush, sendTestPush } from "@/lib/push";
+import Button from "@/components/ui/Button";
+import Icon from "@/components/Icon";
 
 type State = "unknown" | "unsupported" | "denied" | "granted" | "default";
 
@@ -22,9 +24,9 @@ export default function PushSettings() {
     const res = await subscribeToPush();
     if (res.ok) {
       setState("granted");
-      setMsg("✓ Notifications enabled");
+      setMsg("Notifications are on for this device.");
     } else {
-      setMsg(`Error: ${res.error}`);
+      setMsg(`Couldn't turn on notifications: ${res.error}`);
     }
     setBusy(false);
   }
@@ -33,81 +35,83 @@ export default function PushSettings() {
     setBusy(true);
     setMsg(null);
     const res = await sendTestPush();
-    if (res.ok) setMsg("✓ Test sent — check your notifications");
-    else setMsg(`Error: ${res.error ?? "failed"}`);
+    if (res.ok) setMsg("Test sent — it should arrive in a few seconds.");
+    else setMsg(`Test failed: ${res.error ?? "unknown error"}`);
     setBusy(false);
   }
 
   if (state === "unsupported") {
     return (
-      <div
-        className="border-hair rounded-xl p-4 text-[13px]"
-        style={{ color: "var(--muted)" }}
-      >
-        This browser doesn&apos;t support notifications. On iPhone, install the
-        app to your home screen first (Safari → Share → Add to Home Screen),
-        then open it from there and try again.
-      </div>
+      <p className="text-callout text-[var(--muted)]">
+        This browser doesn&apos;t support notifications. On iPhone, add
+        Regimen to your Home Screen first (Safari → Share → Add to Home
+        Screen), open it from there, and try again.
+      </p>
+    );
+  }
+
+  if (state === "denied") {
+    return (
+      <p className="text-callout text-[var(--muted)]">
+        Notifications are blocked for Regimen. Turn them on in your device
+        or browser settings, then come back here.
+      </p>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {state === "granted" ? (
         <>
-          <div
-            className="border-hair rounded-xl p-4"
-            style={{ background: "#E1F5EE", color: "#04342C" }}
-          >
-            <div className="text-[14px]" style={{ fontWeight: 500 }}>
-              ✓ Notifications enabled
-            </div>
-            <div className="text-[13px] mt-1" style={{ opacity: 0.85 }}>
-              Daily morning check-in + biotin alerts + cycle flips + day-milestone triggers will push to this device.
+          <div className="flex items-start gap-3 rounded-[14px] bg-[var(--success-tint)] p-4">
+            <Icon
+              name="check-circle"
+              size={20}
+              strokeWidth={1.8}
+              className="mt-0.5 shrink-0 text-[var(--success)]"
+            />
+            <div>
+              <div className="text-body font-semibold">Notifications are on</div>
+              <div className="mt-0.5 text-footnote text-[var(--foreground-soft)]">
+                Daily check-ins, dose reminders, and milestone nudges will
+                arrive on this device.
+              </div>
             </div>
           </div>
-          <button
+          <Button
+            variant="secondary"
+            size="lg"
+            fullWidth
+            icon="send"
+            loading={busy}
             onClick={handleTest}
-            disabled={busy}
-            className="border-hair rounded-xl p-4 w-full text-left"
           >
-            <div className="text-[15px]" style={{ fontWeight: 500 }}>
-              {busy ? "Sending…" : "Send test notification"}
-            </div>
-            <div className="text-[13px]" style={{ color: "var(--muted)" }}>
-              Should arrive within a few seconds
-            </div>
-          </button>
+            Send a test notification
+          </Button>
         </>
       ) : (
-        <button
-          onClick={handleEnable}
-          disabled={busy}
-          className="border-hair rounded-xl p-4 w-full text-left"
-          style={{
-            background: "var(--foreground)",
-            color: "var(--background)",
-          }}
-        >
-          <div className="text-[15px]" style={{ fontWeight: 500 }}>
-            {busy ? "Requesting permission…" : "🔔 Enable notifications"}
-          </div>
-          <div
-            className="text-[13px]"
-            style={{ color: "var(--background)", opacity: 0.75 }}
+        <>
+          <p className="text-callout text-[var(--foreground-soft)]">
+            Get a daily check-in, dose reminders, and milestone nudges on
+            this device. You can turn them off any time.
+          </p>
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            icon="bell"
+            loading={busy}
+            onClick={handleEnable}
           >
-            Morning check-ins + biotin/cycle/milestone alerts on your phone
-          </div>
-        </button>
+            {busy ? "Requesting permission…" : "Turn on notifications"}
+          </Button>
+        </>
       )}
 
       {msg && (
-        <div
-          className="text-[12px] px-2"
-          style={{ color: "var(--muted)" }}
-        >
+        <p className="px-1 text-footnote text-[var(--muted)]" role="status">
           {msg}
-        </div>
+        </p>
       )}
     </div>
   );

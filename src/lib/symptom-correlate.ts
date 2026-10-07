@@ -28,13 +28,86 @@ export type SymptomRow = {
   energy_pm: number | null;
 };
 
+/** changelog row. `date` is the local calendar day of the change (the
+ *  table has no `changed_at`); `created_at` is the insert timestamp,
+ *  used only as a fallback. */
 export type ChangelogRow = {
-  changed_at?: string | null;
   date?: string | null;
+  created_at?: string | null;
   change_type: string;
   item_name?: string | null;
   reasoning?: string | null;
 };
+
+/** daily_checkins row subset — 1-5 scales, one row per (date, window). */
+export type CheckinSymptomRow = {
+  date: string;
+  mood: number | null;
+  energy: number | null;
+  stress: number | null;
+};
+
+/** Build per-day SymptomRows from the sources that are actually written.
+ *
+ *  symptom_log has no writer in the app today (SymptomForm is unmounted),
+ *  while daily_checkins is written by QuickCheckin and /api/capture's
+ *  log_symptom intent. Both use 1-5 scales. Per date, explicit
+ *  symptom_log values win; otherwise check-ins (averaged across that
+ *  day's windows) fill in: mood → feel_score, energy → energy_pm,
+ *  stress → stress. sleep_quality / seb_derm_score only come from
+ *  symptom_log. */
+export function symptomRowsFromSources(
+  symptomLogs: SymptomRow[],
+  checkins: CheckinSymptomRow[],
+): SymptomRow[] {
+  type Acc = { sum: number; n: number };
+  const byDate = new Map<
+    string,
+    { mood: Acc; energy: Acc; stress: Acc }
+  >();
+  const add = (a: Acc, v: number | null) => {
+    if (v != null && Number.isFinite(Number(v))) {
+      a.sum += Number(v);
+      a.n++;
+    }
+  };
+  for (const c of checkins) {
+    const e = byDate.get(c.date) ?? {
+      mood: { sum: 0, n: 0 },
+      energy: { sum: 0, n: 0 },
+      stress: { sum: 0, n: 0 },
+    };
+    add(e.mood, c.mood);
+    add(e.energy, c.energy);
+    add(e.stress, c.stress);
+    byDate.set(c.date, e);
+  }
+  const avg = (a: Acc | undefined) => (a && a.n > 0 ? a.sum / a.n : null);
+
+  const out = new Map<string, SymptomRow>();
+  for (const [date, e] of byDate) {
+    out.set(date, {
+      date,
+      feel_score: avg(e.mood),
+      sleep_quality: null,
+      seb_derm_score: null,
+      stress: avg(e.stress),
+      energy_pm: avg(e.energy),
+    });
+  }
+  for (const s of symptomLogs) {
+    const base = out.get(s.date);
+    out.set(s.date, {
+      date: s.date,
+      feel_score: s.feel_score ?? base?.feel_score ?? null,
+      sleep_quality: s.sleep_quality ?? null,
+      seb_derm_score: s.seb_derm_score ?? null,
+      stress: s.stress ?? base?.stress ?? null,
+      energy_pm: s.energy_pm ?? base?.energy_pm ?? null,
+    });
+  }
+  return Array.from(out.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
 
 /** Per-symptom direction. true = higher is better, false = higher is worse. */
 const SYMPTOM_DIRECTION: Record<keyof Omit<SymptomRow, "date">, boolean> = {
@@ -122,8 +195,10 @@ export function findSymptomCorrelations(
 
     // Walk changelog: changes within the 14 days BEFORE trendStart
     const changes = changelog
+      // Audit runs aren't stack changes — never a candidate cause.
+      .filter((c) => c.change_type !== "refinement_run")
       .map((c) => {
-        const dateStr = c.changed_at?.slice(0, 10) ?? c.date ?? null;
+        const dateStr = c.date?.slice(0, 10) ?? c.created_at?.slice(0, 10) ?? null;
         if (!dateStr) return null;
         const ts = new Date(dateStr + "T00:00:00Z").getTime();
         if (ts > trendStartTs) return null; // happened after the trend, irrelevant

@@ -67,6 +67,37 @@ type RecentChat = {
   updated_at: string;
 };
 
+type ConversationRow = {
+  id: string;
+  created_at: string;
+  messages_json: { user?: unknown; assistant?: unknown } | null;
+};
+
+/** Flatten a stored message (plain string or Anthropic content blocks)
+ *  to display text. Mirrors userTextFromJson in /coach-history. */
+function messageText(j: unknown): string {
+  if (typeof j === "string") return j;
+  if (Array.isArray(j)) {
+    return (j as Array<{ type?: string; text?: string }>)
+      .filter((p) => p.type === "text" && p.text)
+      .map((p) => p.text!)
+      .join(" ");
+  }
+  return "";
+}
+
+function toRecentChat(row: ConversationRow): RecentChat {
+  const userText = messageText(row.messages_json?.user).trim();
+  const assistantText = messageText(row.messages_json?.assistant).trim();
+  return {
+    id: row.id,
+    first_message: userText || null,
+    last_message: assistantText || null,
+    message_count: (userText ? 1 : 0) + (assistantText ? 1 : 0),
+    updated_at: row.created_at,
+  };
+}
+
 export default function CoachPage() {
   const [recent, setRecent] = useState<RecentChat[] | null>(null);
 
@@ -74,12 +105,16 @@ export default function CoachPage() {
     let alive = true;
     (async () => {
       const client = createClient();
-      const { data } = await client
-        .from("coach_conversations")
-        .select("id, first_message, last_message, message_count, updated_at")
-        .order("updated_at", { ascending: false })
+      // claude_conversations stores one row per turn:
+      // messages_json = { user: string | content-blocks, assistant: string }
+      // (see persistTurn in /api/ask). Derive the preview + count here.
+      const { data, error } = await client
+        .from("claude_conversations")
+        .select("id, created_at, messages_json")
+        .order("created_at", { ascending: false })
         .limit(8);
-      if (alive) setRecent((data ?? []) as RecentChat[]);
+      if (error) console.error("coach: claude_conversations", error);
+      if (alive) setRecent(((data ?? []) as ConversationRow[]).map(toRecentChat));
     })();
     return () => {
       alive = false;

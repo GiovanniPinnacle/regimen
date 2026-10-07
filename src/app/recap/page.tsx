@@ -9,6 +9,13 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
 import EmptyGlyph from "@/components/EmptyGlyph";
+import {
+  addDaysISO,
+  aggregateAdherence,
+  dailyAdherence,
+  localDateISO,
+  type SchedulableItem,
+} from "@/lib/series";
 
 type AdherenceDay = { date: string; taken: number; total: number };
 
@@ -31,32 +38,48 @@ export default function RecapPage() {
   const load = useCallback(async () => {
     try {
       const c = createClient();
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const weekAgo = new Date(today.getTime() - 7 * 86400000);
-      const twoWeeksAgo = new Date(today.getTime() - 14 * 86400000);
-      const since14 = twoWeeksAgo.toISOString().slice(0, 10);
-      const since7 = weekAgo.toISOString().slice(0, 10);
+      const today = localDateISO();
+      const weekAgoTs = new Date(Date.now() - 7 * 86400000).toISOString();
+      // This week = last 7 local days incl. today; prev = the 7 before.
+      const thisFrom = addDaysISO(today, -6);
+      const prevFrom = addDaysISO(today, -13);
+      const prevTo = addDaysISO(today, -7);
 
-      const [stackRes, rxRes, memosRes, achRes] = await Promise.all([
+      const [stackRes, rxRes, memosRes, achRes, itemsRes] = await Promise.all([
         c
           .from("stack_log")
           .select("date, taken, item_id, items(name)")
-          .gte("date", since14),
-        c.from("item_reactions").select("id").gte("reacted_on", since7),
+          .gte("date", prevFrom)
+          .lte("date", today),
+        c
+          .from("item_reactions")
+          .select("id")
+          .gte("reacted_on", addDaysISO(today, -7)),
         c
           .from("voice_memos")
           .select("id")
-          .gte("created_at", weekAgo.toISOString()),
+          .gte("created_at", weekAgoTs),
         c
           .from("achievements")
           .select("id, unlocked_at")
-          .gte("unlocked_at", weekAgo.toISOString()),
+          .gte("unlocked_at", weekAgoTs),
+        // Schedule fields — adherence is taken / SCHEDULED doses.
+        c
+          .from("items")
+          .select(
+            "id, status, started_on, ends_on, created_at, timing_slot, item_type, schedule_rule",
+          )
+          .in("status", ["active", "retired"]),
       ]);
-
-      // Build adherence map
-      const byDate: Record<string, { taken: number; total: number }> = {};
-      const itemCounts: Record<string, { name: string; count: number }> = {};
+      for (const [name, res] of Object.entries({
+        stackRes,
+        rxRes,
+        memosRes,
+        achRes,
+        itemsRes,
+      })) {
+        if (res.error) console.error(`recap: ${name}`, res.error);
+      }
 
       type StackRow = {
         date: string;
@@ -64,48 +87,35 @@ export default function RecapPage() {
         item_id: string;
         items?: { name?: string } | null;
       };
-      for (const row of (stackRes.data ?? []) as StackRow[]) {
-        const d = row.date;
-        if (!byDate[d]) byDate[d] = { taken: 0, total: 0 };
-        byDate[d].total++;
-        if (row.taken) {
-          byDate[d].taken++;
-          const name = row.items?.name ?? "(unknown)";
-          if (!itemCounts[row.item_id])
-            itemCounts[row.item_id] = { name, count: 0 };
-          itemCounts[row.item_id].count++;
-        }
+      const logs = (stackRes.data ?? []) as unknown as StackRow[];
+      const items = (itemsRes.data ?? []) as SchedulableItem[];
+
+      // Top item = most check-offs this week.
+      const itemCounts: Record<string, { name: string; count: number }> = {};
+      for (const row of logs) {
+        if (!row.taken || row.date < thisFrom) continue;
+        const name = row.items?.name ?? "(unknown)";
+        if (!itemCounts[row.item_id])
+          itemCounts[row.item_id] = { name, count: 0 };
+        itemCounts[row.item_id].count++;
       }
 
-      const last7Days: AdherenceDay[] = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(today.getTime() - i * 86400000)
-          .toISOString()
-          .slice(0, 10);
-        last7Days.push({
-          date: d,
-          taken: byDate[d]?.taken ?? 0,
-          total: byDate[d]?.total ?? 0,
-        });
-      }
-
-      const totalTaken = last7Days.reduce((s, d) => s + d.taken, 0);
-      const totalSlots = last7Days.reduce((s, d) => s + d.total, 0);
+      const thisWeek = dailyAdherence(items, logs, thisFrom, today);
+      const last7Days: AdherenceDay[] = thisWeek.map((d) => ({
+        date: d.date,
+        taken: d.taken,
+        total: d.scheduled,
+      }));
+      const thisAgg = aggregateAdherence(thisWeek);
+      const prevAgg = aggregateAdherence(
+        dailyAdherence(items, logs, prevFrom, prevTo),
+      );
+      const totalTaken = thisAgg.taken;
+      const totalSlots = thisAgg.scheduled;
       const thisWeekPct =
-        totalSlots > 0 ? Math.round((totalTaken / totalSlots) * 100) : 0;
-
-      // Compute last week's pct for delta
-      let lastTaken = 0;
-      let lastTotal = 0;
-      for (let i = 13; i >= 7; i--) {
-        const d = new Date(today.getTime() - i * 86400000)
-          .toISOString()
-          .slice(0, 10);
-        lastTaken += byDate[d]?.taken ?? 0;
-        lastTotal += byDate[d]?.total ?? 0;
-      }
+        thisAgg.rate != null ? Math.round(thisAgg.rate * 100) : 0;
       const lastWeekPct =
-        lastTotal > 0 ? Math.round((lastTaken / lastTotal) * 100) : 0;
+        prevAgg.rate != null ? Math.round(prevAgg.rate * 100) : 0;
 
       const top = Object.values(itemCounts).sort(
         (a, b) => b.count - a.count,
@@ -267,14 +277,16 @@ export default function RecapPage() {
               className="text-[13px] mt-2"
               style={{ opacity: 0.85 }}
             >
-              {data.totalTaken} of {data.totalSlots} items checked off
+              {data.totalTaken} of {data.totalSlots} scheduled doses taken
             </div>
             {/* 7-day mini bars */}
             <div className="flex items-end gap-1.5 h-12 mt-4">
               {data.adherence.map((d) => {
                 const pct =
                   d.total > 0 ? Math.max(8, (d.taken / d.total) * 48) : 4;
-                const dayLabel = new Date(d.date).toLocaleDateString(
+                // Noon local — "YYYY-MM-DD" alone parses as UTC midnight,
+                // which is the previous weekday in US timezones.
+                const dayLabel = new Date(`${d.date}T12:00:00`).toLocaleDateString(
                   undefined,
                   { weekday: "narrow" },
                 );

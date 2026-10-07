@@ -11,6 +11,13 @@ import Link from "next/link";
 import PatternCard from "@/components/PatternCard";
 import { createClient } from "@/lib/supabase/client";
 import Icon from "@/components/Icon";
+import {
+  addDaysISO,
+  dailyAdherence,
+  localDateISO,
+  type DoseLog,
+  type SchedulableItem,
+} from "@/lib/series";
 
 type IconName = Parameters<typeof Icon>[0]["name"];
 
@@ -25,7 +32,7 @@ function readUsage(): Usage {
     const raw = localStorage.getItem(USAGE_KEY);
     if (!raw) return { date: "", count: 0 };
     const parsed = JSON.parse(raw) as Usage;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateISO();
     if (parsed.date !== today) return { date: today, count: 0 };
     return parsed;
   } catch {
@@ -113,41 +120,41 @@ export default function InsightsPage() {
 
   const load = useCallback(async () => {
     const client = createClient();
-    const since14 = new Date(Date.now() - 14 * 86400000)
-      .toISOString()
-      .slice(0, 10);
-    const since30 = new Date(Date.now() - 30 * 86400000)
-      .toISOString()
-      .slice(0, 10);
+    const today = localDateISO();
+    const from14 = addDaysISO(today, -13);
+    const since30 = addDaysISO(today, -30);
 
-    const stackRes = await client
-      .from("stack_log")
-      .select("date, taken")
-      .gte("date", since14);
-    const byDate: Record<string, { taken: number; total: number }> = {};
-    for (const row of stackRes.data ?? []) {
-      const d = row.date as string;
-      if (!byDate[d]) byDate[d] = { taken: 0, total: 0 };
-      byDate[d].total++;
-      if (row.taken) byDate[d].taken++;
-    }
-    const adh: AdherenceDay[] = [];
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000)
-        .toISOString()
-        .slice(0, 10);
-      adh.push({
-        date: d,
-        taken: byDate[d]?.taken ?? 0,
-        total: byDate[d]?.total ?? 0,
-      });
-    }
-    setAdherence(adh);
+    // 14 days, today inclusive. total = doses SCHEDULED that day (from
+    // each item's schedule), not rows logged — see src/lib/series.ts.
+    const [stackRes, itemsRes] = await Promise.all([
+      client
+        .from("stack_log")
+        .select("item_id, date, taken")
+        .gte("date", from14)
+        .lte("date", today),
+      client
+        .from("items")
+        .select(
+          "id, status, started_on, ends_on, created_at, timing_slot, item_type, schedule_rule",
+        )
+        .in("status", ["active", "retired"]),
+    ]);
+    if (stackRes.error) console.error("insights: stack_log", stackRes.error);
+    if (itemsRes.error) console.error("insights: items", itemsRes.error);
+    setAdherence(
+      dailyAdherence(
+        (itemsRes.data ?? []) as SchedulableItem[],
+        (stackRes.data ?? []) as DoseLog[],
+        from14,
+        today,
+      ).map((d) => ({ date: d.date, taken: d.taken, total: d.scheduled })),
+    );
 
     const rxRes = await client
       .from("item_reactions")
       .select("item_id, reaction, items(name)")
       .gte("reacted_on", since30);
+    if (rxRes.error) console.error("insights: item_reactions", rxRes.error);
     const rxAgg = new Map<string, ReactionTop>();
     for (const row of rxRes.data ?? []) {
       const r = row as {
@@ -187,6 +194,7 @@ export default function InsightsPage() {
       .gte("created_at", since7)
       .order("created_at", { ascending: false })
       .limit(5);
+    if (memosRes.error) console.error("insights: voice_memos", memosRes.error);
     setMemos((memosRes.data ?? []) as VoiceMemo[]);
   }, []);
 
@@ -207,7 +215,7 @@ export default function InsightsPage() {
       const data = await res.json();
       setMemo(data.memo);
       setGeneratedAt(data.generated_at);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDateISO();
       const next = { date: today, count: usage.count + 1 };
       setUsage(next);
       writeUsage(next);
@@ -508,7 +516,7 @@ export default function InsightsPage() {
                   ? Math.max(8, (d.taken / d.total) * 48)
                   : 4;
               const today =
-                d.date === new Date().toISOString().slice(0, 10);
+                d.date === localDateISO();
               return (
                 <div
                   key={d.date}

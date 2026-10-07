@@ -2,11 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import TabNav from "@/components/TabNav";
-// Heavy / non-critical surfaces are lazy — see CoachLazy.tsx and
-// FabsLazy.tsx for the rationale. Drops ~250KB off first paint on
-// every route and only pays the cost when the user actually engages.
+// Coach is lazy — CoachLazy is a tiny event listener; the Coach chunk
+// loads on the first open (see CoachLazy.tsx).
 import CoachLazy from "@/components/CoachLazy";
-import FabsLazy from "@/components/FabsLazy";
 import SessionKeeper from "@/components/SessionKeeper";
 import ToastHost from "@/components/ToastHost";
 
@@ -57,13 +55,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`h-full ${inter.variable}`}>
-      <body className="min-h-full flex flex-col antialiased pb-20">
+      <body className="min-h-full flex flex-col antialiased">
         <SessionKeeper />
-        <main className="flex-1 w-full max-w-3xl mx-auto px-5 pt-8">
+        {/* Top: status bar (viewportFit=cover) + 16px. Bottom: clears the
+            56px tab bar + home indicator + 24px breathing room. */}
+        <main
+          className="flex-1 w-full max-w-3xl mx-auto px-5"
+          style={{
+            paddingTop: "calc(env(safe-area-inset-top, 0px) + 16px)",
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)",
+            paddingLeft: "max(20px, env(safe-area-inset-left, 0px))",
+            paddingRight: "max(20px, env(safe-area-inset-right, 0px))",
+          }}
+        >
           {children}
         </main>
         <CoachLazy />
-        <FabsLazy />
         <ToastHost />
         <TabNav />
       </body>
