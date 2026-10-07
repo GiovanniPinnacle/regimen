@@ -550,13 +550,14 @@ a:active {
   border-radius: 16px;
   box-shadow: var(--shadow-card);
 }
+/* Legacy name, now a solid surface: blur on every scrolling list card
+   cost frames on phones and read flat on a solid background. Glass is
+   reserved for chrome floating over content (.glass / .glass-strong). */
 .card-glass {
-  background: var(--surface-glass);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
-  box-shadow: var(--shadow-glass);
+  box-shadow: var(--shadow-card);
 }
 
 /* ============== Buttons ==============
